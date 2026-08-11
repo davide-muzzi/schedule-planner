@@ -1,6 +1,17 @@
 @SchedulePlanner_HostAddress = http://localhost:5126
 
-GET {{SchedulePlanner_HostAddress}}/weatherforecast/
-Accept: application/json
+###
+POST http://localhost:5126/api/ScheduleEntries
+Content-Type: application/json
+
+{
+  "date": "2026-08-15",
+  "startTime": "09:00:00",
+  "endTime": "17:00:00",
+  "allDay": false,
+  "entryType": "Working",
+  "workLocation": "Office",
+  "notes": "Test entry"
+}
 
 ###
