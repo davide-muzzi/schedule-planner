@@ -2,6 +2,7 @@ namespace SchedulePlanner.Controllers;
 
 using Microsoft.AspNetCore.Mvc;
 using SchedulePlanner.Models;
+using SchedulePlanner.Dtos;
 using SchedulePlanner.Services;
 
 [ApiController]
@@ -37,8 +38,21 @@ public class ScheduleEntriesController : ControllerBase
 
     // Create new entry
     [HttpPost]
-    public async Task<ActionResult<ScheduleEntry>> Create(ScheduleEntry entry)
+    public async Task<ActionResult<ScheduleEntry>> Create(ScheduleEntryDto dto)
     {
+        var entry = new ScheduleEntry
+        {
+            Title = dto.Title,
+            Date = dto.Date,
+            AllDay = dto.AllDay,
+            StartTime = dto.StartTime,
+            EndTime = dto.EndTime,
+            EntryType = dto.EntryType,
+            WorkLocation = dto.WorkLocation,
+            ColorPreset = dto.ColorPreset,
+            Notes = dto.Notes
+        };
+
         try
         {
             var created = await _service.CreateAsync(entry);
@@ -51,9 +65,21 @@ public class ScheduleEntriesController : ControllerBase
     }
 
     // Update entry by ID
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ScheduleEntry>> Update(int id, ScheduleEntry entry)
+    public async Task<ActionResult<ScheduleEntry>> Update(int id, ScheduleEntryDto dto)
     {
+        var entry = new ScheduleEntry
+        {
+            Title = dto.Title,
+            Date = dto.Date,
+            AllDay = dto.AllDay,
+            StartTime = dto.StartTime,
+            EndTime = dto.EndTime,
+            EntryType = dto.EntryType,
+            WorkLocation = dto.WorkLocation,
+            ColorPreset = dto.ColorPreset,
+            Notes = dto.Notes
+        };
+
         try
         {
             var updated = await _service.UpdateAsync(id, entry);
