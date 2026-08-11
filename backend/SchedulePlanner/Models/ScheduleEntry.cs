@@ -1,6 +1,6 @@
 namespace SchedulePlanner.Models;
 
-public class ShiftEntry
+public class ScheduleEntry
 {
     public int Id { get; set; }
     public DateOnly Date { get; set; }
