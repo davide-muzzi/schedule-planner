@@ -14,7 +14,8 @@ public class ScheduleEntriesController : ControllerBase
     {
         _service = service;
     }
-
+    
+    // Get all entries
     [HttpGet]
     public async Task<ActionResult<List<ScheduleEntry>>> GetAll()
     {
@@ -22,6 +23,7 @@ public class ScheduleEntriesController : ControllerBase
         return Ok(entries);
     }
 
+    // Get entry by ID
     [HttpGet("{id}")]
     public async Task<ActionResult<ScheduleEntry>> GetById(int id)
     {
@@ -33,6 +35,7 @@ public class ScheduleEntriesController : ControllerBase
         return Ok(entry);
     }
 
+    // Create new entry
     [HttpPost]
     public async Task<ActionResult<ScheduleEntry>> Create(ScheduleEntry entry)
     {
@@ -47,6 +50,7 @@ public class ScheduleEntriesController : ControllerBase
         }
     }
 
+    // Update entry by ID
     [HttpPut("{id}")]
     public async Task<ActionResult<ScheduleEntry>> Update(int id, ScheduleEntry entry)
     {
@@ -65,6 +69,7 @@ public class ScheduleEntriesController : ControllerBase
         }
     }
 
+    // Delete entry by ID
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
