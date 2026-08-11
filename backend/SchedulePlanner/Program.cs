@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SchedulePlanner.Models;
+using SchedulePlanner.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<ScheduleContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<IScheduleEntryService, ScheduleEntryService>();
 
 var app = builder.Build();
 
