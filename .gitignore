@@ -2,6 +2,8 @@
 **/bin/
 **/obj/
 backend/**/*.db
+backend/**/*.db-shm
+backend/**/*.db-wal
 backend/**/appsettings.Development.json
 
 # Node
@@ -13,3 +15,6 @@ frontend/dist/
 .vs/
 .vscode/
 **/.idea/
+
+# Local dev server logs
+*_run.log
