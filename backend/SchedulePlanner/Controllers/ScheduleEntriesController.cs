@@ -65,6 +65,7 @@ public class ScheduleEntriesController : ControllerBase
     }
 
     // Update entry by ID
+    [HttpPut("{id}")]
     public async Task<ActionResult<ScheduleEntry>> Update(int id, ScheduleEntryDto dto)
     {
         var entry = new ScheduleEntry
