@@ -1,0 +1,3 @@
+export const WEEKLY_TARGET_HOURS = 42
+export const RED_THRESHOLD_HOURS = 40
+export const YELLOW_THRESHOLD_HOURS = 10
