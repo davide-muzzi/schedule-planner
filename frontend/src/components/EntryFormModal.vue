@@ -5,6 +5,8 @@ import { COLOR_PRESETS } from '@/utils/colorPresets'
 
 const ENTRY_TYPES = ['Working', 'Sick', 'Vacation', 'Appointment', 'OvertimeCompensation', 'Other']
 const WORK_LOCATIONS = ['Office', 'Remote']
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
 
 const props = defineProps({
   entry: { type: Object, default: null }, // null => create mode
@@ -62,6 +64,27 @@ watch(
 
 // Create mode has no "original" to diff against, so it's always considered dirty.
 const isDirty = computed(() => !isEdit.value || JSON.stringify(form.value) !== originalFormSnapshot.value)
+
+// Plain <select>s for hour/minute instead of the native time-picker popup -
+// that popup is rendered by the browser itself (outside the page's DOM), and
+// has a known scroll-then-hover-to-snap rendering glitch that no amount of
+// CSS/JS can reach into. form.startTime/endTime stay the single source of
+// truth as "HH:MM" strings; these just read/write into that same string.
+function makeTimePart(field, index) {
+  return computed({
+    get: () => form.value[field].split(':')[index] || '00',
+    set: (val) => {
+      const parts = form.value[field].split(':')
+      parts[index] = val
+      form.value[field] = parts.join(':')
+    },
+  })
+}
+
+const startHour = makeTimePart('startTime', 0)
+const startMinute = makeTimePart('startTime', 1)
+const endHour = makeTimePart('endTime', 0)
+const endMinute = makeTimePart('endTime', 1)
 
 // You can't "work" an all-day entry - if All Day gets checked while Working
 // is selected, force an explicit re-choice instead of silently keeping an
@@ -158,11 +181,27 @@ function handleDeleteClick() {
         <div class="field-row" v-if="!form.allDay">
           <div class="field">
             <label>Start time</label>
-            <input v-model="form.startTime" type="time" :required="!form.allDay" />
+            <div class="time-select">
+              <select v-model="startHour">
+                <option v-for="h in HOUR_OPTIONS" :key="h" :value="h">{{ h }}</option>
+              </select>
+              <span class="time-sep">:</span>
+              <select v-model="startMinute">
+                <option v-for="m in MINUTE_OPTIONS" :key="m" :value="m">{{ m }}</option>
+              </select>
+            </div>
           </div>
           <div class="field">
             <label>End time</label>
-            <input v-model="form.endTime" type="time" :required="!form.allDay" />
+            <div class="time-select">
+              <select v-model="endHour">
+                <option v-for="h in HOUR_OPTIONS" :key="h" :value="h">{{ h }}</option>
+              </select>
+              <span class="time-sep">:</span>
+              <select v-model="endMinute">
+                <option v-for="m in MINUTE_OPTIONS" :key="m" :value="m">{{ m }}</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -307,7 +346,6 @@ label {
 
 input[type='text'],
 input[type='date'],
-input[type='time'],
 select,
 textarea {
   padding: 0.4rem 0.5rem;
@@ -324,12 +362,31 @@ select:disabled {
   cursor: not-allowed;
 }
 
-input[type='date'],
-input[type='time'] {
+input[type='date'] {
   /* Tells the browser this field sits on a dark background, so its native
-     calendar/clock icon and spinner buttons render light instead of the
-     default dark-on-dark. */
+     calendar icon renders light instead of the default dark-on-dark. */
   color-scheme: dark;
+}
+
+.time-select {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.time-select select {
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.time-sep {
+  color: var(--color-text);
+  opacity: 0.6;
 }
 
 .color-picker {
