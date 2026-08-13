@@ -95,8 +95,25 @@ function bannerStyle(entry) {
   }
 }
 
-function entryLabel(entry) {
-  return entry.title || entry.entryType
+const LOCATION_ICONS = { Office: '💼', Remote: '🏠' }
+
+// Left side: <icon> Title (or Entry Type if no title) - Notes. Work Location
+// shows as an icon prefix instead of "(Office)" text, and is omitted
+// entirely when unset - same for Notes when there's none.
+function entryLeftLabel(entry) {
+  let label = entry.title || entry.entryType
+  if (entry.notes) label += ` - ${entry.notes}`
+  const icon = LOCATION_ICONS[entry.workLocation]
+  return icon ? `${icon} ${label}` : label
+}
+
+// Right side: total duration, with the exact time range in brackets - or
+// "All Day" for all-day entries.
+function entryRightLabel(entry) {
+  if (entry.allDay) return 'All Day'
+  const duration = formatHours(durationHours(entry.startTime, entry.endTime))
+  const range = `${entry.startTime?.slice(0, 5)}-${entry.endTime?.slice(0, 5)}`
+  return `${duration} (${range})`
 }
 </script>
 
@@ -125,7 +142,10 @@ function entryLabel(entry) {
       <tbody>
         <tr v-for="entry in allDayEntries" :key="'allday-' + entry.id" class="all-day-row">
           <td colspan="24" class="all-day-cell" :style="bannerStyle(entry)" @click="emit('edit', entry)">
-            {{ entryLabel(entry) }} ({{ entry.entryType }})
+            <div class="block-content">
+              <span class="block-left">{{ entryLeftLabel(entry) }}</span>
+              <span class="block-right">{{ entryRightLabel(entry) }}</span>
+            </div>
           </td>
           <td class="total-cell">&mdash;</td>
         </tr>
@@ -140,10 +160,13 @@ function entryLabel(entry) {
                 :key="entry.id"
                 class="block"
                 :style="blockStyle(entry)"
-                :title="`${entryLabel(entry)} — ${entry.startTime?.slice(0, 5)}–${entry.endTime?.slice(0, 5)}`"
+                :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
                 @click="emit('edit', entry)"
               >
-                {{ entryLabel(entry) }}
+                <div class="block-content">
+                  <span class="block-left">{{ entryLeftLabel(entry) }}</span>
+                  <span class="block-right">{{ entryRightLabel(entry) }}</span>
+                </div>
               </div>
             </div>
           </td>
@@ -299,12 +322,36 @@ table {
   border: 1px solid;
   border-radius: 3px;
   font-size: 0.7rem;
-  line-height: 1;
+  line-height: 1.4;
   padding: 0.3rem 0.35rem;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.block-content {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.block-left {
+  flex-shrink: 1;
+  min-width: 1.5em;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  cursor: pointer;
+}
+
+.block-right {
+  flex-shrink: 10;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0.85;
 }
 
 .total-cell {
