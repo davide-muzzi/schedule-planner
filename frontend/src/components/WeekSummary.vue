@@ -281,8 +281,8 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
 }
 
 .adjust-btn.subtract {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  color: #fff;
 }
 </style>
