@@ -15,6 +15,7 @@ builder.Services.AddDbContext<ScheduleContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IScheduleEntryService, ScheduleEntryService>();
 builder.Services.AddScoped<BalanceAdjustmentService>();
+builder.Services.AddScoped<WorkGoalSettingsService>();
 builder.Services.AddCors(options =>
     options.AddPolicy("Dev", policy => policy
         .WithOrigins("http://localhost:5173")

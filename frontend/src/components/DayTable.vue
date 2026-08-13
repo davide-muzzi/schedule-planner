@@ -2,13 +2,14 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatDayHeading, durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyle } from '@/utils/colorPresets'
-import { DAILY_TARGET_HOURS, DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
+import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 
 const props = defineProps({
   date: { type: Date, required: true },
   entries: { type: Array, default: () => [] },
   showGoalDiff: { type: Boolean, default: false },
+  dailyTargetHours: { type: Number, required: true },
 })
 
 const emit = defineEmits(['add', 'edit'])
@@ -30,7 +31,9 @@ const isToday = computed(() => toISODate(props.date) === toISODate(new Date()))
 // overall balance does - the day reads as "on target", not a shortfall.
 const hasVacationCredit = computed(() => props.entries.some((e) => e.entryType === 'Vacation' && e.allDay))
 
-const dailyDiffHours = computed(() => (hasVacationCredit.value ? 0 : dayTotalHours.value - DAILY_TARGET_HOURS))
+const dailyDiffHours = computed(() =>
+  hasVacationCredit.value ? 0 : dayTotalHours.value - props.dailyTargetHours,
+)
 
 const dailyStatus = computed(() => {
   if (dailyDiffHours.value >= 0) return 'green' // goal reached or exceeded

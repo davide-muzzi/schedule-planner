@@ -5,6 +5,7 @@ import { getMonday, getBusinessWeekDays, addDays, addWeeks, toISODate, durationH
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
+import SettingsModal from '@/components/SettingsModal.vue'
 
 const store = useScheduleStore()
 
@@ -19,9 +20,14 @@ const modalDefaultDate = ref(new Date())
 const modalError = ref(null)
 const saving = ref(false)
 
+const showSettingsModal = ref(false)
+const settingsError = ref(null)
+const savingSettings = ref(false)
+
 onMounted(() => {
   store.fetchAll()
   store.fetchAdjustment()
+  store.fetchWorkGoal()
 })
 
 function entriesForDate(date) {
@@ -66,6 +72,29 @@ async function handleApplyAdjustment(deltaMinutes) {
     await store.applyAdjustment(deltaMinutes)
   } catch {
     // store.error is already set; the global error banner picks it up
+  }
+}
+
+function openSettings() {
+  settingsError.value = null
+  showSettingsModal.value = true
+}
+
+function closeSettings() {
+  showSettingsModal.value = false
+  settingsError.value = null
+}
+
+async function handleSaveGoal(weeklyTargetMinutes) {
+  savingSettings.value = true
+  settingsError.value = null
+  try {
+    await store.setWorkGoal(weeklyTargetMinutes)
+    closeSettings()
+  } catch {
+    settingsError.value = store.error
+  } finally {
+    savingSettings.value = false
   }
 }
 
@@ -120,7 +149,10 @@ async function handleDelete(id) {
 
 <template>
   <div class="planner">
-    <h1 class="page-title">Schedule Planner</h1>
+    <div class="page-header">
+      <h1 class="page-title">Schedule Planner</h1>
+      <button type="button" class="settings-btn" @click="openSettings" aria-label="Settings">⚙ Settings</button>
+    </div>
 
     <div v-if="store.error && !showModal" class="global-error">
       {{ store.error }}
@@ -149,6 +181,7 @@ async function handleDelete(id) {
       :date="date"
       :entries="entriesForDate(date)"
       :show-goal-diff="weekHasAnyEntries"
+      :daily-target-hours="store.dailyTargetHours"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -159,6 +192,7 @@ async function handleDelete(id) {
       :date="date"
       :entries="entriesForDate(date)"
       :show-goal-diff="hasWorkingEntry(date)"
+      :daily-target-hours="store.dailyTargetHours"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -173,6 +207,15 @@ async function handleDelete(id) {
       @submit="handleSubmit"
       @delete="handleDelete"
     />
+
+    <SettingsModal
+      v-if="showSettingsModal"
+      :weekly-target-minutes="store.weeklyTargetMinutes"
+      :server-error="settingsError"
+      :saving="savingSettings"
+      @close="closeSettings"
+      @submit="handleSaveGoal"
+    />
   </div>
 </template>
 
@@ -181,10 +224,30 @@ async function handleDelete(id) {
   max-width: 100%;
 }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
 .page-title {
   font-size: 1.4rem;
-  margin-bottom: 1rem;
   color: var(--color-heading);
+}
+
+.settings-btn {
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  border-color: var(--color-border-hover);
 }
 
 .toolbar {

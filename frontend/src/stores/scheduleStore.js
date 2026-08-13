@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
+import workGoalSettingsApi from '@/services/workGoalSettingsApi'
 import { getMonday, toISODate, durationHours } from '@/utils/date'
-import { WEEKLY_TARGET_HOURS, DAILY_TARGET_HOURS } from '@/utils/constants'
+import { DEFAULT_WEEKLY_TARGET_MINUTES, BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 
 function extractErrorMessage(err) {
   const data = err?.response?.data
@@ -18,17 +19,21 @@ export const useScheduleStore = defineStore('schedule', {
     loading: false,
     error: null,
     manualAdjustmentMinutes: 0,
+    weeklyTargetMinutes: DEFAULT_WEEKLY_TARGET_MINUTES,
   }),
 
   getters: {
+    weeklyTargetHours: (state) => state.weeklyTargetMinutes / 60,
+    dailyTargetHours: (state) => state.weeklyTargetMinutes / 60 / BUSINESS_DAYS_PER_WEEK,
+
     // Running balance across every week that has at least one entry: each
-    // such week contributes +WEEKLY_TARGET_HOURS to "expected", and its
+    // such week contributes +weeklyTargetHours to "expected", and its
     // Working-entry hours contribute to "actual". Weeks with zero entries
     // are skipped entirely (no expectation is added for them). This is not
     // scoped to the currently-viewed week - it's a running total across the
     // whole dataset. Weekend entries count too, since the planner now shows
     // a card for Sat/Sun whenever one has an entry - nothing is hidden.
-    // Each all-day Vacation entry credits DAILY_TARGET_HOURS off "expected",
+    // Each all-day Vacation entry credits dailyTargetHours off "expected",
     // so a full vacation week nets to a 0 diff instead of looking like a
     // 42h shortfall.
     overallBalance(state) {
@@ -41,12 +46,12 @@ export const useScheduleStore = defineStore('schedule', {
           weeks.set(weekKey, weeks.get(weekKey) + durationHours(entry.startTime, entry.endTime))
         }
         if (entry.entryType === 'Vacation' && entry.allDay) {
-          vacationCreditHours += DAILY_TARGET_HOURS
+          vacationCreditHours += this.dailyTargetHours
         }
       }
 
       const actualHours = [...weeks.values()].reduce((sum, h) => sum + h, 0)
-      const expectedHours = weeks.size * WEEKLY_TARGET_HOURS - vacationCreditHours
+      const expectedHours = weeks.size * this.weeklyTargetHours - vacationCreditHours
       const manualAdjustmentHours = state.manualAdjustmentMinutes / 60
       return {
         actualHours,
@@ -124,6 +129,27 @@ export const useScheduleStore = defineStore('schedule', {
       try {
         const res = await balanceAdjustmentApi.set(newTotal)
         this.manualAdjustmentMinutes = res.data.totalMinutes
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async fetchWorkGoal() {
+      try {
+        const res = await workGoalSettingsApi.get()
+        this.weeklyTargetMinutes = res.data.weeklyTargetMinutes
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async setWorkGoal(weeklyTargetMinutes) {
+      this.error = null
+      try {
+        const res = await workGoalSettingsApi.set(weeklyTargetMinutes)
+        this.weeklyTargetMinutes = res.data.weeklyTargetMinutes
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err
