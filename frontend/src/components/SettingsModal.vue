@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 import { formatHours } from '@/utils/date'
 
@@ -38,6 +38,13 @@ function handleSubmit() {
   }
   emit('submit', totalMinutes)
 }
+
+function handleKeydown(event) {
+  if (event.key === 'Escape') emit('close')
+}
+
+onMounted(() => document.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { toISODate } from '@/utils/date'
 import { COLOR_PRESETS } from '@/utils/colorPresets'
 
@@ -149,6 +149,13 @@ function handleDeleteClick() {
   }
   emit('delete', props.entry.id)
 }
+
+function handleKeydown(event) {
+  if (event.key === 'Escape') emit('close')
+}
+
+onMounted(() => document.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 </script>
 
 <template>
