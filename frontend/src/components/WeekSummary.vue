@@ -62,11 +62,9 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
   <div class="week-summary">
     <div class="nav">
       <button type="button" class="nav-btn" @click="emit('prev')" aria-label="Previous week">&larr;</button>
-      <div class="range">
-        <span class="range-label">{{ formatWeekRange(monday) }}</span>
-        <button type="button" class="today-btn" @click="emit('today')">Today</button>
-      </div>
+      <span class="range-label">{{ formatWeekRange(monday) }}</span>
       <button type="button" class="nav-btn" @click="emit('next')" aria-label="Next week">&rarr;</button>
+      <button type="button" class="today-btn" @click="emit('today')">Today</button>
     </div>
 
     <div class="totals">
@@ -141,22 +139,18 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
   border-color: var(--color-border-hover);
 }
 
-.range {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-}
-
 .range-label {
   font-weight: 600;
   color: var(--color-heading);
 }
 
 .today-btn {
+  display: flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.75rem;
   font-size: 0.7rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-text);
