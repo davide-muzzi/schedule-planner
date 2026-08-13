@@ -25,7 +25,7 @@ function blankForm() {
     startTime: '09:00',
     endTime: '17:00',
     entryType: 'Working',
-    workLocation: '',
+    workLocation: 'Office',
     colorPreset: 'Blue',
     notes: '',
   }
@@ -79,17 +79,18 @@ watch(
   },
 )
 
-// Vacation is inherently a full-day thing - default All Day on for it,
-// same convenience default as picking it manually. You can still uncheck
-// it afterward for a partial vacation day.
-watch(
-  () => form.value.entryType,
-  (entryType) => {
-    if (entryType === 'Vacation') {
-      form.value.allDay = true
-    }
-  },
-)
+// Deliberately a @change handler, not a watcher: it must only react to the
+// user actually picking a new type in the dropdown, not to the form being
+// repopulated when switching which entry is being edited (a watcher on
+// form.value.entryType can't tell those two apart, and would silently
+// overwrite an already-saved, valid workLocation like "Remote" back to
+// "Office" the moment you open that entry).
+function handleEntryTypeChange() {
+  if (form.value.entryType === 'Vacation') {
+    form.value.allDay = true
+  }
+  form.value.workLocation = form.value.entryType === 'Working' ? 'Office' : ''
+}
 
 function handleSubmit() {
   localError.value = null
@@ -168,7 +169,7 @@ function handleDeleteClick() {
         <div class="field-row">
           <div class="field">
             <label>Entry type</label>
-            <select v-model="form.entryType" required>
+            <select v-model="form.entryType" required @change="handleEntryTypeChange">
               <option value="" disabled>Select...</option>
               <option v-for="t in ENTRY_TYPES" :key="t" :value="t" :disabled="t === 'Working' && form.allDay">
                 {{ t }}
