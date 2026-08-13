@@ -34,6 +34,7 @@ function blankForm() {
 const form = ref(blankForm())
 const localError = ref(null)
 const confirmingDelete = ref(false)
+const originalFormSnapshot = ref(null)
 
 watch(
   () => props.entry,
@@ -54,9 +55,13 @@ watch(
     } else {
       form.value = blankForm()
     }
+    originalFormSnapshot.value = JSON.stringify(form.value)
   },
   { immediate: true },
 )
+
+// Create mode has no "original" to diff against, so it's always considered dirty.
+const isDirty = computed(() => !isEdit.value || JSON.stringify(form.value) !== originalFormSnapshot.value)
 
 function handleSubmit() {
   localError.value = null
@@ -180,7 +185,7 @@ function handleDeleteClick() {
           </button>
           <div class="spacer"></div>
           <button type="button" class="cancel-btn" @click="emit('close')">Cancel</button>
-          <button type="submit" class="save-btn" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
+          <button type="submit" class="save-btn" :disabled="saving || !isDirty">{{ saving ? 'Saving…' : 'Save' }}</button>
         </footer>
       </form>
     </div>
