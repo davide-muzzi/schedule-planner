@@ -178,7 +178,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
             <input v-model="form.date" type="date" required />
           </div>
           <div class="field checkbox-field">
-            <label>
+            <span class="field-label-spacer">&nbsp;</span>
+            <label class="checkbox-box">
               <input v-model="form.allDay" type="checkbox" />
               All day
             </label>
@@ -334,15 +335,31 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   flex: 1;
 }
 
-.checkbox-field {
-  justify-content: center;
+.field-label-spacer {
+  font-size: 0.8rem;
+  font-weight: 600;
+  visibility: hidden;
 }
 
-.checkbox-field label {
+.checkbox-box {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
   font-weight: normal;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox-box input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #3b82f6;
+  cursor: pointer;
 }
 
 label {
