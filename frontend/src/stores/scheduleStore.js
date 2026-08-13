@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import api from '@/services/api'
+import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import { getMonday, toISODate, durationHours } from '@/utils/date'
 import { WEEKLY_TARGET_HOURS } from '@/utils/constants'
 
@@ -16,6 +17,7 @@ export const useScheduleStore = defineStore('schedule', {
     entries: [],
     loading: false,
     error: null,
+    manualAdjustmentMinutes: 0,
   }),
 
   getters: {
@@ -38,7 +40,13 @@ export const useScheduleStore = defineStore('schedule', {
 
       const actualHours = [...weeks.values()].reduce((sum, h) => sum + h, 0)
       const expectedHours = weeks.size * WEEKLY_TARGET_HOURS
-      return { actualHours, expectedHours, diffHours: actualHours - expectedHours }
+      const manualAdjustmentHours = state.manualAdjustmentMinutes / 60
+      return {
+        actualHours,
+        expectedHours,
+        manualAdjustmentHours,
+        diffHours: actualHours - expectedHours + manualAdjustmentHours,
+      }
     },
   },
 
@@ -87,6 +95,28 @@ export const useScheduleStore = defineStore('schedule', {
       try {
         await api.delete(id)
         this.entries = this.entries.filter((e) => e.id !== id)
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async fetchAdjustment() {
+      try {
+        const res = await balanceAdjustmentApi.get()
+        this.manualAdjustmentMinutes = res.data.totalMinutes
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async applyAdjustment(deltaMinutes) {
+      this.error = null
+      const newTotal = this.manualAdjustmentMinutes + deltaMinutes
+      try {
+        const res = await balanceAdjustmentApi.set(newTotal)
+        this.manualAdjustmentMinutes = res.data.totalMinutes
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err

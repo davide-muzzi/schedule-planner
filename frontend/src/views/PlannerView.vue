@@ -21,6 +21,7 @@ const saving = ref(false)
 
 onMounted(() => {
   store.fetchAll()
+  store.fetchAdjustment()
 })
 
 function entriesForDate(date) {
@@ -58,6 +59,14 @@ function goNextWeek() {
 
 function goToday() {
   currentMonday.value = getMonday(new Date())
+}
+
+async function handleApplyAdjustment(deltaMinutes) {
+  try {
+    await store.applyAdjustment(deltaMinutes)
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
 }
 
 function openAdd(date) {
@@ -125,6 +134,7 @@ async function handleDelete(id) {
       @prev="goPrevWeek"
       @next="goNextWeek"
       @today="goToday"
+      @apply-adjustment="handleApplyAdjustment"
     />
 
     <div class="toolbar">

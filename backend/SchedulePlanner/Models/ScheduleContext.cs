@@ -10,4 +10,5 @@ public class ScheduleContext : DbContext
     }
 
     public DbSet<ScheduleEntry> ScheduleEntries { get; set; } = null!;
+    public DbSet<BalanceAdjustment> BalanceAdjustments { get; set; } = null!;
 }

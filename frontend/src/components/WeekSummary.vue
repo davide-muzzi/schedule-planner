@@ -1,15 +1,15 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatWeekRange, formatHours } from '@/utils/date'
 import { RED_THRESHOLD_HOURS, YELLOW_THRESHOLD_HOURS } from '@/utils/constants'
 
 const props = defineProps({
   monday: { type: Date, required: true },
   weeklyTotalHours: { type: Number, required: true },
-  overallBalance: { type: Object, required: true }, // { actualHours, expectedHours, diffHours }
+  overallBalance: { type: Object, required: true }, // { actualHours, expectedHours, manualAdjustmentHours, diffHours }
 })
 
-const emit = defineEmits(['prev', 'next', 'today'])
+const emit = defineEmits(['prev', 'next', 'today', 'apply-adjustment'])
 
 const diff = computed(() => props.overallBalance.diffHours)
 
@@ -26,6 +26,36 @@ const diffLabel = computed(() => {
   const label = formatHours(Math.abs(diff.value))
   return diff.value > 0 ? `${label} over` : `${label} under`
 })
+
+const currentAdjustmentLabel = computed(() => {
+  const h = props.overallBalance.manualAdjustmentHours
+  if (Math.abs(h) < 0.01) return 'No correction applied'
+  return `Current correction: ${h > 0 ? '+' : ''}${formatHours(h)}`
+})
+
+const showAdjustPopup = ref(false)
+const adjustHours = ref(0)
+const adjustMinutes = ref(0)
+
+function toggleAdjustPopup() {
+  showAdjustPopup.value = !showAdjustPopup.value
+  adjustHours.value = 0
+  adjustMinutes.value = 0
+}
+
+function closeAdjustPopup() {
+  showAdjustPopup.value = false
+}
+
+function applyAdjustment(sign) {
+  const deltaMinutes = sign * (Math.max(0, adjustHours.value || 0) * 60 + Math.max(0, adjustMinutes.value || 0))
+  if (deltaMinutes === 0) return
+  emit('apply-adjustment', deltaMinutes)
+  showAdjustPopup.value = false
+}
+
+onMounted(() => document.addEventListener('click', closeAdjustPopup))
+onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
 </script>
 
 <template>
@@ -48,9 +78,29 @@ const diffLabel = computed(() => {
         <span class="total-label">Expected (all-time)</span>
         <span class="total-value">{{ formatHours(overallBalance.expectedHours) }}</span>
       </div>
-      <div class="total-block" :class="'status-' + status">
-        <span class="total-label">Overall balance</span>
-        <span class="total-value">{{ diffLabel }}</span>
+      <div class="total-block adjustable" :class="'status-' + status">
+        <button type="button" class="adjust-trigger" @click.stop="toggleAdjustPopup">
+          <span class="total-label">Overall balance</span>
+          <span class="total-value">{{ diffLabel }}</span>
+        </button>
+
+        <div v-if="showAdjustPopup" class="adjust-popup" @click.stop>
+          <p class="adjust-current">{{ currentAdjustmentLabel }}</p>
+          <div class="adjust-inputs">
+            <label>
+              h
+              <input v-model.number="adjustHours" type="number" min="0" />
+            </label>
+            <label>
+              min
+              <input v-model.number="adjustMinutes" type="number" min="0" max="59" />
+            </label>
+          </div>
+          <div class="adjust-actions">
+            <button type="button" class="adjust-btn subtract" @click="applyAdjustment(-1)">− Subtract</button>
+            <button type="button" class="adjust-btn add" @click="applyAdjustment(1)">+ Add</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -146,5 +196,93 @@ const diffLabel = computed(() => {
 
 .status-red .total-value {
   color: #dc2626;
+}
+
+.total-block.adjustable {
+  position: relative;
+}
+
+.adjust-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.adjust-popup {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 10;
+  width: 13rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  text-align: left;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.adjust-current {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  margin-bottom: 0.5rem;
+}
+
+.adjust-inputs {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.adjust-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  flex: 1;
+}
+
+.adjust-inputs input {
+  padding: 0.3rem 0.4rem;
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  width: 100%;
+}
+
+.adjust-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.adjust-btn {
+  flex: 1;
+  padding: 0.35rem 0;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.adjust-btn.add {
+  background: #3b82f6;
+  border: 1px solid #1d4ed8;
+  color: #fff;
+}
+
+.adjust-btn.subtract {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
 }
 </style>
