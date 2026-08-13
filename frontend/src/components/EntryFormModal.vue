@@ -283,6 +283,14 @@ textarea {
   font-family: inherit;
 }
 
+input[type='date'],
+input[type='time'] {
+  /* Tells the browser this field sits on a dark background, so its native
+     calendar/clock icon and spinner buttons render light instead of the
+     default dark-on-dark. */
+  color-scheme: dark;
+}
+
 .color-picker {
   display: flex;
   gap: 0.5rem;
