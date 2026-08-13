@@ -7,6 +7,7 @@ const props = defineProps({
   monday: { type: Date, required: true },
   weeklyTotalHours: { type: Number, required: true },
   overallBalance: { type: Object, required: true }, // { actualHours, expectedHours, manualAdjustmentHours, diffHours }
+  futureAppointmentHours: { type: Number, required: true },
 })
 
 const emit = defineEmits(['prev', 'next', 'today', 'apply-adjustment'])
@@ -73,8 +74,8 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
         <span class="total-value">{{ formatHours(weeklyTotalHours) }}</span>
       </div>
       <div class="total-block">
-        <span class="total-label">Expected (all-time)</span>
-        <span class="total-value">{{ formatHours(overallBalance.expectedHours) }}</span>
+        <span class="total-label">Upcoming appointments</span>
+        <span class="total-value">{{ formatHours(futureAppointmentHours) }}</span>
       </div>
       <div class="total-block adjustable" :class="'status-' + status">
         <button type="button" class="adjust-trigger" @click.stop="toggleAdjustPopup">

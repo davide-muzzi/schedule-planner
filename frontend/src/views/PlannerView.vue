@@ -163,6 +163,7 @@ async function handleDelete(id) {
       :monday="currentMonday"
       :weekly-total-hours="weeklyTotalHours"
       :overall-balance="store.overallBalance"
+      :future-appointment-hours="store.futureAppointmentHours"
       @prev="goPrevWeek"
       @next="goNextWeek"
       @today="goToday"

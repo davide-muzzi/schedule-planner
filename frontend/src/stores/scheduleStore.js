@@ -60,6 +60,18 @@ export const useScheduleStore = defineStore('schedule', {
         diffHours: actualHours - expectedHours + manualAdjustmentHours,
       }
     },
+
+    // Total hours tied up in upcoming Appointment entries (today or later),
+    // across the whole dataset - not scoped to the currently-viewed week,
+    // same as overallBalance, so it's directly comparable to it: "how much
+    // time will future appointments cost me" vs. "how much of a buffer have
+    // I already built up".
+    futureAppointmentHours(state) {
+      const todayIso = toISODate(new Date())
+      return state.entries
+        .filter((e) => e.entryType === 'Appointment' && !e.allDay && e.date >= todayIso)
+        .reduce((sum, e) => sum + durationHours(e.startTime, e.endTime), 0)
+    },
   },
 
   actions: {
