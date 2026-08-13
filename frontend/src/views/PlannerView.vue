@@ -28,6 +28,17 @@ function entriesForDate(date) {
   return store.entries.filter((e) => e.date === iso)
 }
 
+// Same "does this calendar week have any entry at all" check the running
+// balance uses to decide whether a week counts - the daily-goal diff only
+// shows up on business days once the week it belongs to isn't empty.
+const weekHasAnyEntries = computed(() =>
+  store.entries.some((e) => toISODate(getMonday(new Date(e.date + 'T00:00:00'))) === toISODate(currentMonday.value)),
+)
+
+function hasWorkingEntry(date) {
+  return entriesForDate(date).some((e) => e.entryType === 'Working' && !e.allDay)
+}
+
 const weeklyTotalHours = computed(() =>
   [...weekDays.value, ...weekendDays.value].reduce((sum, date) => {
     const dayHours = entriesForDate(date)
@@ -127,6 +138,7 @@ async function handleDelete(id) {
       :key="toISODate(date)"
       :date="date"
       :entries="entriesForDate(date)"
+      :show-goal-diff="weekHasAnyEntries"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -136,6 +148,7 @@ async function handleDelete(id) {
       :key="toISODate(date)"
       :date="date"
       :entries="entriesForDate(date)"
+      :show-goal-diff="hasWorkingEntry(date)"
       @add="openAdd"
       @edit="openEdit"
     />

@@ -14,9 +14,10 @@ const emit = defineEmits(['prev', 'next', 'today'])
 const diff = computed(() => props.overallBalance.diffHours)
 
 const status = computed(() => {
-  const abs = Math.abs(diff.value)
-  if (abs > RED_THRESHOLD_HOURS) return 'red'
-  if (abs > YELLOW_THRESHOLD_HOURS) return 'yellow'
+  if (diff.value >= 0) return 'green' // goal reached or exceeded
+  const shortfall = Math.abs(diff.value)
+  if (shortfall > RED_THRESHOLD_HOURS) return 'red'
+  if (shortfall > YELLOW_THRESHOLD_HOURS) return 'yellow'
   return 'green'
 })
 

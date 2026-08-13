@@ -2,10 +2,12 @@
 import { computed } from 'vue'
 import { formatDayHeading, durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyle } from '@/utils/colorPresets'
+import { DAILY_TARGET_HOURS, DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 
 const props = defineProps({
   date: { type: Date, required: true },
   entries: { type: Array, default: () => [] },
+  showGoalDiff: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['add', 'edit'])
@@ -22,6 +24,25 @@ const dayTotalHours = computed(() =>
 )
 
 const isToday = computed(() => toISODate(props.date) === toISODate(new Date()))
+
+const dailyDiffHours = computed(() => dayTotalHours.value - DAILY_TARGET_HOURS)
+
+const dailyStatus = computed(() => {
+  if (dailyDiffHours.value >= 0) return 'green' // goal reached or exceeded
+  const shortfall = Math.abs(dailyDiffHours.value)
+  return shortfall > DAILY_RED_THRESHOLD_HOURS ? 'red' : 'yellow'
+})
+
+function formatDiff(hours) {
+  if (Math.abs(hours) < 0.01) return 'on target'
+  const sign = hours > 0 ? '+' : '-'
+  const abs = Math.abs(hours)
+  const h = Math.floor(abs)
+  const m = Math.round((abs - h) * 60)
+  if (h === 0) return `${sign}${m}m`
+  if (m === 0) return `${sign}${h}h`
+  return `${sign}${h}h ${m}m`
+}
 
 function blockStyle(entry) {
   const start = timeToDecimalHours(entry.startTime) ?? 0
@@ -89,7 +110,12 @@ function entryLabel(entry) {
               </div>
             </div>
           </td>
-          <td class="total-cell">{{ formatHours(dayTotalHours) }}</td>
+          <td class="total-cell">
+            <div>{{ formatHours(dayTotalHours) }}</div>
+            <div v-if="showGoalDiff" class="goal-diff" :class="'status-' + dailyStatus">
+              {{ formatDiff(dailyDiffHours) }}
+            </div>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -207,6 +233,24 @@ table {
   font-weight: 600;
   width: 4.5rem;
   white-space: nowrap;
+}
+
+.goal-diff {
+  font-size: 0.65rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.goal-diff.status-green {
+  color: #16a34a;
+}
+
+.goal-diff.status-yellow {
+  color: #ca8a04;
+}
+
+.goal-diff.status-red {
+  color: #dc2626;
 }
 
 .all-day-row .all-day-cell {
