@@ -225,14 +225,14 @@ function entryLabel(entry) {
   font-size: 0.75rem;
   padding: 0.15rem 0.55rem;
   border-radius: 5px;
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text);
+  border: 1px solid #1d4ed8;
+  background: #3b82f6;
+  color: #fff;
   cursor: pointer;
 }
 
 .add-btn:hover {
-  border-color: var(--color-border-hover);
+  background: #2563eb;
 }
 
 table {
