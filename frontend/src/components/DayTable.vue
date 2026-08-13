@@ -26,7 +26,11 @@ const dayTotalHours = computed(() =>
 
 const isToday = computed(() => toISODate(props.date) === toISODate(new Date()))
 
-const dailyDiffHours = computed(() => dayTotalHours.value - DAILY_TARGET_HOURS)
+// An all-day Vacation entry credits the full daily target, same as the
+// overall balance does - the day reads as "on target", not a shortfall.
+const hasVacationCredit = computed(() => props.entries.some((e) => e.entryType === 'Vacation' && e.allDay))
+
+const dailyDiffHours = computed(() => (hasVacationCredit.value ? 0 : dayTotalHours.value - DAILY_TARGET_HOURS))
 
 const dailyStatus = computed(() => {
   if (dailyDiffHours.value >= 0) return 'green' // goal reached or exceeded

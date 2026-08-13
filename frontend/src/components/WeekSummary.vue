@@ -208,8 +208,13 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
   align-items: flex-end;
   background: none;
   border: none;
+  margin: 0;
   padding: 0;
+  appearance: none;
   font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
   cursor: pointer;
 }
 

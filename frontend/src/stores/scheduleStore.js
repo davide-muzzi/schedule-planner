@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import { getMonday, toISODate, durationHours } from '@/utils/date'
-import { WEEKLY_TARGET_HOURS } from '@/utils/constants'
+import { WEEKLY_TARGET_HOURS, DAILY_TARGET_HOURS } from '@/utils/constants'
 
 function extractErrorMessage(err) {
   const data = err?.response?.data
@@ -28,18 +28,25 @@ export const useScheduleStore = defineStore('schedule', {
     // scoped to the currently-viewed week - it's a running total across the
     // whole dataset. Weekend entries count too, since the planner now shows
     // a card for Sat/Sun whenever one has an entry - nothing is hidden.
+    // Each all-day Vacation entry credits DAILY_TARGET_HOURS off "expected",
+    // so a full vacation week nets to a 0 diff instead of looking like a
+    // 42h shortfall.
     overallBalance(state) {
       const weeks = new Map()
+      let vacationCreditHours = 0
       for (const entry of state.entries) {
         const weekKey = toISODate(getMonday(new Date(entry.date + 'T00:00:00')))
         if (!weeks.has(weekKey)) weeks.set(weekKey, 0)
         if (entry.entryType === 'Working' && !entry.allDay) {
           weeks.set(weekKey, weeks.get(weekKey) + durationHours(entry.startTime, entry.endTime))
         }
+        if (entry.entryType === 'Vacation' && entry.allDay) {
+          vacationCreditHours += DAILY_TARGET_HOURS
+        }
       }
 
       const actualHours = [...weeks.values()].reduce((sum, h) => sum + h, 0)
-      const expectedHours = weeks.size * WEEKLY_TARGET_HOURS
+      const expectedHours = weeks.size * WEEKLY_TARGET_HOURS - vacationCreditHours
       const manualAdjustmentHours = state.manualAdjustmentMinutes / 60
       return {
         actualHours,

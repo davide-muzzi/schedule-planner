@@ -79,6 +79,18 @@ watch(
   },
 )
 
+// Vacation is inherently a full-day thing - default All Day on for it,
+// same convenience default as picking it manually. You can still uncheck
+// it afterward for a partial vacation day.
+watch(
+  () => form.value.entryType,
+  (entryType) => {
+    if (entryType === 'Vacation') {
+      form.value.allDay = true
+    }
+  },
+)
+
 function handleSubmit() {
   localError.value = null
 
