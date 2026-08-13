@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatDayHeading, durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyle } from '@/utils/colorPresets'
 import { DAILY_TARGET_HOURS, DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
+import { computeBreakWarning } from '@/utils/breakRules'
 
 const props = defineProps({
   date: { type: Date, required: true },
@@ -32,6 +33,27 @@ const dailyStatus = computed(() => {
   const shortfall = Math.abs(dailyDiffHours.value)
   return shortfall > DAILY_RED_THRESHOLD_HOURS ? 'red' : 'yellow'
 })
+
+const breakWarning = computed(() => computeBreakWarning(props.entries))
+
+const breakWarningTitle = computed(() => {
+  if (!breakWarning.value) return ''
+  const { workHours, actualBreakMinutes, requiredBreakMinutes } = breakWarning.value
+  return `Worked ${formatHours(workHours)} with only ${actualBreakMinutes}min break planned — Swiss law requires at least ${requiredBreakMinutes}min.`
+})
+
+const showBreakPopup = ref(false)
+
+function toggleBreakPopup() {
+  showBreakPopup.value = !showBreakPopup.value
+}
+
+function closeBreakPopup() {
+  showBreakPopup.value = false
+}
+
+onMounted(() => document.addEventListener('click', closeBreakPopup))
+onBeforeUnmount(() => document.removeEventListener('click', closeBreakPopup))
 
 function formatDiff(hours) {
   if (Math.abs(hours) < 0.01) return 'on target'
@@ -74,7 +96,15 @@ function entryLabel(entry) {
 <template>
   <section class="day-table" :class="{ 'is-today': isToday }">
     <header class="day-heading">
-      <h3>{{ formatDayHeading(date) }}</h3>
+      <div class="heading-left">
+        <h3>{{ formatDayHeading(date) }}</h3>
+        <span v-if="breakWarning" class="break-warning-wrap">
+          <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup">
+            ⚠ Insufficient break
+          </button>
+          <div v-if="showBreakPopup" class="break-popup" @click.stop>{{ breakWarningTitle }}</div>
+        </span>
+      </div>
       <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
     </header>
 
@@ -146,6 +176,49 @@ function entryLabel(entry) {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-heading);
+}
+
+.heading-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.break-warning-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.break-warning {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #f59e0b;
+  background: transparent;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.break-popup {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 16rem;
+  background: var(--color-background);
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text);
+  text-align: left;
+  white-space: normal;
+  cursor: default;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .add-btn {
