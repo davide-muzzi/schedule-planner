@@ -63,9 +63,29 @@ watch(
 // Create mode has no "original" to diff against, so it's always considered dirty.
 const isDirty = computed(() => !isEdit.value || JSON.stringify(form.value) !== originalFormSnapshot.value)
 
+// You can't "work" an all-day entry - if All Day gets checked while Working
+// is selected, force an explicit re-choice instead of silently keeping an
+// entry type that's now nonsensical. Work location is cleared outright since
+// it never applies to a non-Working entry.
+watch(
+  () => form.value.allDay,
+  (allDay) => {
+    if (allDay) {
+      if (form.value.entryType === 'Working') {
+        form.value.entryType = ''
+      }
+      form.value.workLocation = ''
+    }
+  },
+)
+
 function handleSubmit() {
   localError.value = null
 
+  if (!form.value.entryType) {
+    localError.value = 'Please select an entry type.'
+    return
+  }
   if (!form.value.allDay && form.value.endTime <= form.value.startTime) {
     localError.value = 'End time must be after start time.'
     return
@@ -136,13 +156,16 @@ function handleDeleteClick() {
         <div class="field-row">
           <div class="field">
             <label>Entry type</label>
-            <select v-model="form.entryType">
-              <option v-for="t in ENTRY_TYPES" :key="t" :value="t">{{ t }}</option>
+            <select v-model="form.entryType" required>
+              <option value="" disabled>Select...</option>
+              <option v-for="t in ENTRY_TYPES" :key="t" :value="t" :disabled="t === 'Working' && form.allDay">
+                {{ t }}
+              </option>
             </select>
           </div>
           <div class="field">
             <label>Work location</label>
-            <select v-model="form.workLocation">
+            <select v-model="form.workLocation" :disabled="form.allDay">
               <option value="">(unset)</option>
               <option v-for="l in WORK_LOCATIONS" :key="l" :value="l">{{ l }}</option>
             </select>
@@ -281,6 +304,11 @@ textarea {
   color: var(--color-text);
   font-size: 0.9rem;
   font-family: inherit;
+}
+
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 input[type='date'],
