@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import workGoalSettingsApi from '@/services/workGoalSettingsApi'
-import { toISODate, durationHours } from '@/utils/date'
+import { getMonday, toISODate, durationHours } from '@/utils/date'
 import { DEFAULT_WEEKLY_TARGET_MINUTES, BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 
 function extractErrorMessage(err) {
@@ -52,6 +52,37 @@ export const useScheduleStore = defineStore('schedule', {
         manualAdjustmentHours,
         diffHours: actualHours - expectedHours + manualAdjustmentHours,
       }
+    },
+
+    // Same day-based logic as overallBalance, but broken out per week instead
+    // of collapsed into one running total - one row per week that has at
+    // least one Working entry, sorted oldest first. Each week's "expected" is
+    // its own day count x dailyTargetHours, not a flat weeklyTargetHours.
+    weeklyBalances(state) {
+      const days = new Map()
+      for (const entry of state.entries) {
+        if (entry.entryType === 'Working' && !entry.allDay) {
+          days.set(entry.date, (days.get(entry.date) || 0) + durationHours(entry.startTime, entry.endTime))
+        }
+      }
+
+      const weeks = new Map()
+      for (const [dateStr, hours] of days) {
+        const monday = getMonday(new Date(dateStr + 'T00:00:00'))
+        const weekKey = toISODate(monday)
+        if (!weeks.has(weekKey)) weeks.set(weekKey, { monday, workedHours: 0, dayCount: 0 })
+        const week = weeks.get(weekKey)
+        week.workedHours += hours
+        week.dayCount += 1
+      }
+
+      return [...weeks.values()]
+        .sort((a, b) => a.monday - b.monday)
+        .map((week) => ({
+          monday: week.monday,
+          workedHours: week.workedHours,
+          diffHours: week.workedHours - week.dayCount * this.dailyTargetHours,
+        }))
     },
 
     // Total hours tied up in upcoming Appointment entries (today or later),

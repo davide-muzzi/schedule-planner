@@ -6,6 +6,7 @@ import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
 import SettingsModal from '@/components/SettingsModal.vue'
+import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 
 const store = useScheduleStore()
 
@@ -23,6 +24,8 @@ const saving = ref(false)
 const showSettingsModal = ref(false)
 const settingsError = ref(null)
 const savingSettings = ref(false)
+
+const showWeeklyBalanceModal = ref(false)
 
 onMounted(() => {
   store.fetchAll()
@@ -83,6 +86,14 @@ function openSettings() {
 function closeSettings() {
   showSettingsModal.value = false
   settingsError.value = null
+}
+
+function openWeeklyBalance() {
+  showWeeklyBalanceModal.value = true
+}
+
+function closeWeeklyBalance() {
+  showWeeklyBalanceModal.value = false
 }
 
 async function handleSaveGoal(weeklyTargetMinutes) {
@@ -151,7 +162,10 @@ async function handleDelete(id) {
   <div class="planner">
     <div class="page-header">
       <h1 class="page-title">Schedule Planner</h1>
-      <button type="button" class="settings-btn" @click="openSettings" aria-label="Settings">⚙ Settings</button>
+      <div class="header-actions">
+        <button type="button" class="settings-btn" @click="openWeeklyBalance">📊 Weekly Balance</button>
+        <button type="button" class="settings-btn" @click="openSettings" aria-label="Settings">⚙ Settings</button>
+      </div>
     </div>
 
     <div v-if="store.error && !showModal" class="global-error">
@@ -217,6 +231,13 @@ async function handleDelete(id) {
       @close="closeSettings"
       @submit="handleSaveGoal"
     />
+
+    <WeeklyBalanceModal
+      v-if="showWeeklyBalanceModal"
+      :weeks="store.weeklyBalances"
+      :manual-adjustment-hours="store.overallBalance.manualAdjustmentHours"
+      @close="closeWeeklyBalance"
+    />
   </div>
 </template>
 
@@ -230,6 +251,11 @@ async function handleDelete(id) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.6rem;
 }
 
 .page-title {
