@@ -22,5 +22,8 @@ export default {
   },
   delete(id) {
     return apiClient.delete(`/${id}`)
+  },
+  deleteBulk(olderThanDays) {
+    return apiClient.delete('/', { params: olderThanDays != null ? { olderThanDays } : {} })
   }
 }

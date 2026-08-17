@@ -9,4 +9,5 @@ public interface IScheduleEntryService
     Task<ScheduleEntry> CreateAsync(ScheduleEntry entry);
     Task<ScheduleEntry?> UpdateAsync(int id, ScheduleEntry entry);
     Task<bool> DeleteAsync(int id);
+    Task<int> DeleteBulkAsync(DateOnly? olderThan);
 }

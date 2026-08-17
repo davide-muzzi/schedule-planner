@@ -96,6 +96,19 @@ export const useScheduleStore = defineStore('schedule', {
         .filter((e) => e.entryType === 'Appointment' && !e.allDay && e.date >= todayIso)
         .reduce((sum, e) => sum + durationHours(e.startTime, e.endTime), 0)
     },
+
+    // Rolling cutoff - entries dated before this are what "older than 1
+    // year" would remove. Used for the Settings danger-zone preview.
+    oldEntriesCutoffDate() {
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - 365)
+      return cutoff
+    },
+
+    oldEntriesCount(state) {
+      const cutoffIso = toISODate(this.oldEntriesCutoffDate)
+      return state.entries.filter((e) => e.date < cutoffIso).length
+    },
   },
 
   actions: {
@@ -186,6 +199,34 @@ export const useScheduleStore = defineStore('schedule', {
       try {
         const res = await workGoalSettingsApi.set(weeklyTargetMinutes)
         this.weeklyTargetMinutes = res.data.weeklyTargetMinutes
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async clearOldEntries() {
+      this.error = null
+      try {
+        await api.deleteBulk(365)
+        const cutoffIso = toISODate(this.oldEntriesCutoffDate)
+        this.entries = this.entries.filter((e) => e.date >= cutoffIso)
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async clearAllData() {
+      this.error = null
+      try {
+        await api.deleteBulk(null)
+        this.entries = []
+        // A correction referencing now-deleted history doesn't mean anything
+        // anymore - reset it too. The weekly goal setting is a preference,
+        // not schedule data, so it's left untouched.
+        await balanceAdjustmentApi.set(0)
+        this.manualAdjustmentMinutes = 0
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err

@@ -24,6 +24,8 @@ const saving = ref(false)
 const showSettingsModal = ref(false)
 const settingsError = ref(null)
 const savingSettings = ref(false)
+const clearingOldEntries = ref(false)
+const clearingAllData = ref(false)
 
 const showWeeklyBalanceModal = ref(false)
 
@@ -106,6 +108,30 @@ async function handleSaveGoal(weeklyTargetMinutes) {
     settingsError.value = store.error
   } finally {
     savingSettings.value = false
+  }
+}
+
+async function handleClearOldEntries() {
+  clearingOldEntries.value = true
+  settingsError.value = null
+  try {
+    await store.clearOldEntries()
+  } catch {
+    settingsError.value = store.error
+  } finally {
+    clearingOldEntries.value = false
+  }
+}
+
+async function handleClearAllData() {
+  clearingAllData.value = true
+  settingsError.value = null
+  try {
+    await store.clearAllData()
+  } catch {
+    settingsError.value = store.error
+  } finally {
+    clearingAllData.value = false
   }
 }
 
@@ -228,8 +254,15 @@ async function handleDelete(id) {
       :weekly-target-minutes="store.weeklyTargetMinutes"
       :server-error="settingsError"
       :saving="savingSettings"
+      :entries-count="store.entries.length"
+      :old-entries-count="store.oldEntriesCount"
+      :old-entries-cutoff-date="store.oldEntriesCutoffDate"
+      :clearing-old-entries="clearingOldEntries"
+      :clearing-all-data="clearingAllData"
       @close="closeSettings"
       @submit="handleSaveGoal"
+      @clear-old-entries="handleClearOldEntries"
+      @clear-all-data="handleClearAllData"
     />
 
     <WeeklyBalanceModal

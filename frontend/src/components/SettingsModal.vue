@@ -7,13 +7,36 @@ const props = defineProps({
   weeklyTargetMinutes: { type: Number, required: true },
   serverError: { type: String, default: null },
   saving: { type: Boolean, default: false },
+  entriesCount: { type: Number, required: true },
+  oldEntriesCount: { type: Number, required: true },
+  oldEntriesCutoffDate: { type: Date, required: true },
+  clearingOldEntries: { type: Boolean, default: false },
+  clearingAllData: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'submit'])
+const emit = defineEmits(['close', 'submit', 'clear-old-entries', 'clear-all-data'])
 
 const hours = ref(0)
 const minutes = ref(0)
 const localError = ref(null)
+const confirmingClearOld = ref(false)
+const confirmingClearAll = ref(false)
+
+function handleClearOldClick() {
+  if (!confirmingClearOld.value) {
+    confirmingClearOld.value = true
+    return
+  }
+  emit('clear-old-entries')
+}
+
+function handleClearAllClick() {
+  if (!confirmingClearAll.value) {
+    confirmingClearAll.value = true
+    return
+  }
+  emit('clear-all-data')
+}
 
 watch(
   () => props.weeklyTargetMinutes,
@@ -78,6 +101,41 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           <button type="submit" class="save-btn" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
         </footer>
       </form>
+
+      <div class="danger-zone">
+        <h3>Danger Zone</h3>
+
+        <div class="danger-action">
+          <p>
+            Permanently delete {{ oldEntriesCount }} entr{{ oldEntriesCount === 1 ? 'y' : 'ies' }} dated before
+            {{ oldEntriesCutoffDate.toLocaleDateString() }}.
+          </p>
+          <button
+            type="button"
+            class="danger-btn"
+            :class="{ confirming: confirmingClearOld }"
+            :disabled="clearingOldEntries || oldEntriesCount === 0"
+            @click="handleClearOldClick"
+          >
+            {{
+              clearingOldEntries ? 'Clearing…' : confirmingClearOld ? 'Click again to confirm' : 'Clear entries older than 1 year'
+            }}
+          </button>
+        </div>
+
+        <div class="danger-action">
+          <p>Permanently delete all {{ entriesCount }} entries and reset your manual correction.</p>
+          <button
+            type="button"
+            class="danger-btn"
+            :class="{ confirming: confirmingClearAll }"
+            :disabled="clearingAllData || entriesCount === 0"
+            @click="handleClearAllClick"
+          >
+            {{ clearingAllData ? 'Clearing…' : confirmingClearAll ? 'Click again to confirm' : 'Clear all data' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -203,6 +261,56 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 .save-btn:disabled {
   opacity: 0.6;
+  cursor: default;
+}
+
+.danger-zone {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.danger-zone h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #dc2626;
+  margin-bottom: 0.75rem;
+}
+
+.danger-action {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.danger-action:last-child {
+  margin-bottom: 0;
+}
+
+.danger-action p {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.danger-btn {
+  align-self: flex-start;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+}
+
+.danger-btn.confirming {
+  background: #dc2626;
+  color: #fff;
+}
+
+.danger-btn:disabled {
+  opacity: 0.5;
   cursor: default;
 }
 </style>

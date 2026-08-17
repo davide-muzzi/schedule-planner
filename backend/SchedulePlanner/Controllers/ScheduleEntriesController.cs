@@ -107,4 +107,17 @@ public class ScheduleEntriesController : ControllerBase
         }
         return NoContent();
     }
+
+    // Bulk delete - omit olderThanDays to delete everything, or pass it to
+    // only delete entries dated before (today - olderThanDays)
+    [HttpDelete]
+    public async Task<ActionResult<object>> DeleteBulk([FromQuery] int? olderThanDays)
+    {
+        DateOnly? cutoff = olderThanDays is null
+            ? null
+            : DateOnly.FromDateTime(DateTime.Today).AddDays(-olderThanDays.Value);
+
+        var deletedCount = await _service.DeleteBulkAsync(cutoff);
+        return Ok(new { deletedCount });
+    }
 }

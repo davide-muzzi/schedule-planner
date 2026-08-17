@@ -70,6 +70,21 @@ public class ScheduleEntryService : IScheduleEntryService
         return true;
     }
 
+    // olderThan == null means "delete everything"
+    public async Task<int> DeleteBulkAsync(DateOnly? olderThan)
+    {
+        var query = _context.ScheduleEntries.AsQueryable();
+        if (olderThan is not null)
+        {
+            query = query.Where(e => e.Date < olderThan.Value);
+        }
+
+        var matching = await query.ToListAsync();
+        _context.ScheduleEntries.RemoveRange(matching);
+        await _context.SaveChangesAsync();
+        return matching.Count;
+    }
+
     private void ValidateAllDay(ScheduleEntry entry)
     {
         if (entry.AllDay)
