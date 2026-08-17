@@ -10,6 +10,11 @@ export const YELLOW_THRESHOLD_HOURS = 10
 export const BUSINESS_DAYS_PER_WEEK = 5
 export const DAILY_RED_THRESHOLD_HOURS = 1
 
+// Timeline zoom - purely a display preference (like displayName), never
+// affects totals/goal-diff/break-law calculations. Full day by default.
+export const DEFAULT_VIEW_FROM_HOUR = 0
+export const DEFAULT_VIEW_TILL_HOUR = 24
+
 // Swiss law (ArG Art. 15) minimum break requirements by daily work time.
 // Sorted descending by minWorkHours so the first match is the applicable tier.
 export const BREAK_RULES = [

@@ -13,11 +13,25 @@ const props = defineProps({
   oldEntriesCutoffDate: { type: Date, required: true },
   clearingOldEntries: { type: Boolean, default: false },
   clearingAllData: { type: Boolean, default: false },
+  viewFromHour: { type: Number, required: true },
+  viewTillHour: { type: Number, required: true },
 })
 
-const emit = defineEmits(['close', 'submit', 'update-display-name', 'clear-old-entries', 'clear-all-data'])
+const emit = defineEmits([
+  'close',
+  'submit',
+  'update-display-name',
+  'update-view-range',
+  'clear-old-entries',
+  'clear-all-data',
+])
+
+const FROM_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i) // 0-23
+const TILL_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i + 1) // 1-24
 
 const nameInput = ref(props.displayName)
+const viewFrom = ref(props.viewFromHour)
+const viewTill = ref(props.viewTillHour)
 const hours = ref(0)
 const minutes = ref(0)
 const localError = ref(null)
@@ -25,6 +39,19 @@ const confirmingClearOld = ref(false)
 const confirmingClearAll = ref(false)
 
 watch(nameInput, (name) => emit('update-display-name', name.trim()))
+
+// Auto-correct rather than error: picking a "from" that would collide with
+// "till" (or vice versa) nudges the other side just enough to stay valid,
+// since this is an instant local preference, not a form with a submit step.
+watch(viewFrom, (from) => {
+  if (from >= viewTill.value) viewTill.value = Math.min(24, from + 1)
+  emit('update-view-range', from, viewTill.value)
+})
+
+watch(viewTill, (till) => {
+  if (till <= viewFrom.value) viewFrom.value = Math.max(0, till - 1)
+  emit('update-view-range', viewFrom.value, till)
+})
 
 function handleClearOldClick() {
   if (!confirmingClearOld.value) {
@@ -85,6 +112,25 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
       <div class="field">
         <label for="settings-name">Your name</label>
         <input id="settings-name" v-model="nameInput" type="text" placeholder="(optional)" maxlength="60" />
+      </div>
+
+      <div class="field">
+        <label>Timeline view range</label>
+        <div class="goal-inputs">
+          <label class="sub-field">
+            From
+            <select v-model.number="viewFrom">
+              <option v-for="h in FROM_HOUR_OPTIONS" :key="h" :value="h">{{ String(h).padStart(2, '0') }}:00</option>
+            </select>
+          </label>
+          <label class="sub-field">
+            Till
+            <select v-model.number="viewTill">
+              <option v-for="h in TILL_HOUR_OPTIONS" :key="h" :value="h">{{ String(h % 24).padStart(2, '0') }}:00</option>
+            </select>
+          </label>
+        </div>
+        <p class="daily-preview">Only affects the timeline display - totals and warnings always use the full day.</p>
       </div>
 
       <form @submit.prevent="handleSubmit">
@@ -229,7 +275,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   flex: 1;
 }
 
-.sub-field input {
+.sub-field input,
+.sub-field select {
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);

@@ -223,6 +223,8 @@ async function handleDelete(id) {
       :entries="entriesForDate(date)"
       :show-goal-diff="weekHasAnyEntries"
       :daily-target-hours="store.dailyTargetHours"
+      :view-from-hour="store.viewFromHour"
+      :view-till-hour="store.viewTillHour"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -234,6 +236,8 @@ async function handleDelete(id) {
       :entries="entriesForDate(date)"
       :show-goal-diff="hasWorkingEntry(date)"
       :daily-target-hours="store.dailyTargetHours"
+      :view-from-hour="store.viewFromHour"
+      :view-till-hour="store.viewTillHour"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -260,9 +264,12 @@ async function handleDelete(id) {
       :old-entries-cutoff-date="store.oldEntriesCutoffDate"
       :clearing-old-entries="clearingOldEntries"
       :clearing-all-data="clearingAllData"
+      :view-from-hour="store.viewFromHour"
+      :view-till-hour="store.viewTillHour"
       @close="closeSettings"
       @submit="handleSaveGoal"
       @update-display-name="store.setDisplayName"
+      @update-view-range="store.setViewRange"
       @clear-old-entries="handleClearOldEntries"
       @clear-all-data="handleClearAllData"
     />

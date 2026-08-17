@@ -3,9 +3,27 @@ import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import workGoalSettingsApi from '@/services/workGoalSettingsApi'
 import { getMonday, toISODate, durationHours } from '@/utils/date'
-import { DEFAULT_WEEKLY_TARGET_MINUTES, BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
+import {
+  DEFAULT_WEEKLY_TARGET_MINUTES,
+  BUSINESS_DAYS_PER_WEEK,
+  DEFAULT_VIEW_FROM_HOUR,
+  DEFAULT_VIEW_TILL_HOUR,
+} from '@/utils/constants'
 
 const DISPLAY_NAME_STORAGE_KEY = 'schedulePlanner.displayName'
+const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
+
+function loadViewRange() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VIEW_RANGE_STORAGE_KEY))
+    if (raw && Number.isInteger(raw.from) && Number.isInteger(raw.till) && raw.from < raw.till) {
+      return raw
+    }
+  } catch {
+    // fall through to default
+  }
+  return { from: DEFAULT_VIEW_FROM_HOUR, till: DEFAULT_VIEW_TILL_HOUR }
+}
 
 function extractErrorMessage(err) {
   const data = err?.response?.data
@@ -16,16 +34,22 @@ function extractErrorMessage(err) {
 }
 
 export const useScheduleStore = defineStore('schedule', {
-  state: () => ({
-    entries: [],
-    loading: false,
-    error: null,
-    manualAdjustmentMinutes: 0,
-    weeklyTargetMinutes: DEFAULT_WEEKLY_TARGET_MINUTES,
-    // Purely cosmetic, never used in any calculation - kept in localStorage
-    // rather than the backend, unlike the goal/adjustment values.
-    displayName: localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) || '',
-  }),
+  state: () => {
+    const viewRange = loadViewRange()
+    return {
+      entries: [],
+      loading: false,
+      error: null,
+      manualAdjustmentMinutes: 0,
+      weeklyTargetMinutes: DEFAULT_WEEKLY_TARGET_MINUTES,
+      // Purely cosmetic, never used in any calculation - kept in localStorage
+      // rather than the backend, unlike the goal/adjustment values.
+      displayName: localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) || '',
+      // Timeline zoom - also purely a display preference, same reasoning.
+      viewFromHour: viewRange.from,
+      viewTillHour: viewRange.till,
+    }
+  },
 
   getters: {
     weeklyTargetHours: (state) => state.weeklyTargetMinutes / 60,
@@ -209,6 +233,13 @@ export const useScheduleStore = defineStore('schedule', {
         this.error = extractErrorMessage(err)
         throw err
       }
+    },
+
+    setViewRange(fromHour, tillHour) {
+      if (fromHour >= tillHour) return // guard against an invalid range slipping through
+      this.viewFromHour = fromHour
+      this.viewTillHour = tillHour
+      localStorage.setItem(VIEW_RANGE_STORAGE_KEY, JSON.stringify({ from: fromHour, till: tillHour }))
     },
 
     setDisplayName(name) {

@@ -10,14 +10,37 @@ const props = defineProps({
   entries: { type: Array, default: () => [] },
   showGoalDiff: { type: Boolean, default: false },
   dailyTargetHours: { type: Number, required: true },
+  viewFromHour: { type: Number, required: true },
+  viewTillHour: { type: Number, required: true },
 })
 
 const emit = defineEmits(['add', 'edit'])
 
-const hours = Array.from({ length: 24 }, (_, i) => i)
+// The timeline zoom is purely visual - visibleHours only drives the header
+// labels, grid lines, and block positioning math below. Totals, the daily
+// goal diff, and the break-law check all keep operating on the real,
+// unfiltered entry data regardless of what's currently zoomed into view.
+const visibleHours = computed(() =>
+  Array.from({ length: props.viewTillHour - props.viewFromHour }, (_, i) => props.viewFromHour + i),
+)
+const rangeSpan = computed(() => props.viewTillHour - props.viewFromHour)
 
 const allDayEntries = computed(() => props.entries.filter((e) => e.allDay))
 const timedEntries = computed(() => props.entries.filter((e) => !e.allDay))
+
+function entryRange(entry) {
+  const start = timeToDecimalHours(entry.startTime) ?? 0
+  const rawEnd = timeToDecimalHours(entry.endTime) ?? start
+  return { start, end: Math.max(rawEnd, start + 0.25) } // same visual minimum-width floor as before
+}
+
+function overlapsView(entry) {
+  const { start, end } = entryRange(entry)
+  return end > props.viewFromHour && start < props.viewTillHour
+}
+
+const visibleTimedEntries = computed(() => timedEntries.value.filter(overlapsView))
+const hiddenTimedEntries = computed(() => timedEntries.value.filter((e) => !overlapsView(e)))
 
 const dayTotalHours = computed(() =>
   props.entries
@@ -50,17 +73,28 @@ const breakWarningTitle = computed(() => {
 })
 
 const showBreakPopup = ref(false)
+const showHiddenPopup = ref(false)
 
 function toggleBreakPopup() {
   showBreakPopup.value = !showBreakPopup.value
 }
 
-function closeBreakPopup() {
-  showBreakPopup.value = false
+function toggleHiddenPopup() {
+  showHiddenPopup.value = !showHiddenPopup.value
 }
 
-onMounted(() => document.addEventListener('click', closeBreakPopup))
-onBeforeUnmount(() => document.removeEventListener('click', closeBreakPopup))
+function closePopups() {
+  showBreakPopup.value = false
+  showHiddenPopup.value = false
+}
+
+function handleHiddenEntryClick(entry) {
+  closePopups()
+  emit('edit', entry)
+}
+
+onMounted(() => document.addEventListener('click', closePopups))
+onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 
 function formatDiff(hours) {
   if (Math.abs(hours) < 0.01) return 'on target'
@@ -74,12 +108,13 @@ function formatDiff(hours) {
 }
 
 function blockStyle(entry) {
-  const start = timeToDecimalHours(entry.startTime) ?? 0
-  const duration = Math.max(durationHours(entry.startTime, entry.endTime), 0.25)
+  const { start, end } = entryRange(entry)
+  const clippedStart = Math.max(start, props.viewFromHour)
+  const clippedEnd = Math.min(end, props.viewTillHour)
   const style = colorStyle(entry.colorPreset)
   return {
-    left: `${(start / 24) * 100}%`,
-    width: `${(duration / 24) * 100}%`,
+    left: `${((clippedStart - props.viewFromHour) / rangeSpan.value) * 100}%`,
+    width: `${((clippedEnd - clippedStart) / rangeSpan.value) * 100}%`,
     backgroundColor: style.bg,
     color: style.text,
     borderColor: style.border,
@@ -128,6 +163,22 @@ function entryRightLabel(entry) {
           </button>
           <div v-if="showBreakPopup" class="break-popup" @click.stop>{{ breakWarningTitle }}</div>
         </span>
+        <span v-if="hiddenTimedEntries.length > 0" class="break-warning-wrap">
+          <button type="button" class="hidden-warning" @click.stop="toggleHiddenPopup">
+            {{ hiddenTimedEntries.length }} entr{{ hiddenTimedEntries.length === 1 ? 'y' : 'ies' }} outside view
+          </button>
+          <div v-if="showHiddenPopup" class="break-popup hidden-popup" @click.stop>
+            <button
+              v-for="entry in hiddenTimedEntries"
+              :key="entry.id"
+              type="button"
+              class="hidden-entry-item"
+              @click="handleHiddenEntryClick(entry)"
+            >
+              {{ entryLeftLabel(entry) }} — {{ entryRightLabel(entry) }}
+            </button>
+          </div>
+        </span>
       </div>
       <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
     </header>
@@ -135,13 +186,13 @@ function entryRightLabel(entry) {
     <table>
       <thead>
         <tr>
-          <th v-for="h in hours" :key="h" class="hour-label">{{ h }}</th>
+          <th v-for="h in visibleHours" :key="h" class="hour-label">{{ h }}</th>
           <th class="total-label">Total</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="entry in allDayEntries" :key="'allday-' + entry.id" class="all-day-row">
-          <td colspan="24" class="all-day-cell" :style="bannerStyle(entry)" @click="emit('edit', entry)">
+          <td :colspan="visibleHours.length" class="all-day-cell" :style="bannerStyle(entry)" @click="emit('edit', entry)">
             <div class="block-content">
               <span class="block-left">{{ entryLeftLabel(entry) }}</span>
               <span class="block-right">{{ entryRightLabel(entry) }}</span>
@@ -150,13 +201,13 @@ function entryRightLabel(entry) {
           <td class="total-cell">&mdash;</td>
         </tr>
         <tr class="timeline-row">
-          <td colspan="24" class="hour-track">
+          <td :colspan="visibleHours.length" class="hour-track">
             <div class="track-grid">
-              <span v-for="h in hours" :key="h" class="grid-line"></span>
+              <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
             </div>
             <div class="blocks">
               <div
-                v-for="entry in timedEntries"
+                v-for="entry in visibleTimedEntries"
                 :key="entry.id"
                 class="block"
                 :style="blockStyle(entry)"
@@ -251,6 +302,43 @@ function entryRightLabel(entry) {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.hidden-warning {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.75;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.hidden-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border-color: var(--color-border);
+}
+
+.hidden-entry-item {
+  text-align: left;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.hidden-entry-item:hover {
+  border-color: var(--color-border-hover);
+}
+
 .add-btn {
   font-size: 0.75rem;
   padding: 0.15rem 0.55rem;
@@ -278,7 +366,8 @@ table {
   opacity: 0.6;
   text-align: center;
   padding-bottom: 0.25rem;
-  width: calc(100% / 25);
+  /* No explicit width - table-layout: fixed auto-distributes the remaining
+     space evenly among however many hour columns are currently visible. */
 }
 
 .total-label {
