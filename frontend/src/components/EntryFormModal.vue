@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { toISODate } from '@/utils/date'
 import { COLOR_PRESETS } from '@/utils/colorPresets'
 
-const ENTRY_TYPES = ['Working', 'Sick', 'Vacation', 'Appointment', 'OvertimeCompensation', 'Other']
+const ENTRY_TYPES = ['Working', 'Vacation', 'Appointment', 'OvertimeCompensation', 'Other']
 const WORK_LOCATIONS = ['Office', 'Remote']
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))

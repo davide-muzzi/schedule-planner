@@ -16,12 +16,13 @@ public class ScheduleEntry
 
 public enum EntryType
 {
-    Working,
-    Sick,
-    Vacation,
-    Appointment,
-    OvertimeCompensation,
-    Other
+    Working = 0,
+    // 1 = Sick, removed - deliberately left unassigned so existing stored
+    // values for the members below never shift.
+    Vacation = 2,
+    Appointment = 3,
+    OvertimeCompensation = 4,
+    Other = 5,
 }
 
 public enum WorkLocation
