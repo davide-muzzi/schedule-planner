@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import workGoalSettingsApi from '@/services/workGoalSettingsApi'
-import { getMonday, toISODate, durationHours } from '@/utils/date'
+import { toISODate, durationHours } from '@/utils/date'
 import { DEFAULT_WEEKLY_TARGET_MINUTES, BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 
 function extractErrorMessage(err) {
@@ -26,32 +26,25 @@ export const useScheduleStore = defineStore('schedule', {
     weeklyTargetHours: (state) => state.weeklyTargetMinutes / 60,
     dailyTargetHours: (state) => state.weeklyTargetMinutes / 60 / BUSINESS_DAYS_PER_WEEK,
 
-    // Running balance across every week that has at least one entry: each
-    // such week contributes +weeklyTargetHours to "expected", and its
-    // Working-entry hours contribute to "actual". Weeks with zero entries
-    // are skipped entirely (no expectation is added for them). This is not
-    // scoped to the currently-viewed week - it's a running total across the
-    // whole dataset. Weekend entries count too, since the planner now shows
-    // a card for Sat/Sun whenever one has an entry - nothing is hidden.
-    // Each all-day Vacation entry credits dailyTargetHours off "expected",
-    // so a full vacation week nets to a 0 diff instead of looking like a
-    // 42h shortfall.
+    // Running balance across every individual day that has a Working entry:
+    // each such day contributes +dailyTargetHours to "expected", and its
+    // Working-entry hours contribute to "actual". Days with no Working entry
+    // contribute nothing either way - not scoped to the currently-viewed
+    // week, this is a running total across the whole dataset. A Vacation (or
+    // any non-Working) day simply isn't a Working day, so it's automatically
+    // excluded from "expected" with no special-casing needed - a full
+    // vacation week nets to a 0 diff for free, the same way an entirely
+    // untouched day never demands a share of the goal in the first place.
     overallBalance(state) {
-      const weeks = new Map()
-      let vacationCreditHours = 0
+      const days = new Map()
       for (const entry of state.entries) {
-        const weekKey = toISODate(getMonday(new Date(entry.date + 'T00:00:00')))
-        if (!weeks.has(weekKey)) weeks.set(weekKey, 0)
         if (entry.entryType === 'Working' && !entry.allDay) {
-          weeks.set(weekKey, weeks.get(weekKey) + durationHours(entry.startTime, entry.endTime))
-        }
-        if (entry.entryType === 'Vacation' && entry.allDay) {
-          vacationCreditHours += this.dailyTargetHours
+          days.set(entry.date, (days.get(entry.date) || 0) + durationHours(entry.startTime, entry.endTime))
         }
       }
 
-      const actualHours = [...weeks.values()].reduce((sum, h) => sum + h, 0)
-      const expectedHours = weeks.size * this.weeklyTargetHours - vacationCreditHours
+      const actualHours = [...days.values()].reduce((sum, h) => sum + h, 0)
+      const expectedHours = days.size * this.dailyTargetHours
       const manualAdjustmentHours = state.manualAdjustmentMinutes / 60
       return {
         actualHours,
