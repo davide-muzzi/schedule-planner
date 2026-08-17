@@ -4,6 +4,7 @@ import { BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 import { formatHours } from '@/utils/date'
 
 const props = defineProps({
+  displayName: { type: String, default: '' },
   weeklyTargetMinutes: { type: Number, required: true },
   serverError: { type: String, default: null },
   saving: { type: Boolean, default: false },
@@ -14,13 +15,16 @@ const props = defineProps({
   clearingAllData: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'submit', 'clear-old-entries', 'clear-all-data'])
+const emit = defineEmits(['close', 'submit', 'update-display-name', 'clear-old-entries', 'clear-all-data'])
 
+const nameInput = ref(props.displayName)
 const hours = ref(0)
 const minutes = ref(0)
 const localError = ref(null)
 const confirmingClearOld = ref(false)
 const confirmingClearAll = ref(false)
+
+watch(nameInput, (name) => emit('update-display-name', name.trim()))
 
 function handleClearOldClick() {
   if (!confirmingClearOld.value) {
@@ -77,6 +81,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         <h2>Settings</h2>
         <button type="button" class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
       </header>
+
+      <div class="field">
+        <label for="settings-name">Your name</label>
+        <input id="settings-name" v-model="nameInput" type="text" placeholder="(optional)" maxlength="60" />
+      </div>
 
       <form @submit.prevent="handleSubmit">
         <div class="field">
@@ -193,6 +202,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--color-heading);
+}
+
+.field > input[type='text'] {
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-family: inherit;
 }
 
 .goal-inputs {

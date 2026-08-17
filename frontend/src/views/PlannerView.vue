@@ -187,7 +187,7 @@ async function handleDelete(id) {
 <template>
   <div class="planner">
     <div class="page-header">
-      <h1 class="page-title">Schedule Planner</h1>
+      <h1 class="page-title">{{ store.greeting }}</h1>
       <div class="header-actions">
         <button type="button" class="settings-btn" @click="openWeeklyBalance">📊 Weekly Balance</button>
         <button type="button" class="settings-btn" @click="openSettings" aria-label="Settings">⚙ Settings</button>
@@ -251,6 +251,7 @@ async function handleDelete(id) {
 
     <SettingsModal
       v-if="showSettingsModal"
+      :display-name="store.displayName"
       :weekly-target-minutes="store.weeklyTargetMinutes"
       :server-error="settingsError"
       :saving="savingSettings"
@@ -261,6 +262,7 @@ async function handleDelete(id) {
       :clearing-all-data="clearingAllData"
       @close="closeSettings"
       @submit="handleSaveGoal"
+      @update-display-name="store.setDisplayName"
       @clear-old-entries="handleClearOldEntries"
       @clear-all-data="handleClearAllData"
     />

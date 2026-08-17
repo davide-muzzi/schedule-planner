@@ -5,6 +5,8 @@ import workGoalSettingsApi from '@/services/workGoalSettingsApi'
 import { getMonday, toISODate, durationHours } from '@/utils/date'
 import { DEFAULT_WEEKLY_TARGET_MINUTES, BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 
+const DISPLAY_NAME_STORAGE_KEY = 'schedulePlanner.displayName'
+
 function extractErrorMessage(err) {
   const data = err?.response?.data
   if (typeof data === 'string' && data.trim()) return data
@@ -20,11 +22,15 @@ export const useScheduleStore = defineStore('schedule', {
     error: null,
     manualAdjustmentMinutes: 0,
     weeklyTargetMinutes: DEFAULT_WEEKLY_TARGET_MINUTES,
+    // Purely cosmetic, never used in any calculation - kept in localStorage
+    // rather than the backend, unlike the goal/adjustment values.
+    displayName: localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) || '',
   }),
 
   getters: {
     weeklyTargetHours: (state) => state.weeklyTargetMinutes / 60,
     dailyTargetHours: (state) => state.weeklyTargetMinutes / 60 / BUSINESS_DAYS_PER_WEEK,
+    greeting: (state) => (state.displayName ? `Good day, ${state.displayName}!` : 'Good day!'),
 
     // Running balance across every individual day that has a Working entry:
     // each such day contributes +dailyTargetHours to "expected", and its
@@ -203,6 +209,11 @@ export const useScheduleStore = defineStore('schedule', {
         this.error = extractErrorMessage(err)
         throw err
       }
+    },
+
+    setDisplayName(name) {
+      this.displayName = name
+      localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, name)
     },
 
     async clearOldEntries() {
