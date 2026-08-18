@@ -18,6 +18,7 @@ const visibleWeekendDays = computed(() => weekendDays.value.filter((date) => ent
 const showModal = ref(false)
 const editingEntry = ref(null)
 const modalDefaultDate = ref(new Date())
+const modalPrefillTimes = ref(null) // { startTime, endTime } from a timeline drag-to-create
 const modalError = ref(null)
 const saving = ref(false)
 
@@ -139,9 +140,10 @@ async function handleClearAllData() {
   }
 }
 
-function openAdd(date) {
+function openAdd(date, prefill = null) {
   editingEntry.value = null
   modalDefaultDate.value = date
+  modalPrefillTimes.value = prefill
   modalError.value = null
   showModal.value = true
 }
@@ -155,7 +157,35 @@ function openEdit(entry) {
 function closeModal() {
   showModal.value = false
   editingEntry.value = null
+  modalPrefillTimes.value = null
   modalError.value = null
+}
+
+async function handleClearDay(date) {
+  try {
+    await store.clearDay(toISODate(date))
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
+}
+
+async function handleResizeEntry(id, startTime, endTime) {
+  const entry = store.entries.find((e) => e.id === id)
+  if (!entry) return
+  try {
+    await store.updateEntry(id, {
+      title: entry.title,
+      date: entry.date,
+      allDay: false,
+      startTime: `${startTime}:00`,
+      endTime: `${endTime}:00`,
+      entryType: entry.entryType,
+      workLocation: entry.workLocation,
+      notes: entry.notes,
+    })
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
 }
 
 async function handleSubmit(payload) {
@@ -231,6 +261,8 @@ async function handleDelete(id) {
       :entry-type-colors="store.entryTypeColors"
       @add="openAdd"
       @edit="openEdit"
+      @clear-day="handleClearDay"
+      @resize-entry="handleResizeEntry"
     />
 
     <DayTable
@@ -245,12 +277,16 @@ async function handleDelete(id) {
       :entry-type-colors="store.entryTypeColors"
       @add="openAdd"
       @edit="openEdit"
+      @clear-day="handleClearDay"
+      @resize-entry="handleResizeEntry"
     />
 
     <EntryFormModal
       v-if="showModal"
       :entry="editingEntry"
       :default-date="modalDefaultDate"
+      :default-start-time="modalPrefillTimes?.startTime"
+      :default-end-time="modalPrefillTimes?.endTime"
       :server-error="modalError"
       :saving="saving"
       @close="closeModal"

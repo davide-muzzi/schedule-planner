@@ -11,6 +11,8 @@ const MINUTE_OPTIONS = ['00', '15', '30', '45']
 const props = defineProps({
   entry: { type: Object, default: null }, // null => create mode
   defaultDate: { type: Date, required: true },
+  defaultStartTime: { type: String, default: null }, // "HH:MM", from a timeline drag-to-create
+  defaultEndTime: { type: String, default: null },
   serverError: { type: String, default: null },
   saving: { type: Boolean, default: false },
 })
@@ -24,8 +26,8 @@ function blankForm() {
     title: '',
     date: toISODate(props.defaultDate),
     allDay: false,
-    startTime: '08:00',
-    endTime: '12:00',
+    startTime: props.defaultStartTime || '08:00',
+    endTime: props.defaultEndTime || '12:00',
     entryType: 'Working',
     workLocation: 'Office',
     notes: '',
@@ -34,13 +36,11 @@ function blankForm() {
 
 const form = ref(blankForm())
 const localError = ref(null)
-const confirmingDelete = ref(false)
 const originalFormSnapshot = ref(null)
 
 watch(
   () => props.entry,
   (entry) => {
-    confirmingDelete.value = false
     if (entry) {
       form.value = {
         title: entry.title || '',
@@ -144,10 +144,7 @@ function handleSubmit() {
 }
 
 function handleDeleteClick() {
-  if (!confirmingDelete.value) {
-    confirmingDelete.value = true
-    return
-  }
+  if (!window.confirm('Delete this entry? This cannot be undone.')) return
   emit('delete', props.entry.id)
 }
 
@@ -237,15 +234,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         <p v-if="localError || serverError" class="error-msg">{{ localError || serverError }}</p>
 
         <footer class="modal-footer">
-          <button
-            v-if="isEdit"
-            type="button"
-            class="delete-btn"
-            :class="{ confirming: confirmingDelete }"
-            @click="handleDeleteClick"
-          >
-            {{ confirmingDelete ? 'Click again to confirm' : 'Delete' }}
-          </button>
+          <button v-if="isEdit" type="button" class="delete-btn" @click="handleDeleteClick">Delete</button>
           <div class="spacer"></div>
           <button type="button" class="cancel-btn" @click="emit('close')">Cancel</button>
           <button type="submit" class="save-btn" :disabled="saving || !isDirty">{{ saving ? 'Saving…' : 'Save' }}</button>
@@ -428,10 +417,5 @@ input[type='date'] {
   background: transparent;
   border: 1px solid #dc2626;
   color: #dc2626;
-}
-
-.delete-btn.confirming {
-  background: #dc2626;
-  color: #fff;
 }
 </style>

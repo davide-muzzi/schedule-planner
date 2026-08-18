@@ -45,8 +45,6 @@ const viewTill = ref(props.viewTillHour)
 const hours = ref(0)
 const minutes = ref(0)
 const localError = ref(null)
-const confirmingClearOld = ref(false)
-const confirmingClearAll = ref(false)
 
 watch(nameInput, (name) => emit('update-display-name', name.trim()))
 
@@ -64,18 +62,13 @@ watch(viewTill, (till) => {
 })
 
 function handleClearOldClick() {
-  if (!confirmingClearOld.value) {
-    confirmingClearOld.value = true
+  if (!window.confirm(`Permanently delete ${props.oldEntriesCount} entr${props.oldEntriesCount === 1 ? 'y' : 'ies'} older than 1 year?`))
     return
-  }
   emit('clear-old-entries')
 }
 
 function handleClearAllClick() {
-  if (!confirmingClearAll.value) {
-    confirmingClearAll.value = true
-    return
-  }
+  if (!window.confirm(`Permanently delete all ${props.entriesCount} entries and reset your manual correction?`)) return
   emit('clear-all-data')
 }
 
@@ -206,13 +199,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           <button
             type="button"
             class="danger-btn"
-            :class="{ confirming: confirmingClearOld }"
             :disabled="clearingOldEntries || oldEntriesCount === 0"
             @click="handleClearOldClick"
           >
-            {{
-              clearingOldEntries ? 'Clearing…' : confirmingClearOld ? 'Click again to confirm' : 'Clear entries older than 1 year'
-            }}
+            {{ clearingOldEntries ? 'Clearing…' : 'Clear entries older than 1 year' }}
           </button>
         </div>
 
@@ -221,11 +211,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           <button
             type="button"
             class="danger-btn"
-            :class="{ confirming: confirmingClearAll }"
             :disabled="clearingAllData || entriesCount === 0"
             @click="handleClearAllClick"
           >
-            {{ clearingAllData ? 'Clearing…' : confirmingClearAll ? 'Click again to confirm' : 'Clear all data' }}
+            {{ clearingAllData ? 'Clearing…' : 'Clear all data' }}
           </button>
         </div>
       </div>
@@ -475,11 +464,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   background: transparent;
   border: 1px solid #dc2626;
   color: #dc2626;
-}
-
-.danger-btn.confirming {
-  background: #dc2626;
-  color: #fff;
 }
 
 .danger-btn:disabled {

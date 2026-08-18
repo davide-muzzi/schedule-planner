@@ -15,7 +15,7 @@ const props = defineProps({
   entryTypeColors: { type: Object, required: true },
 })
 
-const emit = defineEmits(['add', 'edit'])
+const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry'])
 
 // The timeline zoom is purely visual - visibleHours only drives the header
 // labels, grid lines, and block positioning math below. Totals, the daily
@@ -108,8 +108,181 @@ function formatDiff(hours) {
   return `${sign}${h}h ${m}m`
 }
 
-function blockStyle(entry) {
+// --- Timeline drag interactions (create by dragging empty space, move/resize
+// existing entries) -------------------------------------------------------
+
+const trackEl = ref(null)
+const dragMode = ref(null) // null | 'create' | 'resize-start' | 'resize-end' | 'move'
+const dragEntry = ref(null) // the entry being resized/moved - null while creating
+const dragAnchorHours = ref(0) // create only: the time under the mouse at mousedown
+const dragPreviewStart = ref(0)
+const dragPreviewEnd = ref(0)
+const dragGrabOffsetHours = ref(0) // move only: time-under-cursor minus entry.start at mousedown
+
+const MIN_DURATION_HOURS = 1 / 60
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function hoursFromClientX(clientX) {
+  if (!trackEl.value) return props.viewFromHour
+  const rect = trackEl.value.getBoundingClientRect()
+  const fraction = clamp((clientX - rect.left) / rect.width, 0, 1)
+  return props.viewFromHour + fraction * rangeSpan.value
+}
+
+// Ctrl = 5min grid, otherwise exact to 1min.
+function snapHours(hours, ctrlKey) {
+  const grid = ctrlKey ? 5 / 60 : 1 / 60
+  return Math.round(hours / grid) * grid
+}
+
+// If `hours` falls inside another entry's span, snap it to that entry's
+// start (hovering its left half) or end (right half) - lets dragged entries
+// line up flush against their neighbors with no gap.
+function magnetSnap(hours, excludeId) {
+  for (const other of timedEntries.value) {
+    if (other.id === excludeId) continue
+    const { start, end } = entryRange(other)
+    if (hours > start && hours < end) {
+      const mid = (start + end) / 2
+      return hours < mid ? start : end
+    }
+  }
+  return hours
+}
+
+function hasOverlap(start, end, excludeId) {
+  return timedEntries.value.some((e) => {
+    if (e.id === excludeId) return false
+    const r = entryRange(e)
+    return start < r.end && end > r.start
+  })
+}
+
+function hoursToTimeString(hours) {
+  const totalMinutes = Math.round(hours * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function effectiveRange(entry) {
+  if (dragEntry.value?.id === entry.id && dragMode.value && dragMode.value !== 'create') {
+    return { start: dragPreviewStart.value, end: dragPreviewEnd.value }
+  }
+  return entryRange(entry)
+}
+
+function startDragListeners() {
+  document.addEventListener('mousemove', handleDragMove)
+  document.addEventListener('mouseup', handleDragEnd)
+}
+
+function stopDragListeners() {
+  document.removeEventListener('mousemove', handleDragMove)
+  document.removeEventListener('mouseup', handleDragEnd)
+}
+
+onBeforeUnmount(stopDragListeners)
+
+function handleTrackMouseDown(event) {
+  const start = snapHours(hoursFromClientX(event.clientX), event.ctrlKey)
+  dragMode.value = 'create'
+  dragEntry.value = null
+  dragAnchorHours.value = start
+  dragPreviewStart.value = start
+  dragPreviewEnd.value = start
+  startDragListeners()
+}
+
+function handleBlockMouseDown(event, entry) {
   const { start, end } = entryRange(entry)
+  dragMode.value = 'move'
+  dragEntry.value = entry
+  dragGrabOffsetHours.value = hoursFromClientX(event.clientX) - start
+  dragPreviewStart.value = start
+  dragPreviewEnd.value = end
+  startDragListeners()
+}
+
+function handleEdgeMouseDown(event, entry, edge) {
+  const { start, end } = entryRange(entry)
+  dragMode.value = edge === 'start' ? 'resize-start' : 'resize-end'
+  dragEntry.value = entry
+  dragPreviewStart.value = start
+  dragPreviewEnd.value = end
+  startDragListeners()
+}
+
+function handleDragMove(event) {
+  const raw = hoursFromClientX(event.clientX)
+  const snapped = snapHours(raw, event.ctrlKey)
+
+  if (dragMode.value === 'create') {
+    dragPreviewStart.value = Math.min(dragAnchorHours.value, snapped)
+    dragPreviewEnd.value = Math.max(dragAnchorHours.value, snapped)
+  } else if (dragMode.value === 'resize-start') {
+    const magnet = magnetSnap(snapped, dragEntry.value.id)
+    dragPreviewStart.value = Math.min(magnet, dragPreviewEnd.value - MIN_DURATION_HOURS)
+  } else if (dragMode.value === 'resize-end') {
+    const magnet = magnetSnap(snapped, dragEntry.value.id)
+    dragPreviewEnd.value = Math.max(magnet, dragPreviewStart.value + MIN_DURATION_HOURS)
+  } else if (dragMode.value === 'move') {
+    const { start: origStart, end: origEnd } = entryRange(dragEntry.value)
+    const duration = origEnd - origStart
+    let newStart = snapHours(raw - dragGrabOffsetHours.value, event.ctrlKey)
+    newStart = magnetSnap(newStart, dragEntry.value.id)
+    newStart = clamp(newStart, props.viewFromHour, props.viewTillHour - duration)
+    dragPreviewStart.value = newStart
+    dragPreviewEnd.value = newStart + duration
+  }
+}
+
+function handleDragEnd() {
+  stopDragListeners()
+
+  const mode = dragMode.value
+  const entry = dragEntry.value
+  const start = dragPreviewStart.value
+  const end = dragPreviewEnd.value
+
+  dragMode.value = null
+  dragEntry.value = null
+
+  if (mode === 'create') {
+    if (end - start < MIN_DURATION_HOURS) return // negligible drag - treat as a plain click, do nothing
+    if (hasOverlap(start, end, null)) {
+      alert('This time range overlaps with an existing entry.')
+      return
+    }
+    emit('add', props.date, { startTime: hoursToTimeString(start), endTime: hoursToTimeString(end) })
+    return
+  }
+
+  const original = entryRange(entry)
+  const changed = Math.abs(start - original.start) > 1e-6 || Math.abs(end - original.end) > 1e-6
+  if (!changed) {
+    emit('edit', entry) // no real drag happened - treat it as a click
+    return
+  }
+  if (hasOverlap(start, end, entry.id)) {
+    alert('This time range overlaps with an existing entry.')
+    return
+  }
+  emit('resize-entry', entry.id, hoursToTimeString(start), hoursToTimeString(end))
+}
+
+function handleClearDayClick() {
+  if (props.entries.length === 0) return
+  if (!window.confirm(`Delete all ${props.entries.length} entr${props.entries.length === 1 ? 'y' : 'ies'} on this day? This cannot be undone.`))
+    return
+  emit('clear-day', props.date)
+}
+
+function blockStyle(entry) {
+  const { start, end } = effectiveRange(entry)
   const clippedStart = Math.max(start, props.viewFromHour)
   const clippedEnd = Math.min(end, props.viewTillHour)
   const style = colorStyleForType(entry.entryType, props.entryTypeColors)
@@ -119,6 +292,15 @@ function blockStyle(entry) {
     backgroundColor: style.bg,
     color: style.text,
     borderColor: style.border,
+  }
+}
+
+function ghostStyle() {
+  const clippedStart = Math.max(dragPreviewStart.value, props.viewFromHour)
+  const clippedEnd = Math.min(dragPreviewEnd.value, props.viewTillHour)
+  return {
+    left: `${((clippedStart - props.viewFromHour) / rangeSpan.value) * 100}%`,
+    width: `${((clippedEnd - clippedStart) / rangeSpan.value) * 100}%`,
   }
 }
 
@@ -143,8 +325,17 @@ function entryLeftLabel(entry) {
   return icon ? `${icon} ${label}` : label
 }
 
-// Right side: total duration, with the exact time range in brackets - or
-// "All Day" for all-day entries.
+// Row 1 of a timeline block - same as entryLeftLabel but without the notes
+// text, since notes get their own icon instead (there's rarely room for
+// both on a block this narrow).
+function blockTitleLabel(entry) {
+  const label = entry.title || entry.entryType
+  const icon = LOCATION_ICONS[entry.workLocation]
+  return icon ? `${icon} ${label}` : label
+}
+
+// Right side / row 2: total duration, with the exact time range in brackets
+// - or "All Day" for all-day entries.
 function entryRightLabel(entry) {
   if (entry.allDay) return 'All Day'
   const duration = formatHours(durationHours(entry.startTime, entry.endTime))
@@ -181,14 +372,19 @@ function entryRightLabel(entry) {
           </div>
         </span>
       </div>
-      <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
+      <div class="header-actions">
+        <button type="button" class="clear-day-btn" :disabled="entries.length === 0" @click="handleClearDayClick">
+          Clear Day
+        </button>
+        <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
+      </div>
     </header>
 
     <table>
       <thead>
         <tr>
           <th v-for="h in visibleHours" :key="h" class="hour-label">{{ h }}</th>
-          <th class="total-label">Total</th>
+          <th class="total-label"></th>
         </tr>
       </thead>
       <tbody>
@@ -202,7 +398,7 @@ function entryRightLabel(entry) {
           <td class="total-cell">&mdash;</td>
         </tr>
         <tr class="timeline-row">
-          <td :colspan="visibleHours.length" class="hour-track">
+          <td :colspan="visibleHours.length" class="hour-track" ref="trackEl" @mousedown="handleTrackMouseDown">
             <div class="track-grid">
               <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
             </div>
@@ -213,17 +409,24 @@ function entryRightLabel(entry) {
                 class="block"
                 :style="blockStyle(entry)"
                 :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
-                @click="emit('edit', entry)"
+                @mousedown.stop="handleBlockMouseDown($event, entry)"
               >
+                <div class="resize-handle left" @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"></div>
+                <div class="resize-handle right" @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"></div>
                 <div class="block-content">
-                  <span class="block-left">{{ entryLeftLabel(entry) }}</span>
-                  <span class="block-right">{{ entryRightLabel(entry) }}</span>
+                  <span class="block-title">{{ blockTitleLabel(entry) }}</span>
+                  <span class="block-time">{{ entryRightLabel(entry) }}</span>
                 </div>
+                <span v-if="entry.notes" class="note-icon" :title="entry.notes">📝</span>
               </div>
+              <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
             </div>
           </td>
           <td class="total-cell">
-            <div>{{ formatHours(dayTotalHours) }}</div>
+            <div class="total-value-row">
+              <span class="total-value" :class="showGoalDiff ? 'status-' + dailyStatus : ''">{{ formatHours(dayTotalHours) }}</span>
+              <span v-if="showGoalDiff" class="total-value-target">/ {{ formatHours(dailyTargetHours) }}</span>
+            </div>
             <div v-if="showGoalDiff" class="goal-diff" :class="'status-' + dailyStatus">
               {{ formatDiff(dailyDiffHours) }}
             </div>
@@ -242,6 +445,19 @@ function entryRightLabel(entry) {
   border-radius: 8px;
   padding: 0.75rem 1rem 1rem;
   background: var(--color-background-soft);
+}
+
+.day-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.day-heading h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-heading);
 }
 
 /* Same oversized linear-gradient + background-position technique as the
@@ -280,23 +496,16 @@ function entryRightLabel(entry) {
   }
 }
 
-.day-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.day-heading h3 {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-heading);
-}
-
 .heading-left {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .break-warning-wrap {
@@ -373,6 +582,29 @@ function entryRightLabel(entry) {
   border-color: var(--color-border-hover);
 }
 
+.clear-day-btn {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 5px;
+  border: 1px solid #dc2626;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.clear-day-btn:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+.clear-day-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+  color: #dc2626;
+}
+
 .add-btn {
   font-size: 0.75rem;
   padding: 0.15rem 0.55rem;
@@ -405,17 +637,16 @@ table {
 }
 
 .total-label {
-  font-size: 0.7rem;
-  text-align: center;
-  width: 4.5rem;
+  width: 7.5rem;
 }
 
 .hour-track {
   position: relative;
-  height: 2.5rem;
+  height: 3.75rem;
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 4px;
+  cursor: crosshair;
 }
 
 .track-grid {
@@ -445,20 +676,87 @@ table {
   border: 1px solid;
   border-radius: 3px;
   font-size: 0.7rem;
-  line-height: 1.4;
+  line-height: 1.35;
   padding: 0.3rem 0.35rem;
   overflow: hidden;
-  cursor: pointer;
+  cursor: grab;
   display: flex;
   align-items: center;
+  container-type: inline-size;
+}
+
+.block:active {
+  cursor: grabbing;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+
+.resize-handle.left {
+  left: 0;
+}
+
+.resize-handle.right {
+  right: 0;
+}
+
+.drag-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px dashed var(--color-heading);
+  border-radius: 3px;
+  background: transparent;
+  pointer-events: none;
 }
 
 .block-content {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
   width: 100%;
   overflow: hidden;
+}
+
+.block-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.block-time {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+  font-size: 0.9em;
+}
+
+/* "5 chars before it'd need an ellipsis" is a rough width, not a literal
+   character count - measured off the block's own rendered width via a
+   container query so it stays correct across every zoom level/window size. */
+@container (max-width: 46px) {
+  .block-content,
+  .note-icon {
+    display: none;
+  }
+}
+
+.note-icon {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 0.6rem;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .block-left {
@@ -481,8 +779,33 @@ table {
   text-align: center;
   font-size: 0.8rem;
   font-weight: 600;
-  width: 4.5rem;
+  width: 7.5rem;
   white-space: nowrap;
+}
+
+.total-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.total-value.status-green {
+  color: #16a34a;
+}
+
+.total-value.status-yellow {
+  color: #ca8a04;
+}
+
+.total-value.status-red {
+  color: #dc2626;
+}
+
+.total-value-target {
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.55;
 }
 
 .goal-diff {

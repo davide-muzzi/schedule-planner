@@ -280,6 +280,18 @@ export const useScheduleStore = defineStore('schedule', {
       }
     },
 
+    async clearDay(dateIso) {
+      this.error = null
+      const ids = this.entries.filter((e) => e.date === dateIso).map((e) => e.id)
+      try {
+        await Promise.all(ids.map((id) => api.delete(id)))
+        this.entries = this.entries.filter((e) => e.date !== dateIso)
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
     async clearAllData() {
       this.error = null
       try {
