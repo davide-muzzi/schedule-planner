@@ -49,11 +49,8 @@ export function formatDayHeading(date) {
 
 export function formatWeekRange(monday) {
   const friday = addDays(monday, 4)
-  const sameMonth = monday.getMonth() === friday.getMonth()
   const startLabel = monday.toLocaleString(undefined, { month: 'short', day: 'numeric' })
-  const endLabel = sameMonth
-    ? friday.getDate()
-    : friday.toLocaleString(undefined, { month: 'short', day: 'numeric' })
+  const endLabel = friday.toLocaleString(undefined, { month: 'short', day: 'numeric' })
   return `${startLabel} – ${endLabel}, ${friday.getFullYear()}`
 }
 

@@ -72,6 +72,10 @@ function goToday() {
   currentMonday.value = getMonday(new Date())
 }
 
+function goToDate(date) {
+  currentMonday.value = getMonday(date)
+}
+
 async function handleApplyAdjustment(deltaMinutes) {
   try {
     await store.applyAdjustment(deltaMinutes)
@@ -207,6 +211,7 @@ async function handleDelete(id) {
       @prev="goPrevWeek"
       @next="goNextWeek"
       @today="goToday"
+      @select-date="goToDate"
       @apply-adjustment="handleApplyAdjustment"
       @add-entry="openAdd(new Date())"
       @open-weekly-balance="openWeeklyBalance"

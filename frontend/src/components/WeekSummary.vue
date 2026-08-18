@@ -9,6 +9,7 @@ import {
   WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
 } from '@/utils/constants'
 import WeeklyProgressBar from './WeeklyProgressBar.vue'
+import MiniCalendar from './MiniCalendar.vue'
 
 const props = defineProps({
   monday: { type: Date, required: true },
@@ -18,7 +19,15 @@ const props = defineProps({
   futureAppointmentHours: { type: Number, required: true },
 })
 
-const emit = defineEmits(['prev', 'next', 'today', 'apply-adjustment', 'add-entry', 'open-weekly-balance'])
+const emit = defineEmits([
+  'prev',
+  'next',
+  'today',
+  'select-date',
+  'apply-adjustment',
+  'add-entry',
+  'open-weekly-balance',
+])
 
 const isCurrentWeek = computed(() => toISODate(props.monday) === toISODate(getMonday(new Date())))
 
@@ -57,15 +66,23 @@ const currentAdjustmentLabel = computed(() => {
 const showAdjustPopup = ref(false)
 const adjustHours = ref(0)
 const adjustMinutes = ref(0)
+const showCalendar = ref(false)
 
 function toggleAdjustPopup() {
+  showCalendar.value = false
   showAdjustPopup.value = !showAdjustPopup.value
   adjustHours.value = 0
   adjustMinutes.value = 0
 }
 
-function closeAdjustPopup() {
+function toggleCalendar() {
   showAdjustPopup.value = false
+  showCalendar.value = !showCalendar.value
+}
+
+function closePopups() {
+  showAdjustPopup.value = false
+  showCalendar.value = false
 }
 
 function applyAdjustment(sign) {
@@ -75,15 +92,28 @@ function applyAdjustment(sign) {
   showAdjustPopup.value = false
 }
 
-onMounted(() => document.addEventListener('click', closeAdjustPopup))
-onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
+function selectDate(date) {
+  showCalendar.value = false
+  emit('select-date', date)
+}
+
+onMounted(() => document.addEventListener('click', closePopups))
+onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 </script>
 
 <template>
   <div class="week-summary-row">
     <div class="summary-card nav-card">
       <button type="button" class="nav-btn" @click="emit('prev')" aria-label="Previous week">&larr;</button>
-      <span class="range-label">{{ formatWeekRange(monday) }}</span>
+
+      <div class="range-picker">
+        <button type="button" class="range-trigger" @click.stop="toggleCalendar">
+          <span class="range-label">{{ formatWeekRange(monday) }}</span>
+          <span class="range-hint">Click to select</span>
+        </button>
+        <MiniCalendar v-if="showCalendar" :monday="monday" @select="selectDate" />
+      </div>
+
       <button type="button" class="nav-btn" @click="emit('next')" aria-label="Next week">&rarr;</button>
       <button type="button" class="today-btn" :class="{ 'is-today': isCurrentWeek }" @click="emit('today')">
         <span :class="{ 'today-btn-text': isCurrentWeek }">Today</span>
@@ -233,15 +263,40 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
   border-color: var(--color-border-hover);
 }
 
-.range-label {
-  font-weight: 600;
-  color: var(--color-heading);
+.range-picker {
+  position: relative;
   /* Fixed width so cross-month ranges ("Aug 31 – Sep 4, 2026") don't push
-     everything after this label around compared to same-month ones
+     everything after this around compared to same-month ones
      ("Aug 10 – 14, 2026") - the box stays constant, only the text inside it
      changes. */
   min-width: 11rem;
+}
+
+.range-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  font-family: inherit;
+  line-height: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.range-label {
+  font-weight: 600;
+  color: var(--color-heading);
   text-align: center;
+}
+
+.range-hint {
+  font-size: 0.65rem;
+  opacity: 0.5;
 }
 
 .today-btn {
