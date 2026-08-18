@@ -1,10 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { toISODate } from '@/utils/date'
-import { COLOR_PRESETS } from '@/utils/colorPresets'
+import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import TimePartInput from './TimePartInput.vue'
 
-const ENTRY_TYPES = ['Working', 'Vacation', 'Appointment', 'OvertimeCompensation', 'Other']
 const WORK_LOCATIONS = ['Office', 'Remote']
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTE_OPTIONS = ['00', '15', '30', '45']
@@ -29,7 +28,6 @@ function blankForm() {
     endTime: '12:00',
     entryType: 'Working',
     workLocation: 'Office',
-    colorPreset: 'Blue',
     notes: '',
   }
 }
@@ -52,7 +50,6 @@ watch(
         endTime: entry.endTime ? entry.endTime.slice(0, 5) : '12:00',
         entryType: entry.entryType,
         workLocation: entry.workLocation || '',
-        colorPreset: entry.colorPreset,
         notes: entry.notes || '',
       }
     } else {
@@ -140,7 +137,6 @@ function handleSubmit() {
     endTime: form.value.allDay ? null : `${form.value.endTime}:00`,
     entryType: form.value.entryType,
     workLocation: form.value.workLocation || null,
-    colorPreset: form.value.colorPreset,
     notes: form.value.notes.trim() || null,
   }
 
@@ -230,23 +226,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
               <option value="">(unset)</option>
               <option v-for="l in WORK_LOCATIONS" :key="l" :value="l">{{ l }}</option>
             </select>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Color</label>
-          <div class="color-picker">
-            <button
-              v-for="c in COLOR_PRESETS"
-              :key="c"
-              type="button"
-              class="color-swatch"
-              :class="{ selected: form.colorPreset === c }"
-              :style="{ backgroundColor: `var(--swatch-${c})` }"
-              :data-preset="c"
-              :title="c"
-              @click="form.colorPreset = c"
-            ></button>
           </div>
         </div>
 
@@ -402,33 +381,6 @@ input[type='date'] {
 .time-sep {
   color: var(--color-text);
   opacity: 0.6;
-}
-
-.color-picker {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  --swatch-Red: #ef4444;
-  --swatch-Orange: #f97316;
-  --swatch-Yellow: #eab308;
-  --swatch-Green: #22c55e;
-  --swatch-Blue: #3b82f6;
-  --swatch-Grey: #9ca3af;
-  --swatch-White: #f8fafc;
-}
-
-.color-swatch {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 50%;
-  border: 2px solid var(--color-border);
-  cursor: pointer;
-}
-
-.color-swatch.selected {
-  border-color: var(--color-heading);
-  box-shadow: 0 0 0 2px var(--color-background);
-  outline: 2px solid var(--color-heading);
 }
 
 .error-msg {

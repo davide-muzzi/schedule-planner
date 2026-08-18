@@ -9,9 +9,11 @@ import {
   DEFAULT_VIEW_FROM_HOUR,
   DEFAULT_VIEW_TILL_HOUR,
 } from '@/utils/constants'
+import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 
 const DISPLAY_NAME_STORAGE_KEY = 'schedulePlanner.displayName'
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
+const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
 
 function loadViewRange() {
   try {
@@ -23,6 +25,18 @@ function loadViewRange() {
     // fall through to default
   }
   return { from: DEFAULT_VIEW_FROM_HOUR, till: DEFAULT_VIEW_TILL_HOUR }
+}
+
+function loadEntryTypeColors() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ENTRY_TYPE_COLORS_STORAGE_KEY))
+    if (raw && typeof raw === 'object') {
+      return { ...DEFAULT_ENTRY_TYPE_COLORS, ...raw }
+    }
+  } catch {
+    // fall through to defaults
+  }
+  return { ...DEFAULT_ENTRY_TYPE_COLORS }
 }
 
 function extractErrorMessage(err) {
@@ -48,6 +62,8 @@ export const useScheduleStore = defineStore('schedule', {
       // Timeline zoom - also purely a display preference, same reasoning.
       viewFromHour: viewRange.from,
       viewTillHour: viewRange.till,
+      // Per-entry-type color, same reasoning again - purely cosmetic.
+      entryTypeColors: loadEntryTypeColors(),
     }
   },
 
@@ -245,6 +261,11 @@ export const useScheduleStore = defineStore('schedule', {
     setDisplayName(name) {
       this.displayName = name
       localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, name)
+    },
+
+    setEntryTypeColor(entryType, hex) {
+      this.entryTypeColors = { ...this.entryTypeColors, [entryType]: hex }
+      localStorage.setItem(ENTRY_TYPE_COLORS_STORAGE_KEY, JSON.stringify(this.entryTypeColors))
     },
 
     async clearOldEntries() {

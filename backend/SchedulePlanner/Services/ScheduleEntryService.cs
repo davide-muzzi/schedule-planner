@@ -50,7 +50,6 @@ public class ScheduleEntryService : IScheduleEntryService
         existing.EndTime = entry.EndTime;
         existing.EntryType = entry.EntryType;
         existing.WorkLocation = entry.WorkLocation;
-        existing.ColorPreset = entry.ColorPreset;
         existing.Notes = entry.Notes;
 
         await _context.SaveChangesAsync();

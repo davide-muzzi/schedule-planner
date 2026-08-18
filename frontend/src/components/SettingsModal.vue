@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
+import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours } from '@/utils/date'
 
 const props = defineProps({
@@ -15,6 +16,7 @@ const props = defineProps({
   clearingAllData: { type: Boolean, default: false },
   viewFromHour: { type: Number, required: true },
   viewTillHour: { type: Number, required: true },
+  entryTypeColors: { type: Object, required: true },
 })
 
 const emit = defineEmits([
@@ -22,9 +24,17 @@ const emit = defineEmits([
   'submit',
   'update-display-name',
   'update-view-range',
+  'update-entry-type-color',
   'clear-old-entries',
   'clear-all-data',
 ])
+
+const TABS = [
+  { id: 'general', label: 'General' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'danger', label: 'Danger Zone' },
+]
+const activeTab = ref('general')
 
 const FROM_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i) // 0-23
 const TILL_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i + 1) // 1-24
@@ -109,57 +119,85 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         <button type="button" class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
       </header>
 
-      <div class="field">
-        <label for="settings-name">Your name</label>
-        <input id="settings-name" v-model="nameInput" type="text" placeholder="(optional)" maxlength="60" />
+      <div class="tabs">
+        <button
+          v-for="tab in TABS"
+          :key="tab.id"
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
       </div>
 
-      <div class="field">
-        <label>Timeline view range</label>
-        <div class="goal-inputs">
-          <label class="sub-field">
-            From
-            <select v-model.number="viewFrom">
-              <option v-for="h in FROM_HOUR_OPTIONS" :key="h" :value="h">{{ String(h).padStart(2, '0') }}:00</option>
-            </select>
-          </label>
-          <label class="sub-field">
-            Till
-            <select v-model.number="viewTill">
-              <option v-for="h in TILL_HOUR_OPTIONS" :key="h" :value="h">{{ String(h % 24).padStart(2, '0') }}:00</option>
-            </select>
-          </label>
-        </div>
-        <p class="daily-preview">Only affects the timeline display - totals and warnings always use the full day.</p>
-      </div>
-
-      <form @submit.prevent="handleSubmit">
+      <div v-if="activeTab === 'general'">
         <div class="field">
-          <label>Weekly worktime goal</label>
+          <label for="settings-name">Your name</label>
+          <input id="settings-name" v-model="nameInput" type="text" placeholder="(optional)" maxlength="60" />
+        </div>
+
+        <div class="field">
+          <label>Timeline view range</label>
           <div class="goal-inputs">
             <label class="sub-field">
-              h
-              <input v-model.number="hours" type="number" min="0" />
+              From
+              <select v-model.number="viewFrom">
+                <option v-for="h in FROM_HOUR_OPTIONS" :key="h" :value="h">{{ String(h).padStart(2, '0') }}:00</option>
+              </select>
             </label>
             <label class="sub-field">
-              min
-              <input v-model.number="minutes" type="number" min="0" max="59" />
+              Till
+              <select v-model.number="viewTill">
+                <option v-for="h in TILL_HOUR_OPTIONS" :key="h" :value="h">{{ String(h % 24).padStart(2, '0') }}:00</option>
+              </select>
             </label>
           </div>
-          <p class="daily-preview">= {{ formatHours(dailyPreviewHours) }} / day (over {{ BUSINESS_DAYS_PER_WEEK }} business days)</p>
+          <p class="daily-preview">Only affects the timeline display - totals and warnings always use the full day.</p>
         </div>
 
-        <p v-if="localError || serverError" class="error-msg">{{ localError || serverError }}</p>
+        <form @submit.prevent="handleSubmit">
+          <div class="field">
+            <label>Weekly worktime goal</label>
+            <div class="goal-inputs">
+              <label class="sub-field">
+                h
+                <input v-model.number="hours" type="number" min="0" />
+              </label>
+              <label class="sub-field">
+                min
+                <input v-model.number="minutes" type="number" min="0" max="59" />
+              </label>
+            </div>
+            <p class="daily-preview">= {{ formatHours(dailyPreviewHours) }} / day (over {{ BUSINESS_DAYS_PER_WEEK }} business days)</p>
+          </div>
 
-        <footer class="modal-footer">
-          <button type="button" class="cancel-btn" @click="emit('close')">Cancel</button>
-          <button type="submit" class="save-btn" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
-        </footer>
-      </form>
+          <p v-if="localError || serverError" class="error-msg">{{ localError || serverError }}</p>
 
-      <div class="danger-zone">
-        <h3>Danger Zone</h3>
+          <footer class="modal-footer">
+            <button type="button" class="cancel-btn" @click="emit('close')">Cancel</button>
+            <button type="submit" class="save-btn" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
+          </footer>
+        </form>
+      </div>
 
+      <div v-else-if="activeTab === 'appearance'">
+        <p class="tab-intro">Pick a color for each entry type - used for its blocks on the timeline.</p>
+        <div class="color-list">
+          <div v-for="type in ENTRY_TYPES" :key="type" class="color-row">
+            <span class="color-type-label">{{ type }}</span>
+            <input
+              type="color"
+              class="color-swatch-input"
+              :value="entryTypeColors[type]"
+              @input="emit('update-entry-type-color', type, $event.target.value)"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="danger-zone">
         <div class="danger-action">
           <p>
             Permanently delete {{ oldEntriesCount }} entr{{ oldEntriesCount === 1 ? 'y' : 'ies' }} dated before
@@ -237,6 +275,36 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   color: var(--color-text);
 }
 
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-btn {
+  padding: 0.5rem 0.85rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  opacity: 0.9;
+}
+
+.tab-btn.active {
+  opacity: 1;
+  color: var(--color-heading);
+  border-bottom-color: #3b82f6;
+}
+
 .field {
   margin-bottom: 0.85rem;
   display: flex;
@@ -292,6 +360,57 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   opacity: 0.7;
 }
 
+.tab-intro {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-bottom: 0.85rem;
+}
+
+.color-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+}
+
+.color-type-label {
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.color-swatch-input {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.color-swatch-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 50%;
+}
+
+.color-swatch-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.color-swatch-input::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
 .error-msg {
   color: #dc2626;
   font-size: 0.85rem;
@@ -331,27 +450,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .danger-zone {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.danger-zone h3 {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #dc2626;
-  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .danger-action {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  margin-bottom: 0.85rem;
-}
-
-.danger-action:last-child {
-  margin-bottom: 0;
 }
 
 .danger-action p {

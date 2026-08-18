@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatDayHeading, durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
-import { colorStyle } from '@/utils/colorPresets'
+import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 
@@ -12,6 +12,7 @@ const props = defineProps({
   dailyTargetHours: { type: Number, required: true },
   viewFromHour: { type: Number, required: true },
   viewTillHour: { type: Number, required: true },
+  entryTypeColors: { type: Object, required: true },
 })
 
 const emit = defineEmits(['add', 'edit'])
@@ -111,7 +112,7 @@ function blockStyle(entry) {
   const { start, end } = entryRange(entry)
   const clippedStart = Math.max(start, props.viewFromHour)
   const clippedEnd = Math.min(end, props.viewTillHour)
-  const style = colorStyle(entry.colorPreset)
+  const style = colorStyleForType(entry.entryType, props.entryTypeColors)
   return {
     left: `${((clippedStart - props.viewFromHour) / rangeSpan.value) * 100}%`,
     width: `${((clippedEnd - clippedStart) / rangeSpan.value) * 100}%`,
@@ -122,7 +123,7 @@ function blockStyle(entry) {
 }
 
 function bannerStyle(entry) {
-  const style = colorStyle(entry.colorPreset)
+  const style = colorStyleForType(entry.entryType, props.entryTypeColors)
   return {
     backgroundColor: style.bg,
     color: style.text,

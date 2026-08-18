@@ -49,7 +49,6 @@ public class ScheduleEntriesController : ControllerBase
             EndTime = dto.EndTime,
             EntryType = dto.EntryType,
             WorkLocation = dto.WorkLocation,
-            ColorPreset = dto.ColorPreset,
             Notes = dto.Notes
         };
 
@@ -77,7 +76,6 @@ public class ScheduleEntriesController : ControllerBase
             EndTime = dto.EndTime,
             EntryType = dto.EntryType,
             WorkLocation = dto.WorkLocation,
-            ColorPreset = dto.ColorPreset,
             Notes = dto.Notes
         };
 

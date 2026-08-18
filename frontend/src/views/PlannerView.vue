@@ -228,6 +228,7 @@ async function handleDelete(id) {
       :daily-target-hours="store.dailyTargetHours"
       :view-from-hour="store.viewFromHour"
       :view-till-hour="store.viewTillHour"
+      :entry-type-colors="store.entryTypeColors"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -241,6 +242,7 @@ async function handleDelete(id) {
       :daily-target-hours="store.dailyTargetHours"
       :view-from-hour="store.viewFromHour"
       :view-till-hour="store.viewTillHour"
+      :entry-type-colors="store.entryTypeColors"
       @add="openAdd"
       @edit="openEdit"
     />
@@ -269,10 +271,12 @@ async function handleDelete(id) {
       :clearing-all-data="clearingAllData"
       :view-from-hour="store.viewFromHour"
       :view-till-hour="store.viewTillHour"
+      :entry-type-colors="store.entryTypeColors"
       @close="closeSettings"
       @submit="handleSaveGoal"
       @update-display-name="store.setDisplayName"
       @update-view-range="store.setViewRange"
+      @update-entry-type-color="store.setEntryTypeColor"
       @clear-old-entries="handleClearOldEntries"
       @clear-all-data="handleClearAllData"
     />
