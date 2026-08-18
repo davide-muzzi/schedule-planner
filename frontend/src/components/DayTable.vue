@@ -216,6 +216,7 @@ function stopDragListeners() {
 onBeforeUnmount(stopDragListeners)
 
 function handleTrackMouseDown(event) {
+  event.preventDefault() // stops the browser's native text-selection drag from kicking in
   const start = snapHours(hoursFromClientX(event.clientX), event.ctrlKey)
   dragMode.value = 'create'
   dragEntry.value = null
@@ -226,6 +227,7 @@ function handleTrackMouseDown(event) {
 }
 
 function handleBlockMouseDown(event, entry) {
+  event.preventDefault()
   const { start, end } = entryRange(entry)
   dragMode.value = 'move'
   dragEntry.value = entry
@@ -236,6 +238,7 @@ function handleBlockMouseDown(event, entry) {
 }
 
 function handleEdgeMouseDown(event, entry, edge) {
+  event.preventDefault()
   const { start, end } = entryRange(entry)
   dragMode.value = edge === 'start' ? 'resize-start' : 'resize-end'
   dragEntry.value = entry
@@ -675,6 +678,7 @@ table {
   border: 1px solid var(--color-border);
   border-radius: 4px;
   cursor: crosshair;
+  user-select: none;
 }
 
 .track-grid {
