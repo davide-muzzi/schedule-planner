@@ -373,6 +373,20 @@ function entryRightLabel(entry) {
   const range = `${entry.startTime?.slice(0, 5)}-${entry.endTime?.slice(0, 5)}`
   return `${duration} (${range})`
 }
+
+// Same as entryRightLabel, but while this entry is being moved/resized it
+// reads from the live drag preview instead of the entry's saved times, so
+// the label updates in real time as you drag.
+function blockTimeLabel(entry) {
+  const isDraggingThis =
+    dragEntry.value?.id === entry.id &&
+    (dragMode.value === 'move' || dragMode.value === 'resize-start' || dragMode.value === 'resize-end')
+  if (!isDraggingThis) return entryRightLabel(entry)
+
+  const duration = formatHours(dragPreviewEnd.value - dragPreviewStart.value)
+  const range = `${hoursToTimeString(dragPreviewStart.value)}-${hoursToTimeString(dragPreviewEnd.value)}`
+  return `${duration} (${range})`
+}
 </script>
 
 <template>
@@ -446,7 +460,7 @@ function entryRightLabel(entry) {
                 <div class="resize-handle right" @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"></div>
                 <div class="block-content">
                   <span class="block-title">{{ blockTitleLabel(entry) }}</span>
-                  <span class="block-time">{{ entryRightLabel(entry) }}</span>
+                  <span class="block-time">{{ blockTimeLabel(entry) }}</span>
                 </div>
                 <span v-if="entry.notes" class="note-icon" :title="entry.notes">📝</span>
               </div>
