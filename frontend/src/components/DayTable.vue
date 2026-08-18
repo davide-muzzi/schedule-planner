@@ -456,8 +456,16 @@ function blockTimeLabel(entry) {
                 :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
                 @mousedown.stop="handleBlockMouseDown($event, entry)"
               >
-                <div class="resize-handle left" @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"></div>
-                <div class="resize-handle right" @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"></div>
+                <div
+                  class="resize-handle left"
+                  :class="{ active: dragMode === 'resize-start' && dragEntry?.id === entry.id }"
+                  @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"
+                ></div>
+                <div
+                  class="resize-handle right"
+                  :class="{ active: dragMode === 'resize-end' && dragEntry?.id === entry.id }"
+                  @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
+                ></div>
                 <div class="block-content">
                   <span class="block-title">{{ blockTitleLabel(entry) }}</span>
                   <span class="block-time">{{ blockTimeLabel(entry) }}</span>
@@ -742,14 +750,23 @@ table {
   width: 6px;
   cursor: ew-resize;
   z-index: 2;
+  background: transparent;
+  transition: background-color 0.1s ease;
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .resize-handle.left {
   left: 0;
+  border-radius: 3px 0 0 3px;
 }
 
 .resize-handle.right {
   right: 0;
+  border-radius: 0 3px 3px 0;
 }
 
 .drag-ghost {
