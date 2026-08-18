@@ -4,6 +4,7 @@ import { formatDayHeading, durationHours, timeToDecimalHours, formatHours, toISO
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
+import { showToast } from '@/utils/toast'
 
 const props = defineProps({
   date: { type: Date, required: true },
@@ -138,19 +139,45 @@ function snapHours(hours, ctrlKey) {
   return Math.round(hours / grid) * grid
 }
 
-// If `hours` falls inside another entry's span, snap it to that entry's
-// start (hovering its left half) or end (right half) - lets dragged entries
-// line up flush against their neighbors with no gap.
-function magnetSnap(hours, excludeId) {
+// Edge drags: a start-edge can only ever come to rest at a neighbor's END
+// (snapping it to the neighbor's own start would nest it inside that span
+// and always overlap), and an end-edge can only ever come to rest at a
+// neighbor's START, for the same reason in reverse. Which half of the
+// neighbor you're hovering doesn't matter here - only one boundary is ever
+// a valid target.
+function magnetSnapForStart(hours, excludeId) {
   for (const other of timedEntries.value) {
     if (other.id === excludeId) continue
     const { start, end } = entryRange(other)
-    if (hours > start && hours < end) {
-      const mid = (start + end) / 2
-      return hours < mid ? start : end
-    }
+    if (hours > start && hours < end) return end
   }
   return hours
+}
+
+function magnetSnapForEnd(hours, excludeId) {
+  for (const other of timedEntries.value) {
+    if (other.id === excludeId) continue
+    const { start, end } = entryRange(other)
+    if (hours > start && hours < end) return start
+  }
+  return hours
+}
+
+// Whole-entry move: which half of a hovered neighbor the cursor is over
+// decides which of the dragged entry's edges gets pinned to that neighbor's
+// boundary - left half pins the dragged entry's end to the neighbor's
+// start, right half pins its start to the neighbor's end. Returns null when
+// the cursor isn't currently over any neighbor.
+function moveMagnetTarget(rawHours, duration, excludeId) {
+  for (const other of timedEntries.value) {
+    if (other.id === excludeId) continue
+    const { start, end } = entryRange(other)
+    if (rawHours > start && rawHours < end) {
+      const mid = (start + end) / 2
+      return rawHours < mid ? { start: start - duration, end: start } : { start: end, end: end + duration }
+    }
+  }
+  return null
 }
 
 function hasOverlap(start, end, excludeId) {
@@ -224,16 +251,16 @@ function handleDragMove(event) {
     dragPreviewStart.value = Math.min(dragAnchorHours.value, snapped)
     dragPreviewEnd.value = Math.max(dragAnchorHours.value, snapped)
   } else if (dragMode.value === 'resize-start') {
-    const magnet = magnetSnap(snapped, dragEntry.value.id)
+    const magnet = magnetSnapForStart(snapped, dragEntry.value.id)
     dragPreviewStart.value = Math.min(magnet, dragPreviewEnd.value - MIN_DURATION_HOURS)
   } else if (dragMode.value === 'resize-end') {
-    const magnet = magnetSnap(snapped, dragEntry.value.id)
+    const magnet = magnetSnapForEnd(snapped, dragEntry.value.id)
     dragPreviewEnd.value = Math.max(magnet, dragPreviewStart.value + MIN_DURATION_HOURS)
   } else if (dragMode.value === 'move') {
     const { start: origStart, end: origEnd } = entryRange(dragEntry.value)
     const duration = origEnd - origStart
-    let newStart = snapHours(raw - dragGrabOffsetHours.value, event.ctrlKey)
-    newStart = magnetSnap(newStart, dragEntry.value.id)
+    const magnet = moveMagnetTarget(raw, duration, dragEntry.value.id)
+    let newStart = magnet ? magnet.start : snapHours(raw - dragGrabOffsetHours.value, event.ctrlKey)
     newStart = clamp(newStart, props.viewFromHour, props.viewTillHour - duration)
     dragPreviewStart.value = newStart
     dragPreviewEnd.value = newStart + duration
@@ -254,7 +281,7 @@ function handleDragEnd() {
   if (mode === 'create') {
     if (end - start < MIN_DURATION_HOURS) return // negligible drag - treat as a plain click, do nothing
     if (hasOverlap(start, end, null)) {
-      alert('This time range overlaps with an existing entry.')
+      showToast('This time range overlaps with an existing entry.')
       return
     }
     emit('add', props.date, { startTime: hoursToTimeString(start), endTime: hoursToTimeString(end) })
@@ -268,7 +295,7 @@ function handleDragEnd() {
     return
   }
   if (hasOverlap(start, end, entry.id)) {
-    alert('This time range overlaps with an existing entry.')
+    showToast('This time range overlaps with an existing entry.')
     return
   }
   emit('resize-entry', entry.id, hoursToTimeString(start), hoursToTimeString(end))
