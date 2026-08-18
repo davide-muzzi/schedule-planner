@@ -189,7 +189,6 @@ async function handleDelete(id) {
     <div class="page-header">
       <h1 class="page-title">{{ store.greeting }}</h1>
       <div class="header-actions">
-        <button type="button" class="settings-btn" @click="openWeeklyBalance">📊 Weekly Balance</button>
         <button type="button" class="settings-btn" @click="openSettings" aria-label="Settings">⚙ Settings</button>
       </div>
     </div>
@@ -202,17 +201,16 @@ async function handleDelete(id) {
     <WeekSummary
       :monday="currentMonday"
       :weekly-total-hours="weeklyTotalHours"
+      :weekly-target-hours="store.weeklyTargetHours"
       :overall-balance="store.overallBalance"
       :future-appointment-hours="store.futureAppointmentHours"
       @prev="goPrevWeek"
       @next="goNextWeek"
       @today="goToday"
       @apply-adjustment="handleApplyAdjustment"
+      @add-entry="openAdd(new Date())"
+      @open-weekly-balance="openWeeklyBalance"
     />
-
-    <div class="toolbar">
-      <button type="button" class="add-entry-btn" @click="openAdd(new Date())">+ Add Entry</button>
-    </div>
 
     <p v-if="store.loading" class="loading">Loading…</p>
 
@@ -317,22 +315,6 @@ async function handleDelete(id) {
 
 .settings-btn:hover {
   border-color: var(--color-border-hover);
-}
-
-.toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 1rem;
-}
-
-.add-entry-btn {
-  background: #3b82f6;
-  border: 1px solid #1d4ed8;
-  color: #fff;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
 }
 
 .loading {
