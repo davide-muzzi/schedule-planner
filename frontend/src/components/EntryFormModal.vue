@@ -182,7 +182,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         <div class="field-row">
           <div class="field">
             <label>Date</label>
-            <input v-model="form.date" type="date" required />
+            <input v-model="form.date" type="date" required @keydown.escape.stop />
           </div>
           <div class="field checkbox-field">
             <span class="field-label-spacer">&nbsp;</span>
@@ -215,7 +215,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         <div class="field-row">
           <div class="field">
             <label>Entry type</label>
-            <select v-model="form.entryType" required @change="handleEntryTypeChange">
+            <select v-model="form.entryType" required @change="handleEntryTypeChange" @keydown.escape.stop>
               <option value="" disabled>Select...</option>
               <option v-for="t in ENTRY_TYPES" :key="t" :value="t" :disabled="t === 'Working' && form.allDay">
                 {{ t }}
@@ -224,7 +224,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           </div>
           <div class="field">
             <label>Work location</label>
-            <select v-model="form.workLocation" :disabled="form.allDay">
+            <select v-model="form.workLocation" :disabled="form.allDay" @keydown.escape.stop>
               <option value="">(unset)</option>
               <option v-for="l in WORK_LOCATIONS" :key="l" :value="l">{{ l }}</option>
             </select>
