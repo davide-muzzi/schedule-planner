@@ -116,9 +116,7 @@ watch(
 // overwrite an already-saved, valid workLocation like "Remote" back to
 // "Office" the moment you open that entry).
 function handleEntryTypeChange() {
-  if (form.value.entryType === 'Vacation') {
-    form.value.allDay = true
-  }
+  form.value.allDay = form.value.entryType === 'Vacation'
   form.value.workLocation = form.value.entryType === 'Working' ? 'Office' : ''
 }
 
@@ -217,7 +215,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
             <label>Entry type</label>
             <select v-model="form.entryType" required @change="handleEntryTypeChange" @keydown.escape.stop>
               <option value="" disabled>Select...</option>
-              <option v-for="t in ENTRY_TYPES" :key="t" :value="t" :disabled="t === 'Working' && form.allDay">
+              <option v-for="t in ENTRY_TYPES" :key="t" :value="t">
                 {{ t }}
               </option>
             </select>
