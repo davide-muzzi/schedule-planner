@@ -731,7 +731,7 @@ table {
   border-radius: 3px;
   font-size: 0.7rem;
   line-height: 1.35;
-  padding: 0.3rem 0.35rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.65rem;
   overflow: hidden;
   cursor: grab;
   display: flex;
@@ -806,7 +806,7 @@ table {
 /* "5 chars before it'd need an ellipsis" is a rough width, not a literal
    character count - measured off the block's own rendered width via a
    container query so it stays correct across every zoom level/window size. */
-@container (max-width: 46px) {
+@container (max-width: 52px) {
   .block-content,
   .note-icon {
     display: none;
