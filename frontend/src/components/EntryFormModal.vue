@@ -224,7 +224,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           </div>
           <div class="field">
             <label>Work location</label>
-            <select v-model="form.workLocation" :disabled="form.allDay" @keydown.escape.stop>
+            <select
+              v-model="form.workLocation"
+              :disabled="form.allDay || form.entryType !== 'Working'"
+              @keydown.escape.stop
+            >
               <option value="">(unset)</option>
               <option v-for="l in WORK_LOCATIONS" :key="l" :value="l">{{ l }}</option>
             </select>
