@@ -4,8 +4,16 @@
 // stored independently.
 export const DEFAULT_WEEKLY_TARGET_MINUTES = 42 * 60
 
+// Used by the per-week rows in WeeklyBalanceModal.
 export const RED_THRESHOLD_HOURS = 40
 export const YELLOW_THRESHOLD_HOURS = 10
+
+// "Overall balance" coloring (WeekSummary only): green is the
+// target-to-+5h "sweet spot". Yellow on either side of that (any shortfall
+// under 10h, or +5h to +10h over). Red once you're 10h+ away from target in
+// either direction - excessive overtime and excessive shortfall both flag.
+export const OVERALL_BALANCE_GREEN_MAX_OVER_HOURS = 5
+export const OVERALL_BALANCE_RED_THRESHOLD_HOURS = 10
 
 export const BUSINESS_DAYS_PER_WEEK = 5
 export const DAILY_RED_THRESHOLD_HOURS = 1

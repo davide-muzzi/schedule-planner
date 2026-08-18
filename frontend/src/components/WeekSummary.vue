@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatWeekRange, formatHours } from '@/utils/date'
-import { RED_THRESHOLD_HOURS, YELLOW_THRESHOLD_HOURS } from '@/utils/constants'
+import { OVERALL_BALANCE_GREEN_MAX_OVER_HOURS, OVERALL_BALANCE_RED_THRESHOLD_HOURS } from '@/utils/constants'
 
 const props = defineProps({
   monday: { type: Date, required: true },
@@ -15,11 +15,11 @@ const emit = defineEmits(['prev', 'next', 'today', 'apply-adjustment'])
 const diff = computed(() => props.overallBalance.diffHours)
 
 const status = computed(() => {
-  if (diff.value >= 0) return 'green' // goal reached or exceeded
-  const shortfall = Math.abs(diff.value)
-  if (shortfall > RED_THRESHOLD_HOURS) return 'red'
-  if (shortfall > YELLOW_THRESHOLD_HOURS) return 'yellow'
-  return 'green'
+  if (diff.value <= -OVERALL_BALANCE_RED_THRESHOLD_HOURS) return 'red' // 10h or more under
+  if (diff.value < 0) return 'yellow' // shortfall under 10h
+  if (diff.value <= OVERALL_BALANCE_GREEN_MAX_OVER_HOURS) return 'green' // target up to +5h over
+  if (diff.value < OVERALL_BALANCE_RED_THRESHOLD_HOURS) return 'yellow' // +5h to +10h over
+  return 'red' // +10h or more over
 })
 
 const diffLabel = computed(() => {
