@@ -244,16 +244,10 @@ function entryRightLabel(entry) {
   background: var(--color-background-soft);
 }
 
-/* Border stays the same as any other card - the gradient becomes a soft,
-   blurred glow sitting behind it instead of an outline. An oversized
-   linear-gradient sliding via background-position (not a rotated shape or
-   an @property-animated angle) - the most broadly-supported way to get a
-   continuously "flowing" gradient, no feature-detection gaps involved. */
-.day-table.is-today::before {
-  content: '';
-  position: absolute;
-  inset: -6px;
-  border-radius: 12px;
+/* Same oversized linear-gradient + background-position technique as the
+   Today button's text (WeekSummary.vue) - no glow/border, the animated
+   gradient is clipped to the heading text itself instead. */
+.day-table.is-today .day-heading h3 {
   background: linear-gradient(
     45deg,
     #00c3ff,
@@ -268,14 +262,13 @@ function entryRightLabel(entry) {
     #ffff1c
   );
   background-size: 400% 400%;
-  filter: blur(12px);
-  opacity: 0.85;
-  z-index: -1;
-  animation: rotate-today-border 24s linear infinite;
-  pointer-events: none;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: today-heading-gradient 24s linear infinite;
 }
 
-@keyframes rotate-today-border {
+@keyframes today-heading-gradient {
   0% {
     background-position: 0 0;
   }
