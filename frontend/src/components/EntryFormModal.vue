@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { X } from '@lucide/vue'
 import { toISODate } from '@/utils/date'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import TimePartInput from './TimePartInput.vue'
@@ -161,7 +162,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
     <div class="modal">
       <header class="modal-header">
         <h2>{{ isEdit ? 'Edit entry' : 'Add entry' }}</h2>
-        <button type="button" class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
+        <button type="button" class="close-btn" @click="emit('close')" aria-label="Close"><X :size="20" /></button>
       </header>
 
       <form @submit.prevent="handleSubmit">
@@ -280,10 +281,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .close-btn {
+  display: flex;
+  align-items: center;
   background: none;
   border: none;
-  font-size: 1.4rem;
-  line-height: 1;
   cursor: pointer;
   color: var(--color-text);
 }

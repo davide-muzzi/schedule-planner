@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { ChevronLeft, ChevronRight, Settings, ChartColumn } from '@lucide/vue'
 import { formatWeekRange, formatHours, getMonday, toISODate } from '@/utils/date'
 import {
   OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
@@ -25,7 +26,7 @@ const emit = defineEmits([
   'today',
   'select-date',
   'apply-adjustment',
-  'add-entry',
+  'open-settings',
   'open-weekly-balance',
 ])
 
@@ -104,7 +105,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 <template>
   <div class="week-summary-row">
     <div class="summary-card nav-card">
-      <button type="button" class="nav-btn" @click="emit('prev')" aria-label="Previous week">&larr;</button>
+      <button type="button" class="nav-btn" @click="emit('prev')" aria-label="Previous week"><ChevronLeft :size="16" /></button>
 
       <div class="range-picker">
         <button type="button" class="range-trigger" @click.stop="toggleCalendar">
@@ -114,7 +115,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
         <MiniCalendar v-if="showCalendar" :monday="monday" @select="selectDate" />
       </div>
 
-      <button type="button" class="nav-btn" @click="emit('next')" aria-label="Next week">&rarr;</button>
+      <button type="button" class="nav-btn" @click="emit('next')" aria-label="Next week"><ChevronRight :size="16" /></button>
       <button type="button" class="today-btn" :class="{ 'is-today': isCurrentWeek }" @click="emit('today')">
         <span :class="{ 'today-btn-text': isCurrentWeek }">Today</span>
       </button>
@@ -163,12 +164,13 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
       <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
     </div>
 
-    <div class="summary-card weekly-balance-card">
-      <button type="button" class="weekly-balance-btn" @click="emit('open-weekly-balance')">📊 Weekly Balance</button>
-    </div>
-
-    <div class="summary-card add-entry-card">
-      <button type="button" class="add-entry-btn" @click="emit('add-entry')">+ Add Entry</button>
+    <div class="summary-card utility-card">
+      <button type="button" class="utility-btn" @click="emit('open-settings')" aria-label="Settings">
+        <Settings :size="14" /> Settings
+      </button>
+      <button type="button" class="utility-btn" @click="emit('open-weekly-balance')">
+        <ChartColumn :size="14" /> Weekly Balance
+      </button>
     </div>
   </div>
 </template>
@@ -186,7 +188,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--color-border);
+  border: 2px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
   background: var(--color-background-soft);
 }
@@ -209,17 +211,20 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   min-width: 26rem;
 }
 
-.weekly-balance-card,
-.add-entry-card {
+.utility-card {
+  flex-direction: column;
   padding: 0;
-  width: 6rem;
-  height: 6rem;
+  width: 10rem;
   overflow: hidden;
 }
 
-.weekly-balance-btn {
+.utility-btn {
+  flex: 1;
   width: 100%;
-  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   background: transparent;
   border: none;
   color: var(--color-text);
@@ -229,32 +234,23 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   padding: 0.4rem;
 }
 
-.weekly-balance-btn:hover {
+.utility-btn:hover {
   background: var(--color-background);
 }
 
-.add-entry-btn {
-  width: 100%;
-  height: 100%;
-  background: #3b82f6;
-  border: none;
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.add-entry-btn:hover {
-  background: #2563eb;
+.utility-btn + .utility-btn {
+  border-top: 2px solid rgba(255, 255, 255, 0.22);
 }
 
 .nav-btn {
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 2rem;
   height: 2rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);
-  background: transparent;
+  background: var(--color-background);
   color: var(--color-text);
   cursor: pointer;
 }
@@ -289,6 +285,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 }
 
 .range-label {
+  font-size: 1rem;
   font-weight: 600;
   color: var(--color-heading);
   text-align: center;

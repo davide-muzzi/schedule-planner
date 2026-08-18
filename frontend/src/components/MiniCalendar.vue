@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import { getMonday, toISODate, addDays } from '@/utils/date'
 
 const props = defineProps({
@@ -46,9 +47,9 @@ function nextMonth() {
 <template>
   <div class="mini-calendar" @click.stop>
     <div class="cal-header">
-      <button type="button" class="cal-nav" @click="prevMonth" aria-label="Previous month">&larr;</button>
+      <button type="button" class="cal-nav" @click="prevMonth" aria-label="Previous month"><ChevronLeft :size="14" /></button>
       <span class="cal-month-label">{{ monthLabel }}</span>
-      <button type="button" class="cal-nav" @click="nextMonth" aria-label="Next month">&rarr;</button>
+      <button type="button" class="cal-nav" @click="nextMonth" aria-label="Next month"><ChevronRight :size="14" /></button>
     </div>
 
     <div class="cal-weekdays">
@@ -103,7 +104,9 @@ function nextMonth() {
 }
 
 .cal-nav {
-  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 1.6rem;
   height: 1.6rem;
   border-radius: 5px;

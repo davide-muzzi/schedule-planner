@@ -17,11 +17,6 @@ export function addWeeks(date, weeks) {
   return addDays(date, weeks * 7)
 }
 
-// Mon-Fri as Date objects, given a Monday
-export function getBusinessWeekDays(monday) {
-  return [0, 1, 2, 3, 4].map((i) => addDays(monday, i))
-}
-
 export function toISODate(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -38,14 +33,6 @@ export function isWeekend(date) {
   return day === 0 || day === 6
 }
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-export function formatDayHeading(date) {
-  const weekday = WEEKDAY_LABELS[date.getDay()]
-  const day = date.getDate()
-  const month = date.toLocaleString(undefined, { month: 'short' })
-  return `${weekday}, ${month} ${day}`
-}
 
 export function formatWeekRange(monday) {
   const friday = addDays(monday, 4)

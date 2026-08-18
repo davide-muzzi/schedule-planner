@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { X } from '@lucide/vue'
 import { formatWeekRange, formatHours } from '@/utils/date'
 import { RED_THRESHOLD_HOURS, YELLOW_THRESHOLD_HOURS } from '@/utils/constants'
 
@@ -50,7 +51,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
     <div class="modal">
       <header class="modal-header">
         <h2>Weekly Balance</h2>
-        <button type="button" class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
+        <button type="button" class="close-btn" @click="emit('close')" aria-label="Close"><X :size="20" /></button>
       </header>
 
       <p v-if="weeks.length === 0" class="empty-state">No weeks with Working entries yet.</p>
@@ -129,10 +130,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .close-btn {
+  display: flex;
+  align-items: center;
   background: none;
   border: none;
-  font-size: 1.4rem;
-  line-height: 1;
   cursor: pointer;
   color: var(--color-text);
 }

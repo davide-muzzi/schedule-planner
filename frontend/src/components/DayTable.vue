@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { formatDayHeading, durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
+import { TriangleAlert, StickyNote, Briefcase, House } from '@lucide/vue'
+import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
@@ -27,6 +28,15 @@ const visibleHours = computed(() =>
 )
 const rangeSpan = computed(() => props.viewTillHour - props.viewFromHour)
 
+// Grid lines stay hourly (drag/resize still snaps that fine), but a label
+// at every hour is too busy - only mark every 3rd hour, aligned to the
+// clock (0/3/6/9/...) rather than relative to the current view range.
+const labeledHours = computed(() => visibleHours.value.filter((h) => h % 3 === 0))
+
+function hourLabelLeft(h) {
+  return `${((h - props.viewFromHour) / rangeSpan.value) * 100}%`
+}
+
 const allDayEntries = computed(() => props.entries.filter((e) => e.allDay))
 const timedEntries = computed(() => props.entries.filter((e) => !e.allDay))
 
@@ -51,6 +61,10 @@ const dayTotalHours = computed(() =>
 )
 
 const isToday = computed(() => toISODate(props.date) === toISODate(new Date()))
+
+const WEEKDAY_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const weekdayAbbrev = computed(() => WEEKDAY_ABBR[props.date.getDay()])
+const monthDayLabel = computed(() => props.date.toLocaleString(undefined, { month: 'short', day: 'numeric' }))
 
 // An all-day Vacation entry credits the full daily target, same as the
 // overall balance does - the day reads as "on target", not a shortfall.
@@ -322,7 +336,6 @@ function blockStyle(entry) {
     width: `${((clippedEnd - clippedStart) / rangeSpan.value) * 100}%`,
     backgroundColor: style.bg,
     color: style.text,
-    borderColor: style.border,
   }
 }
 
@@ -340,29 +353,29 @@ function bannerStyle(entry) {
   return {
     backgroundColor: style.bg,
     color: style.text,
-    borderColor: style.border,
   }
 }
 
-const LOCATION_ICONS = { Office: '💼', Remote: '🏠' }
+const LOCATION_ICONS = { Office: Briefcase, Remote: House }
 
-// Left side: <icon> Title (or Entry Type if no title) - Notes. Work Location
-// shows as an icon prefix instead of "(Office)" text, and is omitted
-// entirely when unset - same for Notes when there's none.
+// The work-location icon component for this entry (rendered separately in
+// the template, alongside the plain-text labels below), or null if unset.
+function locationIcon(entry) {
+  return LOCATION_ICONS[entry.workLocation] || null
+}
+
+// Left side: Title (or Entry Type if no title) - Notes. Notes are omitted
+// entirely when there's none.
 function entryLeftLabel(entry) {
-  let label = entry.title || entry.entryType
-  if (entry.notes) label += ` - ${entry.notes}`
-  const icon = LOCATION_ICONS[entry.workLocation]
-  return icon ? `${icon} ${label}` : label
+  const label = entry.title || entry.entryType
+  return entry.notes ? `${label} - ${entry.notes}` : label
 }
 
 // Row 1 of a timeline block - same as entryLeftLabel but without the notes
 // text, since notes get their own icon instead (there's rarely room for
 // both on a block this narrow).
 function blockTitleLabel(entry) {
-  const label = entry.title || entry.entryType
-  const icon = LOCATION_ICONS[entry.workLocation]
-  return icon ? `${icon} ${label}` : label
+  return entry.title || entry.entryType
 }
 
 // Right side / row 2: total duration, with the exact time range in brackets
@@ -391,18 +404,19 @@ function blockTimeLabel(entry) {
 
 <template>
   <section class="day-table" :class="{ 'is-today': isToday }">
-    <header class="day-heading">
-      <div class="heading-left">
-        <h3>{{ formatDayHeading(date) }}</h3>
+    <div class="day-body">
+      <div class="day-info">
+        <span class="day-weekday">{{ weekdayAbbrev }}</span>
+        <span class="day-date">{{ monthDayLabel }}</span>
         <span v-if="breakWarning" class="break-warning-wrap">
           <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup">
-            ⚠ Insufficient break
+            <TriangleAlert :size="12" />
           </button>
           <div v-if="showBreakPopup" class="break-popup" @click.stop>{{ breakWarningTitle }}</div>
         </span>
         <span v-if="hiddenTimedEntries.length > 0" class="break-warning-wrap">
           <button type="button" class="hidden-warning" @click.stop="toggleHiddenPopup">
-            {{ hiddenTimedEntries.length }} entr{{ hiddenTimedEntries.length === 1 ? 'y' : 'ies' }} outside view
+            {{ hiddenTimedEntries.length }} hidden
           </button>
           <div v-if="showHiddenPopup" class="break-popup hidden-popup" @click.stop>
             <button
@@ -412,81 +426,96 @@ function blockTimeLabel(entry) {
               class="hidden-entry-item"
               @click="handleHiddenEntryClick(entry)"
             >
+              <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="12" class="inline-icon" />
               {{ entryLeftLabel(entry) }} — {{ entryRightLabel(entry) }}
             </button>
           </div>
         </span>
       </div>
-      <div class="header-actions">
-        <button type="button" class="clear-day-btn" :disabled="entries.length === 0" @click="handleClearDayClick">
-          Clear Day
-        </button>
-        <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
-      </div>
-    </header>
 
-    <table>
-      <thead>
-        <tr>
-          <th v-for="h in visibleHours" :key="h" class="hour-label">{{ h }}</th>
-          <th class="total-label"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="entry in allDayEntries" :key="'allday-' + entry.id" class="all-day-row">
-          <td :colspan="visibleHours.length" class="all-day-cell" :style="bannerStyle(entry)" @click="emit('edit', entry)">
-            <div class="block-content">
-              <span class="block-left">{{ entryLeftLabel(entry) }}</span>
-              <span class="block-right">{{ entryRightLabel(entry) }}</span>
-            </div>
-          </td>
-          <td class="total-cell">&mdash;</td>
-        </tr>
-        <tr class="timeline-row">
-          <td :colspan="visibleHours.length" class="hour-track" ref="trackEl" @mousedown="handleTrackMouseDown">
-            <div class="track-grid">
-              <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
-            </div>
-            <div class="blocks">
-              <div
-                v-for="entry in visibleTimedEntries"
-                :key="entry.id"
-                class="block"
-                :style="blockStyle(entry)"
-                :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
-                @mousedown.stop="handleBlockMouseDown($event, entry)"
-              >
-                <div
-                  class="resize-handle left"
-                  :class="{ active: dragMode === 'resize-start' && dragEntry?.id === entry.id }"
-                  @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"
-                ></div>
-                <div
-                  class="resize-handle right"
-                  :class="{ active: dragMode === 'resize-end' && dragEntry?.id === entry.id }"
-                  @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
-                ></div>
-                <div class="block-content">
-                  <span class="block-title">{{ blockTitleLabel(entry) }}</span>
-                  <span class="block-time">{{ blockTimeLabel(entry) }}</span>
-                </div>
-                <span v-if="entry.notes" class="note-icon" :title="entry.notes">📝</span>
+      <table class="timeline-table">
+        <thead>
+          <tr>
+            <th :colspan="visibleHours.length" class="hour-labels-cell">
+              <span
+                v-for="h in labeledHours"
+                :key="h"
+                class="hour-label"
+                :style="{ left: hourLabelLeft(h) }"
+              >{{ h }}:00</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="entry in allDayEntries" :key="'allday-' + entry.id" class="all-day-row">
+            <td :colspan="visibleHours.length" class="all-day-cell" :style="bannerStyle(entry)" @click="emit('edit', entry)">
+              <div class="block-content">
+                <span class="block-left">
+                  <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="13" class="inline-icon" />
+                  {{ entryLeftLabel(entry) }}
+                </span>
+                <span class="block-right">{{ entryRightLabel(entry) }}</span>
               </div>
-              <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
-            </div>
-          </td>
-          <td class="total-cell">
-            <div class="total-value-row">
-              <span class="total-value" :class="showGoalDiff && dailyStatus ? 'status-' + dailyStatus : ''">{{ formatHours(dayTotalHours) }}</span>
-              <span v-if="showGoalDiff" class="total-value-target">/ {{ formatHours(dailyTargetHours) }}</span>
-            </div>
-            <div v-if="showGoalDiff && dailyStatus" class="goal-diff" :class="'status-' + dailyStatus">
-              {{ formatDiff(dailyDiffHours) }}
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            </td>
+          </tr>
+          <tr class="timeline-row">
+            <td :colspan="visibleHours.length" class="hour-track-cell">
+              <div class="hour-track" ref="trackEl" @mousedown="handleTrackMouseDown">
+              <div class="track-grid">
+                <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
+              </div>
+              <div class="blocks">
+                <div
+                  v-for="entry in visibleTimedEntries"
+                  :key="entry.id"
+                  class="block"
+                  :style="blockStyle(entry)"
+                  :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
+                  @mousedown.stop="handleBlockMouseDown($event, entry)"
+                >
+                  <div
+                    class="resize-handle left"
+                    :class="{ active: dragMode === 'resize-start' && dragEntry?.id === entry.id }"
+                    @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"
+                  ></div>
+                  <div
+                    class="resize-handle right"
+                    :class="{ active: dragMode === 'resize-end' && dragEntry?.id === entry.id }"
+                    @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
+                  ></div>
+                  <div class="block-content">
+                    <span class="block-title">
+                      <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
+                      {{ blockTitleLabel(entry) }}
+                    </span>
+                    <span class="block-time">{{ blockTimeLabel(entry) }}</span>
+                  </div>
+                  <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
+                </div>
+                <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
+              </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="day-stats">
+        <div class="total-value-row stat-box">
+          <span class="total-value" :class="showGoalDiff && dailyStatus ? 'status-' + dailyStatus : ''">{{ formatHours(dayTotalHours) }}</span>
+          <span v-if="showGoalDiff" class="total-value-target">/ {{ formatHours(dailyTargetHours) }}</span>
+        </div>
+        <div v-if="showGoalDiff && dailyStatus" class="goal-diff stat-box" :class="'status-' + dailyStatus">
+          {{ formatDiff(dailyDiffHours) }}
+        </div>
+        <div class="day-actions">
+          <button type="button" class="clear-day-btn" :disabled="entries.length === 0" @click="handleClearDayClick">
+            Clear
+          </button>
+          <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -494,29 +523,44 @@ function blockTimeLabel(entry) {
 .day-table {
   position: relative;
   margin-bottom: 1.5rem;
-  border: 1px solid var(--color-border);
+  border: 2px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
   padding: 0.75rem 1rem 1rem;
   background: var(--color-background-soft);
 }
 
-.day-heading {
+.day-body {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
+  align-items: stretch;
+  gap: 0.9rem;
 }
 
-.day-heading h3 {
-  font-size: 0.95rem;
-  font-weight: 600;
+.day-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 3.5rem;
+  text-align: center;
+}
+
+.day-weekday {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   color: var(--color-heading);
+}
+
+.day-date {
+  font-size: 0.85rem;
+  opacity: 0.65;
 }
 
 /* Same oversized linear-gradient + background-position technique as the
    Today button's text (WeekSummary.vue) - no glow/border, the animated
-   gradient is clipped to the heading text itself instead. */
-.day-table.is-today .day-heading h3 {
+   gradient is clipped to the weekday text itself instead. */
+.day-table.is-today .day-weekday {
   background: linear-gradient(
     45deg,
     #00c3ff,
@@ -547,18 +591,6 @@ function blockTimeLabel(entry) {
   100% {
     background-position: 0 0;
   }
-}
-
-.heading-left {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .break-warning-wrap {
@@ -635,15 +667,32 @@ function blockTimeLabel(entry) {
   border-color: var(--color-border-hover);
 }
 
-.clear-day-btn {
+.day-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.clear-day-btn,
+.add-btn {
+  flex: 1;
+}
+
+.clear-day-btn,
+.add-btn {
+  height: 1.6rem;
   font-size: 0.75rem;
-  padding: 0.15rem 0.55rem;
+  padding: 0 0.55rem;
   border-radius: 5px;
-  border: 1px solid #dc2626;
-  background: transparent;
-  color: #dc2626;
   cursor: pointer;
   font-family: inherit;
+}
+
+.clear-day-btn {
+  border: 2px solid #dc2626;
+  background: var(--color-background);
+  color: #dc2626;
 }
 
 .clear-day-btn:hover {
@@ -654,53 +703,70 @@ function blockTimeLabel(entry) {
 .clear-day-btn:disabled {
   opacity: 0.4;
   cursor: default;
-  background: transparent;
+  background: var(--color-background);
   color: #dc2626;
 }
 
 .add-btn {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.55rem;
-  border-radius: 5px;
-  border: 1px solid #1d4ed8;
+  border: none;
   background: #3b82f6;
   color: #fff;
-  cursor: pointer;
 }
 
 .add-btn:hover {
   background: #2563eb;
 }
 
-table {
+.timeline-table {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
+.hour-labels-cell {
+  position: relative;
+  height: 1.4rem;
+  padding: 0 0 0.25rem;
+}
+
 .hour-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
   font-size: 0.65rem;
   font-weight: 400;
   color: var(--color-text);
   opacity: 0.6;
-  text-align: center;
-  padding-bottom: 0.25rem;
-  /* No explicit width - table-layout: fixed auto-distributes the remaining
-     space evenly among however many hour columns are currently visible. */
+  white-space: nowrap;
 }
 
-.total-label {
-  width: 7.5rem;
+.hour-label::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 2px;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.45);
+  transform: translateX(-50%);
+}
+
+.hour-track-cell {
+  padding: 0;
 }
 
 .hour-track {
   position: relative;
-  height: 3.75rem;
+  height: 3.25rem;
   padding: 0;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: crosshair;
   user-select: none;
+  overflow: hidden;
+  background: var(--color-background);
 }
 
 .track-grid {
@@ -711,7 +777,7 @@ table {
 
 .grid-line {
   flex: 1;
-  border-right: 1px solid var(--color-border);
+  border-right: 2px solid var(--color-border);
 }
 
 .grid-line:last-child {
@@ -725,9 +791,9 @@ table {
 
 .block {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  border: 1px solid;
+  top: 5px;
+  bottom: 5px;
+  border: none;
   border-radius: 3px;
   font-size: 0.7rem;
   line-height: 1.35;
@@ -771,8 +837,8 @@ table {
 
 .drag-ghost {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 5px;
+  bottom: 5px;
   border: 2px dashed var(--color-heading);
   border-radius: 3px;
   background: transparent;
@@ -815,11 +881,16 @@ table {
 
 .note-icon {
   position: absolute;
-  top: 1px;
+  top: 3px;
   right: 3px;
-  font-size: 0.6rem;
   opacity: 0.85;
   pointer-events: none;
+}
+
+.inline-icon {
+  vertical-align: -2px;
+  margin-right: 0.15rem;
+  flex-shrink: 0;
 }
 
 .block-left {
@@ -838,12 +909,25 @@ table {
   opacity: 0.85;
 }
 
-.total-cell {
-  text-align: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  width: 7.5rem;
+.day-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 7rem;
   white-space: nowrap;
+}
+
+/* Stretched to match the width of .day-actions below (the widest row in
+   this column, since day-stats shrink-wraps to its widest child) - gives
+   the total/diff rows a box spanning the same width as Clear+Add combined. */
+.stat-box {
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  padding: 0.25rem 0.4rem;
+  text-align: center;
+  background: var(--color-background);
 }
 
 .total-value-row {
@@ -851,6 +935,11 @@ table {
   align-items: baseline;
   justify-content: center;
   gap: 0.25rem;
+}
+
+.total-value {
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .total-value.status-green {
@@ -874,7 +963,6 @@ table {
 .goal-diff {
   font-size: 0.65rem;
   font-weight: 600;
-  margin-top: 0.15rem;
 }
 
 .goal-diff.status-green {
@@ -891,7 +979,7 @@ table {
 
 .all-day-row .all-day-cell {
   border-radius: 4px;
-  border: 1px solid;
+  border: none;
   font-size: 0.75rem;
   padding: 0.35rem 0.6rem;
   cursor: pointer;

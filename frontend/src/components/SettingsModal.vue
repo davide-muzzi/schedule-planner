@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { X } from '@lucide/vue'
 import { BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours } from '@/utils/date'
@@ -17,6 +18,7 @@ const props = defineProps({
   viewFromHour: { type: Number, required: true },
   viewTillHour: { type: Number, required: true },
   entryTypeColors: { type: Object, required: true },
+  visibleWeekdays: { type: Array, required: true },
 })
 
 const emit = defineEmits([
@@ -25,9 +27,22 @@ const emit = defineEmits([
   'update-display-name',
   'update-view-range',
   'update-entry-type-color',
+  'toggle-visible-weekday',
   'clear-old-entries',
   'clear-all-data',
 ])
+
+// value matches Date.getDay() (0=Sun..6=Sat), ordered Mon-Sun to match how
+// the week itself is displayed.
+const WEEKDAY_TOGGLES = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+]
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -109,7 +124,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
     <div class="modal">
       <header class="modal-header">
         <h2>Settings</h2>
-        <button type="button" class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
+        <button type="button" class="close-btn" @click="emit('close')" aria-label="Close"><X :size="20" /></button>
       </header>
 
       <div class="tabs">
@@ -150,18 +165,35 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           <p class="daily-preview">Only affects the timeline display - totals and warnings always use the full day.</p>
         </div>
 
+        <div class="field">
+          <label>Visible days</label>
+          <div class="weekday-toggles">
+            <button
+              v-for="day in WEEKDAY_TOGGLES"
+              :key="day.value"
+              type="button"
+              class="weekday-toggle"
+              :class="{ active: visibleWeekdays.includes(day.value) }"
+              @click="emit('toggle-visible-weekday', day.value)"
+            >
+              {{ day.label }}
+            </button>
+          </div>
+          <p class="daily-preview">Hidden days are never shown, but still count toward totals and balance.</p>
+        </div>
+
         <form @submit.prevent="handleSubmit">
           <div class="field">
             <label>Weekly worktime goal</label>
             <div class="goal-inputs">
-              <label class="sub-field">
-                h
+              <div class="unit-field">
                 <input v-model.number="hours" type="number" min="0" />
-              </label>
-              <label class="sub-field">
-                min
+                <span class="unit-suffix">h</span>
+              </div>
+              <div class="unit-field">
                 <input v-model.number="minutes" type="number" min="0" max="59" />
-              </label>
+                <span class="unit-suffix">min</span>
+              </div>
             </div>
             <p class="daily-preview">= {{ formatHours(dailyPreviewHours) }} / day (over {{ BUSINESS_DAYS_PER_WEEK }} business days)</p>
           </div>
@@ -256,10 +288,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 }
 
 .close-btn {
+  display: flex;
+  align-items: center;
   background: none;
   border: none;
-  font-size: 1.4rem;
-  line-height: 1;
   cursor: pointer;
   color: var(--color-text);
 }
@@ -344,9 +376,74 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   width: 100%;
 }
 
+.unit-field {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+}
+
+.unit-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.unit-field input:focus {
+  outline: none;
+}
+
+.unit-suffix {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  opacity: 0.6;
+  margin-left: 0.4rem;
+  white-space: nowrap;
+}
+
 .daily-preview {
   font-size: 0.75rem;
   opacity: 0.7;
+}
+
+.weekday-toggles {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.weekday-toggle {
+  flex: 1;
+  padding: 0.4rem 0;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.weekday-toggle:hover {
+  border-color: var(--color-border-hover);
+}
+
+.weekday-toggle.active {
+  background: #3b82f6;
+  border-color: #1d4ed8;
+  color: #fff;
+  opacity: 1;
 }
 
 .tab-intro {

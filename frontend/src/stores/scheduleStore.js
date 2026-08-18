@@ -14,6 +14,11 @@ import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 const DISPLAY_NAME_STORAGE_KEY = 'schedulePlanner.displayName'
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
 const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
+const VISIBLE_WEEKDAYS_STORAGE_KEY = 'schedulePlanner.visibleWeekdays'
+
+// Date.getDay() convention: 0=Sun, 1=Mon, ..., 6=Sat. Mon-Fri visible by
+// default, matching the previous hardcoded behavior.
+const DEFAULT_VISIBLE_WEEKDAYS = [1, 2, 3, 4, 5]
 
 function loadViewRange() {
   try {
@@ -37,6 +42,18 @@ function loadEntryTypeColors() {
     // fall through to defaults
   }
   return { ...DEFAULT_ENTRY_TYPE_COLORS }
+}
+
+function loadVisibleWeekdays() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VISIBLE_WEEKDAYS_STORAGE_KEY))
+    if (Array.isArray(raw) && raw.length > 0 && raw.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
+      return raw
+    }
+  } catch {
+    // fall through to default
+  }
+  return [...DEFAULT_VISIBLE_WEEKDAYS]
 }
 
 function extractErrorMessage(err) {
@@ -64,6 +81,10 @@ export const useScheduleStore = defineStore('schedule', {
       viewTillHour: viewRange.till,
       // Per-entry-type color, same reasoning again - purely cosmetic.
       entryTypeColors: loadEntryTypeColors(),
+      // Which days of the week get a card at all - also purely a display
+      // preference. Hiding a day never affects totals/goal-diff/break-law
+      // math, which always considers the full week regardless.
+      visibleWeekdays: loadVisibleWeekdays(),
     }
   },
 
@@ -266,6 +287,16 @@ export const useScheduleStore = defineStore('schedule', {
     setEntryTypeColor(entryType, hex) {
       this.entryTypeColors = { ...this.entryTypeColors, [entryType]: hex }
       localStorage.setItem(ENTRY_TYPE_COLORS_STORAGE_KEY, JSON.stringify(this.entryTypeColors))
+    },
+
+    toggleVisibleWeekday(dayIndex) {
+      const isVisible = this.visibleWeekdays.includes(dayIndex)
+      const next = isVisible
+        ? this.visibleWeekdays.filter((d) => d !== dayIndex)
+        : [...this.visibleWeekdays, dayIndex]
+      if (next.length === 0) return // always keep at least one day visible
+      this.visibleWeekdays = next
+      localStorage.setItem(VISIBLE_WEEKDAYS_STORAGE_KEY, JSON.stringify(next))
     },
 
     async clearOldEntries() {

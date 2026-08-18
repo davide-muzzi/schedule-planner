@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { X } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
-import { getMonday, getBusinessWeekDays, addDays, addWeeks, toISODate, durationHours } from '@/utils/date'
+import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
@@ -11,9 +12,13 @@ import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 const store = useScheduleStore()
 
 const currentMonday = ref(getMonday(new Date()))
-const weekDays = computed(() => getBusinessWeekDays(currentMonday.value))
-const weekendDays = computed(() => [addDays(currentMonday.value, 5), addDays(currentMonday.value, 6)])
-const visibleWeekendDays = computed(() => weekendDays.value.filter((date) => entriesForDate(date).length > 0))
+// All 7 days of the current week, Mon-Sun - calculations (totals, balance)
+// always use this full set regardless of which days are visible.
+const allWeekDates = computed(() => Array.from({ length: 7 }, (_, i) => addDays(currentMonday.value, i)))
+// The subset the user has chosen to actually show cards for.
+const visibleWeekDates = computed(() =>
+  allWeekDates.value.filter((date) => store.visibleWeekdays.includes(date.getDay())),
+)
 
 const showModal = ref(false)
 const editingEntry = ref(null)
@@ -52,8 +57,15 @@ function hasWorkingEntry(date) {
   return entriesForDate(date).some((e) => e.entryType === 'Working' && !e.allDay)
 }
 
+// Weekends only show a goal-diff once they actually have a Working entry -
+// otherwise every empty Saturday would flag as "behind target", which
+// doesn't make sense since weekends aren't expected work days by default.
+function showGoalDiffFor(date) {
+  return isWeekend(date) ? hasWorkingEntry(date) : weekHasAnyEntries.value
+}
+
 const weeklyTotalHours = computed(() =>
-  [...weekDays.value, ...weekendDays.value].reduce((sum, date) => {
+  allWeekDates.value.reduce((sum, date) => {
     const dayHours = entriesForDate(date)
       .filter((e) => e.entryType === 'Working' && !e.allDay)
       .reduce((s, e) => s + durationHours(e.startTime, e.endTime), 0)
@@ -222,14 +234,11 @@ async function handleDelete(id) {
   <div class="planner">
     <div class="page-header">
       <h1 class="page-title">{{ store.greeting }}</h1>
-      <div class="header-actions">
-        <button type="button" class="settings-btn" @click="openSettings" aria-label="Settings">⚙ Settings</button>
-      </div>
     </div>
 
     <div v-if="store.error && !showModal" class="global-error">
       {{ store.error }}
-      <button type="button" @click="store.clearError()">&times;</button>
+      <button type="button" @click="store.clearError()"><X :size="16" /></button>
     </div>
 
     <WeekSummary
@@ -243,34 +252,18 @@ async function handleDelete(id) {
       @today="goToday"
       @select-date="goToDate"
       @apply-adjustment="handleApplyAdjustment"
-      @add-entry="openAdd(new Date())"
+      @open-settings="openSettings"
       @open-weekly-balance="openWeeklyBalance"
     />
 
     <p v-if="store.loading" class="loading">Loading…</p>
 
     <DayTable
-      v-for="date in weekDays"
+      v-for="date in visibleWeekDates"
       :key="toISODate(date)"
       :date="date"
       :entries="entriesForDate(date)"
-      :show-goal-diff="weekHasAnyEntries"
-      :daily-target-hours="store.dailyTargetHours"
-      :view-from-hour="store.viewFromHour"
-      :view-till-hour="store.viewTillHour"
-      :entry-type-colors="store.entryTypeColors"
-      @add="openAdd"
-      @edit="openEdit"
-      @clear-day="handleClearDay"
-      @resize-entry="handleResizeEntry"
-    />
-
-    <DayTable
-      v-for="date in visibleWeekendDays"
-      :key="toISODate(date)"
-      :date="date"
-      :entries="entriesForDate(date)"
-      :show-goal-diff="hasWorkingEntry(date)"
+      :show-goal-diff="showGoalDiffFor(date)"
       :daily-target-hours="store.dailyTargetHours"
       :view-from-hour="store.viewFromHour"
       :view-till-hour="store.viewTillHour"
@@ -308,11 +301,13 @@ async function handleDelete(id) {
       :view-from-hour="store.viewFromHour"
       :view-till-hour="store.viewTillHour"
       :entry-type-colors="store.entryTypeColors"
+      :visible-weekdays="store.visibleWeekdays"
       @close="closeSettings"
       @submit="handleSaveGoal"
       @update-display-name="store.setDisplayName"
       @update-view-range="store.setViewRange"
       @update-entry-type-color="store.setEntryTypeColor"
+      @toggle-visible-weekday="store.toggleVisibleWeekday"
       @clear-old-entries="handleClearOldEntries"
       @clear-all-data="handleClearAllData"
     />
@@ -332,34 +327,12 @@ async function handleDelete(id) {
 }
 
 .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 1rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.6rem;
 }
 
 .page-title {
   font-size: 1.4rem;
   color: var(--color-heading);
-}
-
-.settings-btn {
-  font-size: 0.8rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.settings-btn:hover {
-  border-color: var(--color-border-hover);
 }
 
 .loading {
@@ -381,10 +354,11 @@ async function handleDelete(id) {
 }
 
 .global-error button {
+  display: flex;
+  align-items: center;
   background: none;
   border: none;
   color: inherit;
-  font-size: 1.1rem;
   cursor: pointer;
 }
 </style>
