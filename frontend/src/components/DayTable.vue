@@ -61,6 +61,7 @@ const dailyDiffHours = computed(() =>
 )
 
 const dailyStatus = computed(() => {
+  if (dayTotalHours.value === 0) return null // nothing logged yet - not a shortfall worth flagging
   if (dailyDiffHours.value >= 0) return 'green' // goal reached or exceeded
   const shortfall = Math.abs(dailyDiffHours.value)
   return shortfall > DAILY_RED_THRESHOLD_HOURS ? 'red' : 'yellow'
@@ -451,10 +452,10 @@ function entryRightLabel(entry) {
           </td>
           <td class="total-cell">
             <div class="total-value-row">
-              <span class="total-value" :class="showGoalDiff ? 'status-' + dailyStatus : ''">{{ formatHours(dayTotalHours) }}</span>
+              <span class="total-value" :class="showGoalDiff && dailyStatus ? 'status-' + dailyStatus : ''">{{ formatHours(dayTotalHours) }}</span>
               <span v-if="showGoalDiff" class="total-value-target">/ {{ formatHours(dailyTargetHours) }}</span>
             </div>
-            <div v-if="showGoalDiff" class="goal-diff" :class="'status-' + dailyStatus">
+            <div v-if="showGoalDiff && dailyStatus" class="goal-diff" :class="'status-' + dailyStatus">
               {{ formatDiff(dailyDiffHours) }}
             </div>
           </td>
