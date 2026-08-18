@@ -99,6 +99,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
       <button type="button" class="adjust-trigger" @click.stop="toggleAdjustPopup">
         <span class="total-label">Overall balance</span>
         <span class="total-value" :class="'status-' + status">{{ diffLabel }}</span>
+        <span class="adjust-hint">Click to adjust</span>
       </button>
 
       <div v-if="showAdjustPopup" class="adjust-popup" @click.stop>
@@ -319,6 +320,11 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
 .total-value {
   font-size: 1.05rem;
   font-weight: 700;
+}
+
+.adjust-hint {
+  font-size: 0.65rem;
+  opacity: 0.5;
 }
 
 .total-value-row {
