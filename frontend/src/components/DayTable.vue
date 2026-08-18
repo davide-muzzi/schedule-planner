@@ -235,6 +235,7 @@ function entryRightLabel(entry) {
 
 <style scoped>
 .day-table {
+  position: relative;
   margin-bottom: 1.5rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -242,8 +243,47 @@ function entryRightLabel(entry) {
   background: var(--color-background-soft);
 }
 
-.day-table.is-today {
-  border-color: #3b82f6;
+/* Border stays the same as any other card - the gradient becomes a soft,
+   blurred glow sitting behind it instead of an outline. An oversized
+   linear-gradient sliding via background-position (not a rotated shape or
+   an @property-animated angle) - the most broadly-supported way to get a
+   continuously "flowing" gradient, no feature-detection gaps involved. */
+.day-table.is-today::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  background: linear-gradient(
+    45deg,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c
+  );
+  background-size: 400% 400%;
+  filter: blur(12px);
+  opacity: 0.85;
+  z-index: -1;
+  animation: rotate-today-border 24s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes rotate-today-border {
+  0% {
+    background-position: 0 0;
+  }
+  50% {
+    background-position: 400% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
 }
 
 .day-heading {
