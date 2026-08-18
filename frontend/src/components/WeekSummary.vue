@@ -86,7 +86,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
       <span class="range-label">{{ formatWeekRange(monday) }}</span>
       <button type="button" class="nav-btn" @click="emit('next')" aria-label="Next week">&rarr;</button>
       <button type="button" class="today-btn" :class="{ 'is-today': isCurrentWeek }" @click="emit('today')">
-        Today
+        <span :class="{ 'today-btn-text': isCurrentWeek }">Today</span>
       </button>
     </div>
 
@@ -257,22 +257,52 @@ onBeforeUnmount(() => document.removeEventListener('click', closeAdjustPopup))
   cursor: pointer;
 }
 
-.today-btn.is-today {
-  border-color: #15803d;
-  background: #16a34a;
-  color: #fff;
-  opacity: 1;
+.today-btn-text {
+  background: linear-gradient(
+    45deg,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c,
+    #00c3ff,
+    #ffff1c
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: today-btn-gradient 24s linear infinite;
 }
 
-.today-btn.is-today:hover {
-  background: #15803d;
+@keyframes today-btn-gradient {
+  0% {
+    background-position: 0 0;
+  }
+  50% {
+    background-position: 400% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
 }
 
-.today-btn:not(.is-today):hover {
+.today-btn:hover {
   border-color: #1d4ed8;
   background: #3b82f6;
   color: #fff;
   opacity: 1;
+}
+
+.today-btn:hover .today-btn-text {
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  color: #fff;
+  animation: none;
 }
 
 .total-block {
