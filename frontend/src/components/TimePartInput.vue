@@ -11,6 +11,7 @@ const emit = defineEmits(['update:modelValue'])
 
 const inputEl = ref(null)
 const showDropdown = ref(false)
+let skipBlurFormat = false
 
 function openDropdown(event) {
   showDropdown.value = true
@@ -23,6 +24,13 @@ function handleInput(event) {
 
 function handleBlur(event) {
   showDropdown.value = false
+  if (skipBlurFormat) {
+    // value was just set via selectOption and is already valid — the DOM's
+    // event.target.value hasn't caught up to it yet, so re-parsing it here
+    // would overwrite the selection with the stale pre-click value
+    skipBlurFormat = false
+    return
+  }
   const num = parseInt(event.target.value, 10)
   const clamped = Number.isNaN(num) ? 0 : Math.min(props.max, Math.max(0, num))
   emit('update:modelValue', String(clamped).padStart(2, '0'))
@@ -31,6 +39,7 @@ function handleBlur(event) {
 function selectOption(option) {
   emit('update:modelValue', option)
   showDropdown.value = false
+  skipBlurFormat = true
   inputEl.value?.blur()
 }
 </script>
