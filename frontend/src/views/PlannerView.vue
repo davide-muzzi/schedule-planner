@@ -29,7 +29,6 @@ const saving = ref(false)
 
 const showSettingsModal = ref(false)
 const settingsError = ref(null)
-const savingSettings = ref(false)
 const clearingOldEntries = ref(false)
 const clearingAllData = ref(false)
 const importingData = ref(false)
@@ -123,19 +122,6 @@ function openWeeklyBalance() {
 
 function closeWeeklyBalance() {
   showWeeklyBalanceModal.value = false
-}
-
-async function handleSaveGoal(weeklyTargetMinutes) {
-  savingSettings.value = true
-  settingsError.value = null
-  try {
-    await store.setWorkGoal(weeklyTargetMinutes)
-    closeSettings()
-  } catch {
-    settingsError.value = store.error
-  } finally {
-    savingSettings.value = false
-  }
 }
 
 async function handleClearOldEntries() {
@@ -333,7 +319,6 @@ async function handleDelete(id) {
       :display-name="store.displayName"
       :weekly-target-minutes="store.weeklyTargetMinutes"
       :server-error="settingsError"
-      :saving="savingSettings"
       :entries-count="store.entries.length"
       :old-entries-count="store.oldEntriesCount"
       :old-entries-cutoff-date="store.oldEntriesCutoffDate"
@@ -346,14 +331,14 @@ async function handleDelete(id) {
       :visible-weekdays="store.visibleWeekdays"
       :holiday-year-settings="store.holidayYearSettings"
       :holiday-days-used-for-year="store.holidayDaysUsedForYear"
+      :save-work-goal="store.setWorkGoal"
+      :save-holiday-year="store.setHolidayYearSetting"
       @close="closeSettings"
-      @submit="handleSaveGoal"
       @update-display-name="store.setDisplayName"
       @update-view-range="store.setViewRange"
       @update-entry-type-color="store.setEntryTypeColor"
       @toggle-visible-weekday="store.toggleVisibleWeekday"
       @fetch-holiday-year="store.fetchHolidayYearSetting"
-      @save-holiday-year="store.setHolidayYearSetting"
       @export-data="handleExportData"
       @import-data="handleImportData"
       @clear-old-entries="handleClearOldEntries"

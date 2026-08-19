@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X, TriangleAlert } from '@lucide/vue'
+import { X, TriangleAlert, CircleAlert } from '@lucide/vue'
 import { BUSINESS_DAYS_PER_WEEK, DEFAULT_HOLIDAY_ALLOTMENT_DAYS } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours } from '@/utils/date'
@@ -9,7 +9,6 @@ const props = defineProps({
   displayName: { type: String, default: '' },
   weeklyTargetMinutes: { type: Number, required: true },
   serverError: { type: String, default: null },
-  saving: { type: Boolean, default: false },
   entriesCount: { type: Number, required: true },
   oldEntriesCount: { type: Number, required: true },
   oldEntriesCutoffDate: { type: Date, required: true },
@@ -22,22 +21,32 @@ const props = defineProps({
   visibleWeekdays: { type: Array, required: true },
   holidayYearSettings: { type: Object, required: true }, // { [year]: { allotmentDays, adjustmentDays } }
   holidayDaysUsedForYear: { type: Function, required: true },
+  saveWorkGoal: { type: Function, required: true }, // (weeklyTargetMinutes) => Promise
+  saveHolidayYear: { type: Function, required: true }, // (year, allotmentDays, adjustmentDays) => Promise
 })
 
 const emit = defineEmits([
   'close',
-  'submit',
   'update-display-name',
   'update-view-range',
   'update-entry-type-color',
   'toggle-visible-weekday',
   'fetch-holiday-year',
-  'save-holiday-year',
   'export-data',
   'import-data',
   'clear-old-entries',
   'clear-all-data',
 ])
+
+// Inline error message for the two fields that hit the backend (weekly
+// goal, holiday allotment) - keyed by field, null/absent while idle. No
+// success indicator - a failed save just replaces the message, a
+// successful one clears it.
+const saveErrors = ref({})
+
+function setSaveError(key, message) {
+  saveErrors.value = { ...saveErrors.value, [key]: message || null }
+}
 
 // value matches Date.getDay() (0=Sun..6=Sat), ordered Mon-Sun to match how
 // the week itself is displayed.
@@ -66,10 +75,11 @@ const viewFrom = ref(props.viewFromHour)
 const viewTill = ref(props.viewTillHour)
 const hours = ref(0)
 const minutes = ref(0)
-const localError = ref(null)
 
 const holidayYearInput = ref(new Date().getFullYear())
 const holidayAllotmentInput = ref(DEFAULT_HOLIDAY_ALLOTMENT_DAYS)
+let suppressHolidayAutoSave = false
+let holidaySaveTimer = null
 
 watch(nameInput, (name) => emit('update-display-name', name.trim()))
 
@@ -78,14 +88,41 @@ watch(nameInput, (name) => emit('update-display-name', name.trim()))
 watch(holidayYearInput, (year) => emit('fetch-holiday-year', year), { immediate: true })
 
 // Once that year's setting arrives (or if switching to a year that isn't
-// cached yet), reflect its allotment into the input.
+// cached yet), reflect its allotment into the input. This assignment alone
+// would also trigger the auto-save watcher below, so it's flagged to skip
+// that one cycle - switching years should only load, never immediately
+// re-save the value it just loaded.
 watch(
   () => props.holidayYearSettings[holidayYearInput.value],
   (setting) => {
+    suppressHolidayAutoSave = true
     holidayAllotmentInput.value = setting ? setting.allotmentDays : DEFAULT_HOLIDAY_ALLOTMENT_DAYS
   },
   { immediate: true },
 )
+
+watch(holidayAllotmentInput, () => {
+  if (suppressHolidayAutoSave) {
+    suppressHolidayAutoSave = false
+    return
+  }
+  clearTimeout(holidaySaveTimer)
+  holidaySaveTimer = setTimeout(saveHolidayAllotment, 600)
+})
+
+async function saveHolidayAllotment() {
+  if ((holidayAllotmentInput.value || 0) < 0) {
+    setSaveError('holiday', 'Must be 0 or greater')
+    return
+  }
+  const existingAdjustment = props.holidayYearSettings[holidayYearInput.value]?.adjustmentDays ?? 0
+  try {
+    await props.saveHolidayYear(holidayYearInput.value, holidayAllotmentInput.value, existingAdjustment)
+    setSaveError('holiday', null)
+  } catch (err) {
+    setSaveError('holiday', err.message || 'Failed to save')
+  }
+}
 
 const holidayUsedPreview = computed(() => props.holidayDaysUsedForYear(holidayYearInput.value))
 
@@ -93,11 +130,6 @@ const holidayRemainingPreview = computed(() => {
   const adjustment = props.holidayYearSettings[holidayYearInput.value]?.adjustmentDays ?? 0
   return holidayAllotmentInput.value - holidayUsedPreview.value + adjustment
 })
-
-function handleSaveHolidayYear() {
-  const existingAdjustment = props.holidayYearSettings[holidayYearInput.value]?.adjustmentDays ?? 0
-  emit('save-holiday-year', holidayYearInput.value, holidayAllotmentInput.value, existingAdjustment)
-}
 
 // Auto-correct rather than error: picking a "from" that would collide with
 // "till" (or vice versa) nudges the other side just enough to stay valid,
@@ -158,28 +190,47 @@ async function handleFileSelected(event) {
   emit('import-data', parsed)
 }
 
+let suppressWeeklyGoalAutoSave = false
+let weeklyGoalSaveTimer = null
+
+// Same suppress-the-echo trick as the holiday allotment above - loading the
+// current value from the prop shouldn't immediately re-save it.
 watch(
   () => props.weeklyTargetMinutes,
   (totalMinutes) => {
+    suppressWeeklyGoalAutoSave = true
     hours.value = Math.floor(totalMinutes / 60)
     minutes.value = totalMinutes % 60
   },
   { immediate: true },
 )
 
+watch([hours, minutes], () => {
+  if (suppressWeeklyGoalAutoSave) {
+    suppressWeeklyGoalAutoSave = false
+    return
+  }
+  clearTimeout(weeklyGoalSaveTimer)
+  weeklyGoalSaveTimer = setTimeout(saveWeeklyGoal, 600)
+})
+
 const dailyPreviewHours = computed(() => {
   const totalMinutes = Math.max(0, hours.value || 0) * 60 + Math.max(0, minutes.value || 0)
   return totalMinutes / 60 / BUSINESS_DAYS_PER_WEEK
 })
 
-function handleSubmit() {
-  localError.value = null
+async function saveWeeklyGoal() {
   const totalMinutes = Math.max(0, hours.value || 0) * 60 + Math.max(0, minutes.value || 0)
   if (totalMinutes <= 0) {
-    localError.value = 'Weekly goal must be greater than 0.'
+    setSaveError('weeklyGoal', 'Must be greater than 0')
     return
   }
-  emit('submit', totalMinutes)
+  try {
+    await props.saveWorkGoal(totalMinutes)
+    setSaveError('weeklyGoal', null)
+  } catch (err) {
+    setSaveError('weeklyGoal', err.message || 'Failed to save')
+  }
 }
 
 function handleKeydown(event) {
@@ -268,34 +319,33 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           <p class="daily-preview">
             {{ holidayUsedPreview }} used, {{ holidayRemainingPreview }} remaining for {{ holidayYearInput }}.
           </p>
-          <button type="button" class="save-year-btn" @click="handleSaveHolidayYear">
-            Save {{ holidayYearInput }} allotment
-          </button>
+          <p v-if="saveErrors.holiday" class="save-status status-error">
+            <CircleAlert :size="14" /> {{ saveErrors.holiday }}
+          </p>
         </div>
 
-        <form @submit.prevent="handleSubmit">
-          <div class="field">
-            <label>Weekly worktime goal</label>
-            <div class="goal-inputs">
-              <div class="unit-field">
-                <input v-model.number="hours" type="number" min="0" />
-                <span class="unit-suffix">h</span>
-              </div>
-              <div class="unit-field">
-                <input v-model.number="minutes" type="number" min="0" max="59" />
-                <span class="unit-suffix">min</span>
-              </div>
+        <div class="field">
+          <label>Weekly worktime goal</label>
+          <div class="goal-inputs">
+            <div class="unit-field">
+              <input v-model.number="hours" type="number" min="0" />
+              <span class="unit-suffix">h</span>
             </div>
-            <p class="daily-preview">= {{ formatHours(dailyPreviewHours) }} / day (over {{ BUSINESS_DAYS_PER_WEEK }} business days)</p>
+            <div class="unit-field">
+              <input v-model.number="minutes" type="number" min="0" max="59" />
+              <span class="unit-suffix">min</span>
+            </div>
           </div>
+          <p class="daily-preview">= {{ formatHours(dailyPreviewHours) }} / day (over {{ BUSINESS_DAYS_PER_WEEK }} business days)</p>
+          <p v-if="saveErrors.weeklyGoal" class="save-status status-error">
+            <CircleAlert :size="14" /> {{ saveErrors.weeklyGoal }}
+          </p>
+        </div>
 
-          <p v-if="localError || serverError" class="error-msg">{{ localError || serverError }}</p>
-
-          <footer class="modal-footer">
-            <button type="button" class="cancel-btn" @click="emit('close')">Cancel</button>
-            <button type="submit" class="save-btn" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
-          </footer>
-        </form>
+        <footer class="modal-footer">
+          <button type="button" class="cancel-btn" @click="emit('close')">Cancel</button>
+          <button type="button" class="save-btn" @click="emit('close')">Save</button>
+        </footer>
       </div>
 
       <div v-else-if="activeTab === 'appearance'">
@@ -453,7 +503,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   color: var(--color-heading);
 }
 
-.field > input[type='text'] {
+.field input[type='text'] {
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);
@@ -465,6 +515,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 .goal-inputs {
   display: flex;
+  align-items: center;
   gap: 0.75rem;
 }
 
@@ -560,20 +611,17 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   opacity: 1;
 }
 
-.save-year-btn {
-  margin-top: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  border: 1px solid #1d4ed8;
-  background: #3b82f6;
-  color: #fff;
-  font-size: 0.8rem;
-  font-family: inherit;
-  cursor: pointer;
+.save-status {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 0.3rem;
 }
 
-.save-year-btn:hover {
-  background: #2563eb;
+.save-status.status-error {
+  color: #dc2626;
 }
 
 .tab-intro {
@@ -658,11 +706,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   background: #3b82f6;
   border: 1px solid #1d4ed8;
   color: #fff;
-}
-
-.save-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 .danger-zone {
