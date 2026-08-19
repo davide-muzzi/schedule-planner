@@ -29,6 +29,10 @@ export const DAILY_RED_THRESHOLD_HOURS = 1
 export const DEFAULT_VIEW_FROM_HOUR = 0
 export const DEFAULT_VIEW_TILL_HOUR = 24
 
+// Fallback used before a given year's holiday allotment has been fetched
+// from the backend (see scheduleStore's holidayYearSettings state).
+export const DEFAULT_HOLIDAY_ALLOTMENT_DAYS = 25
+
 // Swiss law (ArG Art. 15) minimum break requirements by daily work time.
 // Sorted descending by minWorkHours so the first match is the applicable tier.
 export const BREAK_RULES = [

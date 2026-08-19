@@ -2,12 +2,14 @@ import { defineStore } from 'pinia'
 import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import workGoalSettingsApi from '@/services/workGoalSettingsApi'
+import holidaySettingsApi from '@/services/holidaySettingsApi'
 import { getMonday, toISODate, durationHours } from '@/utils/date'
 import {
   DEFAULT_WEEKLY_TARGET_MINUTES,
   BUSINESS_DAYS_PER_WEEK,
   DEFAULT_VIEW_FROM_HOUR,
   DEFAULT_VIEW_TILL_HOUR,
+  DEFAULT_HOLIDAY_ALLOTMENT_DAYS,
 } from '@/utils/constants'
 import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 
@@ -85,6 +87,9 @@ export const useScheduleStore = defineStore('schedule', {
       // preference. Hiding a day never affects totals/goal-diff/break-law
       // math, which always considers the full week regardless.
       visibleWeekdays: loadVisibleWeekdays(),
+      // { [year]: { allotmentDays, adjustmentDays } } - backend-backed (real
+      // data, not a display preference), fetched lazily per year as needed.
+      holidayYearSettings: {},
     }
   },
 
@@ -175,6 +180,27 @@ export const useScheduleStore = defineStore('schedule', {
     oldEntriesCount(state) {
       const cutoffIso = toISODate(this.oldEntriesCutoffDate)
       return state.entries.filter((e) => e.date < cutoffIso).length
+    },
+
+    // Holidays always track the real current calendar year, independent of
+    // whichever week is currently being viewed - same reasoning as
+    // futureAppointmentHours not being scoped to the viewed week either.
+    currentHolidayYear: () => new Date().getFullYear(),
+
+    // Every Vacation entry is forced all-day (see EntryFormModal), so each
+    // one is exactly one holiday day - no hour-weighted math needed.
+    holidayDaysUsedForYear: (state) => (year) =>
+      state.entries.filter(
+        (e) => e.entryType === 'Vacation' && e.allDay && new Date(e.date + 'T00:00:00').getFullYear() === year,
+      ).length,
+
+    holidaysRemaining(state) {
+      const year = this.currentHolidayYear
+      const setting = state.holidayYearSettings[year] || {
+        allotmentDays: DEFAULT_HOLIDAY_ALLOTMENT_DAYS,
+        adjustmentDays: 0,
+      }
+      return setting.allotmentDays - this.holidayDaysUsedForYear(year) + setting.adjustmentDays
     },
   },
 
@@ -297,6 +323,46 @@ export const useScheduleStore = defineStore('schedule', {
       if (next.length === 0) return // always keep at least one day visible
       this.visibleWeekdays = next
       localStorage.setItem(VISIBLE_WEEKDAYS_STORAGE_KEY, JSON.stringify(next))
+    },
+
+    async fetchHolidayYearSetting(year) {
+      this.error = null
+      try {
+        const res = await holidaySettingsApi.get(year)
+        this.holidayYearSettings = {
+          ...this.holidayYearSettings,
+          [year]: { allotmentDays: res.data.allotmentDays, adjustmentDays: res.data.adjustmentDays },
+        }
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    async setHolidayYearSetting(year, allotmentDays, adjustmentDays) {
+      this.error = null
+      try {
+        const res = await holidaySettingsApi.set(year, allotmentDays, adjustmentDays)
+        this.holidayYearSettings = {
+          ...this.holidayYearSettings,
+          [year]: { allotmentDays: res.data.allotmentDays, adjustmentDays: res.data.adjustmentDays },
+        }
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    // Delta correction applied to the current calendar year specifically -
+    // the WeekSummary "Holidays remaining" popup uses this, mirroring
+    // applyAdjustment's +/- pattern for the overall work-hour balance.
+    async applyHolidayAdjustment(deltaDays) {
+      const year = this.currentHolidayYear
+      const current = this.holidayYearSettings[year] || {
+        allotmentDays: DEFAULT_HOLIDAY_ALLOTMENT_DAYS,
+        adjustmentDays: 0,
+      }
+      await this.setHolidayYearSetting(year, current.allotmentDays, current.adjustmentDays + deltaDays)
     },
 
     async clearOldEntries() {

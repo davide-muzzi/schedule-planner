@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from '@lucide/vue'
-import { BUSINESS_DAYS_PER_WEEK } from '@/utils/constants'
+import { BUSINESS_DAYS_PER_WEEK, DEFAULT_HOLIDAY_ALLOTMENT_DAYS } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours } from '@/utils/date'
 
@@ -19,6 +19,8 @@ const props = defineProps({
   viewTillHour: { type: Number, required: true },
   entryTypeColors: { type: Object, required: true },
   visibleWeekdays: { type: Array, required: true },
+  holidayYearSettings: { type: Object, required: true }, // { [year]: { allotmentDays, adjustmentDays } }
+  holidayDaysUsedForYear: { type: Function, required: true },
 })
 
 const emit = defineEmits([
@@ -28,6 +30,8 @@ const emit = defineEmits([
   'update-view-range',
   'update-entry-type-color',
   'toggle-visible-weekday',
+  'fetch-holiday-year',
+  'save-holiday-year',
   'clear-old-entries',
   'clear-all-data',
 ])
@@ -61,7 +65,36 @@ const hours = ref(0)
 const minutes = ref(0)
 const localError = ref(null)
 
+const holidayYearInput = ref(new Date().getFullYear())
+const holidayAllotmentInput = ref(DEFAULT_HOLIDAY_ALLOTMENT_DAYS)
+
 watch(nameInput, (name) => emit('update-display-name', name.trim()))
+
+// Fetch whichever year is currently selected in the holiday editor - the
+// parent caches results, so re-selecting a year already seen is a no-op.
+watch(holidayYearInput, (year) => emit('fetch-holiday-year', year), { immediate: true })
+
+// Once that year's setting arrives (or if switching to a year that isn't
+// cached yet), reflect its allotment into the input.
+watch(
+  () => props.holidayYearSettings[holidayYearInput.value],
+  (setting) => {
+    holidayAllotmentInput.value = setting ? setting.allotmentDays : DEFAULT_HOLIDAY_ALLOTMENT_DAYS
+  },
+  { immediate: true },
+)
+
+const holidayUsedPreview = computed(() => props.holidayDaysUsedForYear(holidayYearInput.value))
+
+const holidayRemainingPreview = computed(() => {
+  const adjustment = props.holidayYearSettings[holidayYearInput.value]?.adjustmentDays ?? 0
+  return holidayAllotmentInput.value - holidayUsedPreview.value + adjustment
+})
+
+function handleSaveHolidayYear() {
+  const existingAdjustment = props.holidayYearSettings[holidayYearInput.value]?.adjustmentDays ?? 0
+  emit('save-holiday-year', holidayYearInput.value, holidayAllotmentInput.value, existingAdjustment)
+}
 
 // Auto-correct rather than error: picking a "from" that would collide with
 // "till" (or vice versa) nudges the other side just enough to stay valid,
@@ -180,6 +213,26 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
             </button>
           </div>
           <p class="daily-preview">Hidden days are never shown, but still count toward totals and balance.</p>
+        </div>
+
+        <div class="field">
+          <label>Holiday allotment</label>
+          <div class="goal-inputs">
+            <div class="unit-field">
+              <input v-model.number="holidayYearInput" type="number" />
+              <span class="unit-suffix">year</span>
+            </div>
+            <div class="unit-field">
+              <input v-model.number="holidayAllotmentInput" type="number" min="0" step="0.5" />
+              <span class="unit-suffix">days</span>
+            </div>
+          </div>
+          <p class="daily-preview">
+            {{ holidayUsedPreview }} used, {{ holidayRemainingPreview }} remaining for {{ holidayYearInput }}.
+          </p>
+          <button type="button" class="save-year-btn" @click="handleSaveHolidayYear">
+            Save {{ holidayYearInput }} allotment
+          </button>
         </div>
 
         <form @submit.prevent="handleSubmit">
@@ -444,6 +497,22 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   border-color: #1d4ed8;
   color: #fff;
   opacity: 1;
+}
+
+.save-year-btn {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid #1d4ed8;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.save-year-btn:hover {
+  background: #2563eb;
 }
 
 .tab-intro {

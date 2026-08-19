@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { ChevronLeft, ChevronRight, Settings, ChartColumn } from '@lucide/vue'
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import { formatWeekRange, formatHours, getMonday, toISODate } from '@/utils/date'
 import {
   OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
@@ -8,6 +8,7 @@ import {
   WEEKLY_WORKED_GREEN_MAX_OVER_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
+  BUSINESS_DAYS_PER_WEEK,
 } from '@/utils/constants'
 import WeeklyProgressBar from './WeeklyProgressBar.vue'
 import MiniCalendar from './MiniCalendar.vue'
@@ -18,6 +19,8 @@ const props = defineProps({
   weeklyTargetHours: { type: Number, required: true },
   overallBalance: { type: Object, required: true }, // { actualHours, expectedHours, manualAdjustmentHours, diffHours }
   futureAppointmentHours: { type: Number, required: true },
+  holidaysRemaining: { type: Number, required: true },
+  holidayAdjustmentDays: { type: Number, required: true },
 })
 
 const emit = defineEmits([
@@ -26,8 +29,7 @@ const emit = defineEmits([
   'today',
   'select-date',
   'apply-adjustment',
-  'open-settings',
-  'open-weekly-balance',
+  'apply-holiday-adjustment',
 ])
 
 const isCurrentWeek = computed(() => toISODate(props.monday) === toISODate(getMonday(new Date())))
@@ -68,9 +70,19 @@ const showAdjustPopup = ref(false)
 const adjustHours = ref(0)
 const adjustMinutes = ref(0)
 const showCalendar = ref(false)
+const showHolidayPopup = ref(false)
+const holidayAdjustDays = ref(0)
+const holidayAdjustHours = ref(0)
+const holidayAdjustMinutes = ref(0)
+
+// A day of holiday isn't a fixed 24h/8h block, it's whatever the current
+// daily worktime goal says a day is worth - same conversion the rest of the
+// app already uses for a Vacation day's credit.
+const dailyTargetHours = computed(() => props.weeklyTargetHours / BUSINESS_DAYS_PER_WEEK)
 
 function toggleAdjustPopup() {
   showCalendar.value = false
+  showHolidayPopup.value = false
   showAdjustPopup.value = !showAdjustPopup.value
   adjustHours.value = 0
   adjustMinutes.value = 0
@@ -78,12 +90,23 @@ function toggleAdjustPopup() {
 
 function toggleCalendar() {
   showAdjustPopup.value = false
+  showHolidayPopup.value = false
   showCalendar.value = !showCalendar.value
+}
+
+function toggleHolidayPopup() {
+  showAdjustPopup.value = false
+  showCalendar.value = false
+  showHolidayPopup.value = !showHolidayPopup.value
+  holidayAdjustDays.value = 0
+  holidayAdjustHours.value = 0
+  holidayAdjustMinutes.value = 0
 }
 
 function closePopups() {
   showAdjustPopup.value = false
   showCalendar.value = false
+  showHolidayPopup.value = false
 }
 
 function applyAdjustment(sign) {
@@ -91,6 +114,28 @@ function applyAdjustment(sign) {
   if (deltaMinutes === 0) return
   emit('apply-adjustment', deltaMinutes)
   showAdjustPopup.value = false
+}
+
+const currentHolidayAdjustmentLabel = computed(() => {
+  const d = props.holidayAdjustmentDays
+  if (Math.abs(d) < 0.001) return 'No correction applied'
+  return `Current correction: ${d > 0 ? '+' : ''}${d} day${Math.abs(d) === 1 ? '' : 's'}`
+})
+
+function formatDays(n) {
+  const rounded = Math.round(n * 10) / 10 // allow half-days, avoid floating point noise
+  return `${rounded} day${Math.abs(rounded) === 1 ? '' : 's'}`
+}
+
+function applyHolidayAdjustment(sign) {
+  const wholeDays = Math.max(0, holidayAdjustDays.value || 0)
+  const hoursPart = Math.max(0, holidayAdjustHours.value || 0)
+  const minutesPart = Math.max(0, holidayAdjustMinutes.value || 0)
+  const fractionalDays = (hoursPart + minutesPart / 60) / dailyTargetHours.value
+  const totalDays = wholeDays + fractionalDays
+  if (totalDays === 0) return
+  emit('apply-holiday-adjustment', sign * totalDays)
+  showHolidayPopup.value = false
 }
 
 function selectDate(date) {
@@ -124,6 +169,36 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
     <div class="summary-card stat-card">
       <span class="total-label">Upcoming appointments</span>
       <span class="total-value">{{ formatHours(futureAppointmentHours) }}</span>
+    </div>
+
+    <div class="summary-card stat-card adjustable">
+      <button type="button" class="adjust-trigger" @click.stop="toggleHolidayPopup">
+        <span class="total-label">Holidays remaining</span>
+        <span class="total-value">{{ formatDays(holidaysRemaining) }}</span>
+        <span class="adjust-hint">Click to adjust</span>
+      </button>
+
+      <div v-if="showHolidayPopup" class="adjust-popup holiday-popup" @click.stop>
+        <p class="adjust-current">{{ currentHolidayAdjustmentLabel }}</p>
+        <div class="adjust-inputs">
+          <label>
+            days
+            <input v-model.number="holidayAdjustDays" type="number" min="0" />
+          </label>
+          <label>
+            h
+            <input v-model.number="holidayAdjustHours" type="number" min="0" />
+          </label>
+          <label>
+            min
+            <input v-model.number="holidayAdjustMinutes" type="number" min="0" max="59" />
+          </label>
+        </div>
+        <div class="adjust-actions">
+          <button type="button" class="adjust-btn subtract" @click="applyHolidayAdjustment(-1)">− Subtract</button>
+          <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
+        </div>
+      </div>
     </div>
 
     <div class="summary-card stat-card adjustable">
@@ -163,15 +238,6 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 
       <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
     </div>
-
-    <div class="summary-card utility-card">
-      <button type="button" class="utility-btn" @click="emit('open-settings')" aria-label="Settings">
-        <Settings :size="14" /> Settings
-      </button>
-      <button type="button" class="utility-btn" @click="emit('open-weekly-balance')">
-        <ChartColumn :size="14" /> Weekly Balance
-      </button>
-    </div>
   </div>
 </template>
 
@@ -209,37 +275,6 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 .worked-card {
   gap: 1rem;
   min-width: 26rem;
-}
-
-.utility-card {
-  flex-direction: column;
-  padding: 0;
-  width: 10rem;
-  overflow: hidden;
-}
-
-.utility-btn {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0.4rem;
-}
-
-.utility-btn:hover {
-  background: var(--color-background);
-}
-
-.utility-btn + .utility-btn {
-  border-top: 2px solid rgba(255, 255, 255, 0.22);
 }
 
 .nav-btn {
@@ -436,6 +471,10 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   padding: 0.75rem;
   text-align: left;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.holiday-popup {
+  width: 16rem;
 }
 
 .adjust-current {
