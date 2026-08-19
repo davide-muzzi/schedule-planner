@@ -38,9 +38,13 @@ export function useAppShell() {
     theme.value = theme.value === 'dark' ? 'light' : 'dark'
   }
 
+  function setTheme(value) {
+    theme.value = value
+  }
+
   function toggleCollapsed() {
     collapsed.value = !collapsed.value
   }
 
-  return { theme, collapsed, toggleTheme, toggleCollapsed }
+  return { theme, collapsed, toggleTheme, setTheme, toggleCollapsed }
 }

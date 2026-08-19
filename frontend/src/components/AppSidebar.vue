@@ -13,17 +13,16 @@ import {
   PanelLeftOpen,
 } from '@lucide/vue'
 import { useAppShell } from '@/composables/useAppShell'
-import { useSettingsModal } from '@/composables/useSettingsModal'
 import { getISOWeekNumber } from '@/utils/date'
 
 const route = useRoute()
 const { theme, collapsed, toggleTheme, toggleCollapsed } = useAppShell()
-const settingsModal = useSettingsModal()
 
 const NAV_ITEMS = [
   { to: '/planner', label: 'Planner', icon: LayoutList },
   { to: '/overview', label: 'Overview', icon: ChartBar },
   { to: '/weather', label: 'Weather', icon: CloudSun },
+  { to: '/settings', label: 'Settings', icon: SlidersHorizontal },
 ]
 
 const now = new Date()
@@ -59,19 +58,6 @@ function isActive(to) {
           <span class="nav-label">{{ item.label }}</span>
         </button>
       </RouterLink>
-
-      <button
-        type="button"
-        class="nav-item"
-        :class="{ active: settingsModal.isOpen.value }"
-        title="Settings"
-        aria-label="Settings"
-        @click="settingsModal.open()"
-      >
-        <span class="nav-mark"></span>
-        <SlidersHorizontal :size="17" class="nav-icon" />
-        <span class="nav-label">Settings</span>
-      </button>
     </nav>
 
     <div class="footer">

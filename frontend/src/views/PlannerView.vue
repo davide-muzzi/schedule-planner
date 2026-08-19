@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { X, ChartColumn } from '@lucide/vue'
+import { X, ChartColumn, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
@@ -251,6 +251,11 @@ async function handleDelete(id) {
       />
     </div>
 
+    <div class="info-hint">
+      <Info :size="14" />
+      <span>Drag inside a track to sketch a new entry · Sat &amp; Sun hidden in settings</span>
+    </div>
+
     <EntryFormModal
       v-if="showModal"
       :entry="editingEntry"
@@ -349,6 +354,15 @@ async function handleDelete(id) {
   border-top: 1px solid var(--line);
   border-radius: var(--r2);
   overflow: hidden;
+}
+
+.info-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 2px;
+  font-size: 11.5px;
+  color: var(--mute);
 }
 
 .loading {
