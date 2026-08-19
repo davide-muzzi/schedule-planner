@@ -173,7 +173,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 
     <div class="summary-card stat-card adjustable">
       <button type="button" class="adjust-trigger" @click.stop="toggleHolidayPopup">
-        <span class="total-label">Holidays remaining</span>
+        <span class="total-label">Vacation remaining</span>
         <span class="total-value">{{ formatDays(holidaysRemaining) }}</span>
         <span class="adjust-hint">Click to adjust</span>
       </button>

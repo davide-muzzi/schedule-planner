@@ -216,7 +216,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         </div>
 
         <div class="field">
-          <label>Holiday allotment</label>
+          <label>Vacation allotment</label>
           <div class="goal-inputs">
             <div class="unit-field">
               <input v-model.number="holidayYearInput" type="number" />
