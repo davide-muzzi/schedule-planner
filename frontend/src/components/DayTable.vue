@@ -297,12 +297,20 @@ function handleDragEnd() {
   dragEntry.value = null
 
   if (mode === 'create') {
-    if (end - start < MIN_DURATION_HOURS) return // negligible drag - treat as a plain click, do nothing
-    if (hasOverlap(start, end, null)) {
+    let rangeStart = start
+    let rangeEnd = end
+    if (rangeEnd - rangeStart < MIN_DURATION_HOURS) {
+      // Plain click, no real drag - same as dragging across the full hour
+      // the click landed in.
+      rangeStart = Math.floor(dragAnchorHours.value)
+      rangeEnd = Math.min(24, rangeStart + 1)
+      if (rangeEnd - rangeStart < MIN_DURATION_HOURS) return // clicked right at the 24:00 edge
+    }
+    if (hasOverlap(rangeStart, rangeEnd, null)) {
       showToast('This time range overlaps with an existing entry.')
       return
     }
-    emit('add', props.date, { startTime: hoursToTimeString(start), endTime: hoursToTimeString(end) })
+    emit('add', props.date, { startTime: hoursToTimeString(rangeStart), endTime: hoursToTimeString(rangeEnd) })
     return
   }
 
