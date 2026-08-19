@@ -1,13 +1,34 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import { getMonday, toISODate, addDays } from '@/utils/date'
 
 const props = defineProps({
   monday: { type: Date, required: true }, // week currently shown - used to seed the month and highlight its days
+  anchor: { type: Object, default: null }, // template ref of the trigger button - positions the teleported popup under it
 })
 
 const emit = defineEmits(['select'])
+
+// Teleported to <body> (see template) so this can never end up trapped
+// behind a day-row entry block - those got their own stacking context once
+// the motion pass gave them a resting `transform: scaleX(1)`, which briefly
+// let them paint over a same-page-positioned popover despite its z-index.
+// Since it's no longer a descendant of the trigger button, position is
+// computed from the button's own rect instead of relying on CSS being
+// relative to a parent.
+const popupStyle = ref({})
+
+onMounted(() => {
+  const rect = props.anchor?.getBoundingClientRect?.()
+  if (!rect) return
+  popupStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 8}px`,
+    left: `${rect.left + rect.width / 2}px`,
+    transform: 'translateX(-50%)',
+  }
+})
 
 const viewMonth = ref(new Date(props.monday.getFullYear(), props.monday.getMonth(), 1))
 
@@ -45,43 +66,41 @@ function nextMonth() {
 </script>
 
 <template>
-  <div class="mini-calendar" @click.stop>
-    <div class="cal-header">
-      <button type="button" class="cal-nav" @click="prevMonth" aria-label="Previous month"><ChevronLeft :size="14" /></button>
-      <span class="cal-month-label">{{ monthLabel }}</span>
-      <button type="button" class="cal-nav" @click="nextMonth" aria-label="Next month"><ChevronRight :size="14" /></button>
-    </div>
+  <Teleport to="body">
+    <div class="mini-calendar" :style="popupStyle" @click.stop>
+      <div class="cal-header">
+        <button type="button" class="cal-nav" @click="prevMonth" aria-label="Previous month"><ChevronLeft :size="14" /></button>
+        <span class="cal-month-label">{{ monthLabel }}</span>
+        <button type="button" class="cal-nav" @click="nextMonth" aria-label="Next month"><ChevronRight :size="14" /></button>
+      </div>
 
-    <div class="cal-weekdays">
-      <span v-for="label in WEEKDAY_LABELS" :key="label">{{ label }}</span>
-    </div>
+      <div class="cal-weekdays">
+        <span v-for="label in WEEKDAY_LABELS" :key="label">{{ label }}</span>
+      </div>
 
-    <div class="cal-grid">
-      <button
-        v-for="date in gridDays"
-        :key="toISODate(date)"
-        type="button"
-        class="cal-day"
-        :class="{
-          'is-outside': !isCurrentMonth(date),
-          'is-today': isToday(date),
-          'is-in-week': isInSelectedWeek(date),
-        }"
-        @click="emit('select', date)"
-      >
-        {{ date.getDate() }}
-      </button>
+      <div class="cal-grid">
+        <button
+          v-for="date in gridDays"
+          :key="toISODate(date)"
+          type="button"
+          class="cal-day"
+          :class="{
+            'is-outside': !isCurrentMonth(date),
+            'is-today': isToday(date),
+            'is-in-week': isInSelectedWeek(date),
+          }"
+          @click="emit('select', date)"
+        >
+          {{ date.getDate() }}
+        </button>
+      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
 .mini-calendar {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
+  z-index: 300;
   width: 16rem;
   background: var(--surface);
   border: 1px solid var(--line-2);

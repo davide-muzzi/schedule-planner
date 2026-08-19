@@ -71,6 +71,7 @@ const showAdjustPopup = ref(false)
 const adjustHours = ref(0)
 const adjustMinutes = ref(0)
 const showCalendar = ref(false)
+const pickWeekBtnRef = ref(null)
 const showHolidayPopup = ref(false)
 const holidayAdjustDays = ref(0)
 const holidayAdjustHours = ref(0)
@@ -161,10 +162,10 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
         <button type="button" class="icon-btn" @click="emit('next')" aria-label="Next week"><ChevronRight :size="16" /></button>
         <button type="button" class="today-btn" :class="{ 'is-current': isCurrentWeek }" @click="emit('today')">Today</button>
         <div class="pick-week">
-          <button type="button" class="pick-week-btn" @click.stop="toggleCalendar">
+          <button ref="pickWeekBtnRef" type="button" class="pick-week-btn" @click.stop="toggleCalendar">
             <CalendarDays :size="14" /> Pick week
           </button>
-          <MiniCalendar v-if="showCalendar" :monday="monday" @select="selectDate" />
+          <MiniCalendar v-if="showCalendar" :monday="monday" :anchor="pickWeekBtnRef" @select="selectDate" />
         </div>
       </div>
     </div>
