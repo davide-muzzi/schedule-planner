@@ -4,10 +4,21 @@ import PlannerView from '../views/PlannerView.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: '/', redirect: '/planner' },
     {
-      path: '/',
+      path: '/planner',
       name: 'planner',
       component: PlannerView,
+    },
+    {
+      path: '/overview',
+      name: 'overview',
+      component: () => import('../views/OverviewView.vue'),
+    },
+    {
+      path: '/weather',
+      name: 'weather',
+      component: () => import('../views/WeatherView.vue'),
     },
   ],
 })

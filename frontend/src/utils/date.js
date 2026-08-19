@@ -33,6 +33,16 @@ export function isWeekend(date) {
   return day === 0 || day === 6
 }
 
+// ISO-8601 week number (weeks start Monday, week 1 contains the year's
+// first Thursday) - used for the sidebar's "week N" display.
+export function getISOWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil(((d - yearStart) / DAY_MS + 1) / 7)
+}
+
 
 export function formatWeekRange(monday) {
   const friday = addDays(monday, 4)

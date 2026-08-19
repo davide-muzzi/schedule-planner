@@ -1,12 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { X, Settings, ChartColumn } from '@lucide/vue'
+import { ref, computed } from 'vue'
+import { X, ChartColumn } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
-import SettingsModal from '@/components/SettingsModal.vue'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 
 const store = useScheduleStore()
@@ -27,20 +26,7 @@ const modalPrefillTimes = ref(null) // { startTime, endTime } from a timeline dr
 const modalError = ref(null)
 const saving = ref(false)
 
-const showSettingsModal = ref(false)
-const settingsError = ref(null)
-const clearingOldEntries = ref(false)
-const clearingAllData = ref(false)
-const importingData = ref(false)
-
 const showWeeklyBalanceModal = ref(false)
-
-onMounted(() => {
-  store.fetchAll()
-  store.fetchAdjustment()
-  store.fetchWorkGoal()
-  store.fetchHolidayYearSetting(store.currentHolidayYear)
-})
 
 async function handleApplyHolidayAdjustment(deltaDays) {
   try {
@@ -106,68 +92,12 @@ async function handleApplyAdjustment(deltaMinutes) {
   }
 }
 
-function openSettings() {
-  settingsError.value = null
-  showSettingsModal.value = true
-}
-
-function closeSettings() {
-  showSettingsModal.value = false
-  settingsError.value = null
-}
-
 function openWeeklyBalance() {
   showWeeklyBalanceModal.value = true
 }
 
 function closeWeeklyBalance() {
   showWeeklyBalanceModal.value = false
-}
-
-async function handleClearOldEntries() {
-  clearingOldEntries.value = true
-  settingsError.value = null
-  try {
-    await store.clearOldEntries()
-  } catch {
-    settingsError.value = store.error
-  } finally {
-    clearingOldEntries.value = false
-  }
-}
-
-async function handleClearAllData() {
-  clearingAllData.value = true
-  settingsError.value = null
-  try {
-    await store.clearAllData()
-  } catch {
-    settingsError.value = store.error
-  } finally {
-    clearingAllData.value = false
-  }
-}
-
-function handleExportData() {
-  const blob = new Blob([JSON.stringify(store.exportSnapshot, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `schedule-planner-backup-${toISODate(new Date())}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-async function handleImportData(data) {
-  importingData.value = true
-  settingsError.value = null
-  try {
-    await store.importSnapshot(data)
-  } catch (err) {
-    settingsError.value = err.message || store.error
-  } finally {
-    importingData.value = false
-  }
 }
 
 function openAdd(date, prefill = null) {
@@ -256,9 +186,6 @@ async function handleDelete(id) {
         <button type="button" class="header-btn" @click="openWeeklyBalance">
           <ChartColumn :size="14" /> Weekly Balance
         </button>
-        <button type="button" class="header-btn" @click="openSettings" aria-label="Settings">
-          <Settings :size="14" /> Settings
-        </button>
       </div>
     </div>
 
@@ -312,37 +239,6 @@ async function handleDelete(id) {
       @close="closeModal"
       @submit="handleSubmit"
       @delete="handleDelete"
-    />
-
-    <SettingsModal
-      v-if="showSettingsModal"
-      :display-name="store.displayName"
-      :weekly-target-minutes="store.weeklyTargetMinutes"
-      :server-error="settingsError"
-      :entries-count="store.entries.length"
-      :old-entries-count="store.oldEntriesCount"
-      :old-entries-cutoff-date="store.oldEntriesCutoffDate"
-      :clearing-old-entries="clearingOldEntries"
-      :clearing-all-data="clearingAllData"
-      :importing-data="importingData"
-      :view-from-hour="store.viewFromHour"
-      :view-till-hour="store.viewTillHour"
-      :entry-type-colors="store.entryTypeColors"
-      :visible-weekdays="store.visibleWeekdays"
-      :holiday-year-settings="store.holidayYearSettings"
-      :holiday-days-used-for-year="store.holidayDaysUsedForYear"
-      :save-work-goal="store.setWorkGoal"
-      :save-holiday-year="store.setHolidayYearSetting"
-      @close="closeSettings"
-      @update-display-name="store.setDisplayName"
-      @update-view-range="store.setViewRange"
-      @update-entry-type-color="store.setEntryTypeColor"
-      @toggle-visible-weekday="store.toggleVisibleWeekday"
-      @fetch-holiday-year="store.fetchHolidayYearSetting"
-      @export-data="handleExportData"
-      @import-data="handleImportData"
-      @clear-old-entries="handleClearOldEntries"
-      @clear-all-data="handleClearAllData"
     />
 
     <WeeklyBalanceModal

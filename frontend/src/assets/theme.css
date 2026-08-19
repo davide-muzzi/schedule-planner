@@ -1,0 +1,89 @@
+/* Direction A - "cool instrument panel" design tokens. Dark is the default
+   palette on :root; [data-theme="light"] (set by AppSidebar's theme toggle,
+   persisted to localStorage - see main.js) overrides it. */
+:root {
+  --bg: #0d1016;
+  --bg-img: radial-gradient(125% 85% at 82% -12%, #172030 0%, #0d1016 62%);
+  --surface: #151a22;
+  --surface2: #1d232d;
+  --sb: #090c11;
+  --track: #10141b;
+  --line: #262e3a;
+  --line-2: #445064;
+  --fg: #eef2f7;
+  --dim: #a8b3c4;
+  --mute: #78849a;
+  --accent: #6f9df0;
+  --accent-deep: #3a5fa8;
+  --accent-tint: rgba(111, 157, 240, 0.15);
+  --ok: #56c98d;
+  --warn: #e8b25c;
+  --bad: #ef7a70;
+  --r: 2px;
+  --r2: 3px;
+  --r3: 4px;
+  --font-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --work-bg: rgba(111, 157, 240, 0.22);
+  --work-bd: #3f6ec2;
+  --work-fg: #cfdefd;
+  --other-bg: rgba(196, 183, 154, 0.2);
+  --other-bd: #7c7159;
+  --other-fg: #e8dfc9;
+  --appt-bg: rgba(232, 164, 92, 0.22);
+  --appt-bd: #a8702f;
+  --appt-fg: #f8d9b1;
+  --otc-bg: rgba(79, 201, 189, 0.22);
+  --otc-bd: #2c8078;
+  --otc-fg: #bbf1eb;
+  --vac-bg: rgba(192, 138, 232, 0.22);
+  --vac-bd: #7a45a8;
+  --vac-fg: #ead1fb;
+
+  /* Legacy aliases - existing component styles still reference these names,
+     so the whole app reskins to Direction A without touching every file. */
+  --color-background: var(--bg);
+  --color-background-soft: var(--surface);
+  --color-background-mute: var(--surface2);
+  --color-border: var(--line);
+  --color-border-hover: var(--line-2);
+  --color-heading: var(--fg);
+  --color-text: var(--dim);
+}
+
+:root[data-theme='light'] {
+  --bg: #edf1f7;
+  --bg-img: radial-gradient(125% 85% at 82% -12%, #fdfeff 0%, #edf1f7 62%);
+  --surface: #fdfeff;
+  --surface2: #e2e8f1;
+  --sb: #e5eaf3;
+  --track: #f6f8fc;
+  --line: #d2dae5;
+  --line-2: #97a4b8;
+  --fg: #0f161f;
+  --dim: #465364;
+  --mute: #6b788b;
+  --accent: #2f62c4;
+  --accent-deep: #92b4f2;
+  --accent-tint: rgba(47, 98, 196, 0.11);
+  --ok: #1f7a52;
+  --warn: #8a6210;
+  --bad: #b03a30;
+
+  --work-bg: rgba(47, 98, 196, 0.15);
+  --work-bd: #92b4f2;
+  --work-fg: #1b3d7d;
+  --other-bg: rgba(140, 120, 80, 0.17);
+  --other-bd: #d2c6a6;
+  --other-fg: #675731;
+  --appt-bg: rgba(190, 112, 20, 0.16);
+  --appt-bd: #e6bd85;
+  --appt-fg: #855010;
+  --otc-bg: rgba(20, 140, 130, 0.16);
+  --otc-bd: #8ed3cb;
+  --otc-fg: #0f6a62;
+  --vac-bg: rgba(140, 70, 190, 0.14);
+  --vac-bd: #cfa8ea;
+  --vac-fg: #672d91;
+}
