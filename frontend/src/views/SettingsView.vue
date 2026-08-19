@@ -8,7 +8,7 @@ import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours, toISODate } from '@/utils/date'
 
 const store = useScheduleStore()
-const { theme, setTheme } = useAppShell()
+const { theme, setTheme, respectReducedMotion, setRespectReducedMotion } = useAppShell()
 
 // Inline error message for the two fields that hit the backend (weekly
 // goal, holiday allotment) - keyed by field, null/absent while idle. No
@@ -370,6 +370,17 @@ async function saveWeeklyGoal() {
         <div class="theme-buttons">
           <button type="button" class="pill-btn" :class="{ active: theme === 'dark' }" @click="setTheme('dark')">Dark</button>
           <button type="button" class="pill-btn" :class="{ active: theme === 'light' }" @click="setTheme('light')">Light</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">
+          <div class="row-title">Reduced motion</div>
+          <div class="row-desc">Reload the page after changing this for it to take effect.</div>
+        </div>
+        <div class="theme-buttons">
+          <button type="button" class="pill-btn" :class="{ active: respectReducedMotion }" @click="setRespectReducedMotion(true)">Respect it</button>
+          <button type="button" class="pill-btn" :class="{ active: !respectReducedMotion }" @click="setRespectReducedMotion(false)">Always animate</button>
         </div>
       </div>
 

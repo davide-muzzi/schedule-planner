@@ -35,15 +35,17 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #app *,
-  #app *::before,
-  #app *::after {
-    animation-duration: 0.01ms !important;
-    animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+/* Keyed off a data attribute (set in useAppShell.js from OS state + the
+   "Always animate" override in Settings) rather than a raw
+   @media (prefers-reduced-motion) query, so the override toggle can
+   actually take effect without needing the OS setting itself to change. */
+:root[data-reduce-motion='true'] #app *,
+:root[data-reduce-motion='true'] #app *::before,
+:root[data-reduce-motion='true'] #app *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }
 
 *,
