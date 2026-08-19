@@ -62,6 +62,29 @@ const dayTotalHours = computed(() =>
 
 const isToday = computed(() => toISODate(props.date) === toISODate(new Date()))
 
+// Current-time indicator line, only shown on today's card. Re-synced on
+// every real minute boundary (not a plain 60s interval) so it can't drift.
+const now = ref(new Date())
+let nowTimeoutId = null
+
+function scheduleNowUpdate() {
+  const msUntilNextMinute = 60000 - (Date.now() % 60000)
+  nowTimeoutId = setTimeout(() => {
+    now.value = new Date()
+    scheduleNowUpdate()
+  }, msUntilNextMinute)
+}
+
+onMounted(scheduleNowUpdate)
+onBeforeUnmount(() => clearTimeout(nowTimeoutId))
+
+const nowLinePosition = computed(() => {
+  if (!isToday.value) return null
+  const hours = now.value.getHours() + now.value.getMinutes() / 60
+  if (hours < props.viewFromHour || hours > props.viewTillHour) return null
+  return `${((hours - props.viewFromHour) / rangeSpan.value) * 100}%`
+})
+
 const WEEKDAY_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const weekdayAbbrev = computed(() => WEEKDAY_ABBR[props.date.getDay()])
 const monthDayLabel = computed(() => props.date.toLocaleString(undefined, { month: 'short', day: 'numeric' }))
@@ -502,6 +525,7 @@ function blockTimeLabel(entry) {
                 </div>
                 <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
               </div>
+              <div v-if="nowLinePosition" class="now-line" :style="{ left: nowLinePosition }"></div>
               </div>
             </td>
           </tr>
@@ -850,6 +874,18 @@ function blockTimeLabel(entry) {
   border: 2px dashed var(--color-heading);
   border-radius: 3px;
   background: transparent;
+  pointer-events: none;
+}
+
+.now-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.7);
+  transform: translateX(-50%);
+  z-index: 5;
   pointer-events: none;
 }
 
