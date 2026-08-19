@@ -93,7 +93,7 @@ function isActive(to) {
   flex-direction: column;
   background: var(--sb);
   border-right: 1px solid var(--line);
-  transition: width 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+  transition: width 0.22s var(--ease);
   overflow: hidden;
 }
 
@@ -240,6 +240,7 @@ function isActive(to) {
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+  transition: color 0.16s;
 }
 
 .theme-btn:hover {
@@ -265,6 +266,7 @@ function isActive(to) {
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+  transition: color 0.16s;
 }
 
 .collapse-btn:hover {

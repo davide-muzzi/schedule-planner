@@ -270,7 +270,7 @@ async function saveWeeklyGoal() {
       </button>
     </div>
 
-    <div v-if="activeTab === 'general'" class="form">
+    <div v-if="activeTab === 'general'" :key="activeTab" class="form">
       <div class="row">
         <div class="row-label">
           <div class="row-title">Your name</div>
@@ -361,7 +361,7 @@ async function saveWeeklyGoal() {
       </div>
     </div>
 
-    <div v-else-if="activeTab === 'appearance'" class="form">
+    <div v-else-if="activeTab === 'appearance'" :key="activeTab" class="form">
       <div class="row">
         <div class="row-label">
           <div class="row-title">Theme</div>
@@ -392,7 +392,7 @@ async function saveWeeklyGoal() {
       </div>
     </div>
 
-    <div v-else class="danger-zone">
+    <div v-else :key="activeTab" class="danger-zone">
       <div class="data-action">
         <p>Export every entry, goal, and preference as a file you can restore from later.</p>
         <button type="button" class="export-btn" @click="handleExportData">Export data</button>
@@ -454,6 +454,7 @@ async function saveWeeklyGoal() {
 <style scoped>
 .page {
   max-width: 900px;
+  animation: fadeUp 0.34s var(--ease) both;
 }
 
 .info-hint {
@@ -490,6 +491,7 @@ async function saveWeeklyGoal() {
   font-size: 12.5px;
   font-weight: 400;
   cursor: pointer;
+  transition: color 0.16s;
 }
 
 .tab-btn:hover {
@@ -514,6 +516,7 @@ async function saveWeeklyGoal() {
 .form {
   display: flex;
   flex-direction: column;
+  animation: fadeUp 0.3s var(--ease) both;
 }
 
 .row {
@@ -602,6 +605,10 @@ async function saveWeeklyGoal() {
   letter-spacing: 0.06em;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color 0.16s,
+    border-color 0.16s,
+    color 0.16s;
 }
 
 .weekday-toggle:hover {
@@ -673,6 +680,10 @@ async function saveWeeklyGoal() {
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
+  transition:
+    background-color 0.16s,
+    border-color 0.16s,
+    color 0.16s;
 }
 
 .pill-btn.active {
@@ -737,6 +748,7 @@ async function saveWeeklyGoal() {
   flex-direction: column;
   gap: 26px;
   max-width: 560px;
+  animation: fadeUp 0.3s var(--ease) both;
 }
 
 .data-action {
@@ -774,6 +786,9 @@ async function saveWeeklyGoal() {
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
+  transition:
+    filter 0.16s,
+    background-color 0.16s;
 }
 
 .export-btn {

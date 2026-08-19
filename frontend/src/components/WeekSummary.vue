@@ -246,6 +246,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 <style scoped>
 .planner-header {
   margin-bottom: 2rem;
+  animation: fadeUp 0.3s var(--ease) both;
 }
 
 .header-top {
@@ -290,6 +291,9 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   background: transparent;
   color: var(--dim);
   cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
 }
 
 .icon-btn:hover {
@@ -309,6 +313,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color 0.16s;
 }
 
 .today-btn:hover {
@@ -339,6 +344,9 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
 }
 
 .pick-week-btn:hover {

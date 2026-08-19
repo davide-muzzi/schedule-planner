@@ -207,6 +207,7 @@ async function handleDelete(id) {
     </div>
 
     <WeekSummary
+      :key="toISODate(currentMonday)"
       :monday="currentMonday"
       :weekly-total-hours="weeklyTotalHours"
       :weekly-target-hours="store.weeklyTargetHours"
@@ -235,9 +236,10 @@ async function handleDelete(id) {
 
     <div class="days-list">
       <DayTable
-        v-for="date in visibleWeekDates"
+        v-for="(date, index) in visibleWeekDates"
         :key="toISODate(date)"
         :date="date"
+        :row-index="index"
         :entries="entriesForDate(date)"
         :show-goal-diff="showGoalDiffFor(date)"
         :daily-target-hours="store.dailyTargetHours"
@@ -281,6 +283,7 @@ async function handleDelete(id) {
 <style scoped>
 .planner {
   max-width: 1180px;
+  animation: fadeUp 0.34s var(--ease) both;
 }
 
 .toolbar {
@@ -304,6 +307,9 @@ async function handleDelete(id) {
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
 }
 
 .weekly-balance-btn:hover {

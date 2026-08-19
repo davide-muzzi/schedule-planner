@@ -74,7 +74,9 @@ const hourMarks = computed(() => {
 .progress-fill {
   height: 100%;
   border-radius: var(--r2);
-  transition: width 0.2s ease;
+  transition: width 0.35s var(--ease);
+  transform-origin: left;
+  animation: growX 0.6s var(--ease) both;
 }
 
 .hour-mark {

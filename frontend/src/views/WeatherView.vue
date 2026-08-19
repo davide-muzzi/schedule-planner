@@ -16,6 +16,7 @@ import { CloudSun } from '@lucide/vue'
 <style scoped>
 .page {
   max-width: 1180px;
+  animation: fadeUp 0.34s var(--ease) both;
 }
 
 .kicker {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
@@ -9,6 +9,7 @@ import { showToast } from '@/utils/toast'
 
 const props = defineProps({
   date: { type: Date, required: true },
+  rowIndex: { type: Number, default: 0 }, // position within the visible week - staggers this row's own enter and its blocks' reveal
   entries: { type: Array, default: () => [] },
   showGoalDiff: { type: Boolean, default: false },
   dailyTargetHours: { type: Number, required: true },
@@ -18,6 +19,33 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry'])
+
+// The set of entries this row's initial cascade belongs to. Not simply
+// "whatever props.entries held at setup()" - the store's initial fetch is
+// async, so this component mounts before real data arrives and an
+// empty-at-setup snapshot would make every entry look "newly added" and
+// skip the stagger entirely. Instead, wait for the first non-empty entries
+// list (real data, whether that's the initial load or an already-warm
+// store on week navigation) and lock that in as "the cascade" - anything
+// with an id outside it was added afterward via the "+" button, and gets a
+// plain immediate growX instead of joining the mount-time cascade, so
+// adding one entry never restages its siblings.
+let initialEntryIds = new Set()
+let capturedInitialEntries = false
+watch(
+  () => props.entries,
+  (entries) => {
+    if (capturedInitialEntries || entries.length === 0) return
+    capturedInitialEntries = true
+    initialEntryIds = new Set(entries.map((e) => e.id))
+  },
+  { immediate: true },
+)
+
+function blockDelay(entry, entryIndex) {
+  if (!initialEntryIds.has(entry.id)) return '0ms'
+  return `${props.rowIndex * 55 + 120 + entryIndex * 60}ms`
+}
 
 // The timeline zoom is purely visual - visibleHours only drives the header
 // labels, grid lines, and block positioning math below. Totals, the daily
@@ -434,7 +462,7 @@ function blockTimeLabel(entry) {
 </script>
 
 <template>
-  <section class="day-row" :class="{ 'is-today': isToday }">
+  <section class="day-row" :class="{ 'is-today': isToday }" :style="{ animationDelay: rowIndex * 55 + 'ms' }">
     <div class="day-info">
       <div class="day-weekday-row">
         <span class="day-weekday">{{ weekdayAbbrev }}</span>
@@ -478,10 +506,10 @@ function blockTimeLabel(entry) {
 
       <div v-if="allDayEntries.length > 0" class="all-day-list">
         <div
-          v-for="entry in allDayEntries"
+          v-for="(entry, entryIndex) in allDayEntries"
           :key="'allday-' + entry.id"
           class="all-day-banner"
-          :style="bannerStyle(entry)"
+          :style="[bannerStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
           @click="emit('edit', entry)"
         >
           <div class="block-content">
@@ -500,10 +528,10 @@ function blockTimeLabel(entry) {
         </div>
         <div class="blocks">
           <div
-            v-for="entry in visibleTimedEntries"
+            v-for="(entry, entryIndex) in visibleTimedEntries"
             :key="entry.id"
             class="block"
-            :style="blockStyle(entry)"
+            :style="[blockStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
             :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
             @mousedown.stop="handleBlockMouseDown($event, entry)"
           >
@@ -570,6 +598,8 @@ function blockTimeLabel(entry) {
   align-items: center;
   padding: 20px 4px;
   border-bottom: 1px solid var(--line);
+  animation: fadeUp 0.4s var(--ease) both;
+  transition: background-color 0.16s;
 }
 
 .day-row:last-child {
@@ -711,6 +741,10 @@ function blockTimeLabel(entry) {
   background: transparent;
   color: var(--mute);
   cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s,
+    background-color 0.16s;
 }
 
 .icon-action.add {
@@ -766,6 +800,8 @@ function blockTimeLabel(entry) {
   font-size: 0.75rem;
   padding: 0.35rem 0.6rem;
   cursor: pointer;
+  transform-origin: left;
+  animation: growX 0.5s var(--ease) both;
 }
 
 .hour-track {
@@ -814,10 +850,13 @@ function blockTimeLabel(entry) {
   display: flex;
   align-items: center;
   container-type: inline-size;
+  transform-origin: left;
+  animation: growX 0.5s var(--ease) both;
+  transition: filter 0.16s;
 }
 
 .block:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.18);
 }
 
 .block:active {
@@ -869,6 +908,7 @@ function blockTimeLabel(entry) {
   transform: translateX(-50%);
   z-index: 5;
   pointer-events: none;
+  animation: pulseLine 2.4s ease-in-out infinite;
 }
 
 .block-content {
