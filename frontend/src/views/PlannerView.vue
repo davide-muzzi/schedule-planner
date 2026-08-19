@@ -32,6 +32,7 @@ const settingsError = ref(null)
 const savingSettings = ref(false)
 const clearingOldEntries = ref(false)
 const clearingAllData = ref(false)
+const importingData = ref(false)
 
 const showWeeklyBalanceModal = ref(false)
 
@@ -158,6 +159,28 @@ async function handleClearAllData() {
     settingsError.value = store.error
   } finally {
     clearingAllData.value = false
+  }
+}
+
+function handleExportData() {
+  const blob = new Blob([JSON.stringify(store.exportSnapshot, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `schedule-planner-backup-${toISODate(new Date())}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function handleImportData(data) {
+  importingData.value = true
+  settingsError.value = null
+  try {
+    await store.importSnapshot(data)
+  } catch (err) {
+    settingsError.value = err.message || store.error
+  } finally {
+    importingData.value = false
   }
 }
 
@@ -316,6 +339,7 @@ async function handleDelete(id) {
       :old-entries-cutoff-date="store.oldEntriesCutoffDate"
       :clearing-old-entries="clearingOldEntries"
       :clearing-all-data="clearingAllData"
+      :importing-data="importingData"
       :view-from-hour="store.viewFromHour"
       :view-till-hour="store.viewTillHour"
       :entry-type-colors="store.entryTypeColors"
@@ -330,6 +354,8 @@ async function handleDelete(id) {
       @toggle-visible-weekday="store.toggleVisibleWeekday"
       @fetch-holiday-year="store.fetchHolidayYearSetting"
       @save-holiday-year="store.setHolidayYearSetting"
+      @export-data="handleExportData"
+      @import-data="handleImportData"
       @clear-old-entries="handleClearOldEntries"
       @clear-all-data="handleClearAllData"
     />

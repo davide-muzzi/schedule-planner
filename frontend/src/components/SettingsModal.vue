@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X } from '@lucide/vue'
+import { X, TriangleAlert } from '@lucide/vue'
 import { BUSINESS_DAYS_PER_WEEK, DEFAULT_HOLIDAY_ALLOTMENT_DAYS } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours } from '@/utils/date'
@@ -15,6 +15,7 @@ const props = defineProps({
   oldEntriesCutoffDate: { type: Date, required: true },
   clearingOldEntries: { type: Boolean, default: false },
   clearingAllData: { type: Boolean, default: false },
+  importingData: { type: Boolean, default: false },
   viewFromHour: { type: Number, required: true },
   viewTillHour: { type: Number, required: true },
   entryTypeColors: { type: Object, required: true },
@@ -32,6 +33,8 @@ const emit = defineEmits([
   'toggle-visible-weekday',
   'fetch-holiday-year',
   'save-holiday-year',
+  'export-data',
+  'import-data',
   'clear-old-entries',
   'clear-all-data',
 ])
@@ -51,7 +54,7 @@ const WEEKDAY_TOGGLES = [
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'appearance', label: 'Appearance' },
-  { id: 'danger', label: 'Danger Zone' },
+  { id: 'danger', label: 'My Data' },
 ]
 const activeTab = ref('general')
 
@@ -118,6 +121,41 @@ function handleClearOldClick() {
 function handleClearAllClick() {
   if (!window.confirm(`Permanently delete all ${props.entriesCount} entries and reset your manual correction?`)) return
   emit('clear-all-data')
+}
+
+const importFileInput = ref(null)
+const importError = ref(null)
+
+function triggerImportPicker() {
+  importError.value = null
+  importFileInput.value?.click()
+}
+
+async function handleFileSelected(event) {
+  const file = event.target.files?.[0]
+  event.target.value = '' // clears the picked file, so re-selecting the same file later still fires @change
+  if (!file) return
+
+  importError.value = null
+  let parsed
+  try {
+    parsed = JSON.parse(await file.text())
+  } catch {
+    importError.value = 'That file is not valid JSON.'
+    return
+  }
+  if (!parsed || !Array.isArray(parsed.entries)) {
+    importError.value = "That file doesn't look like a schedule-planner backup - no entries array found."
+    return
+  }
+
+  const count = parsed.entries.length
+  const confirmed = window.confirm(
+    `Import ${count} entr${count === 1 ? 'y' : 'ies'} from this file?\n\nThis PERMANENTLY REPLACES all current data - every entry, your goals, and your preferences - with what's in the file. This cannot be undone.`,
+  )
+  if (!confirmed) return
+
+  emit('import-data', parsed)
 }
 
 watch(
@@ -276,6 +314,29 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
       </div>
 
       <div v-else class="danger-zone">
+        <div class="data-action">
+          <p>Export every entry, goal, and preference as a file you can restore from later.</p>
+          <button type="button" class="export-btn" @click="emit('export-data')">Export data</button>
+        </div>
+
+        <div class="data-action">
+          <p class="import-warning">
+            <TriangleAlert :size="14" />
+            Importing PERMANENTLY REPLACES all current data with the file's contents.
+          </p>
+          <button type="button" class="danger-btn" :disabled="importingData" @click="triggerImportPicker">
+            {{ importingData ? 'Importing…' : 'Import data (replaces everything)' }}
+          </button>
+          <input
+            ref="importFileInput"
+            type="file"
+            accept="application/json"
+            class="hidden-file-input"
+            @change="handleFileSelected"
+          />
+          <p v-if="importError || serverError" class="error-msg">{{ importError || serverError }}</p>
+        </div>
+
         <div class="danger-action">
           <p>
             Permanently delete {{ oldEntriesCount }} entr{{ oldEntriesCount === 1 ? 'y' : 'ies' }} dated before
@@ -619,6 +680,44 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 .danger-action p {
   font-size: 0.75rem;
   opacity: 0.7;
+}
+
+.data-action {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-action p {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.data-action p.import-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.export-btn {
+  align-self: flex-start;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: #3b82f6;
+  border: 1px solid #1d4ed8;
+  color: #fff;
+}
+
+.export-btn:hover {
+  background: #2563eb;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .danger-btn {

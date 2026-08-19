@@ -202,6 +202,25 @@ export const useScheduleStore = defineStore('schedule', {
       }
       return setting.allotmentDays - this.holidayDaysUsedForYear(year) + setting.adjustmentDays
     },
+
+    // Everything needed to fully recreate the current state elsewhere - both
+    // backend-backed data and the localStorage-only cosmetic preferences, so
+    // a restore doesn't come back looking like a stranger's fresh install.
+    exportSnapshot(state) {
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        entries: state.entries,
+        weeklyTargetMinutes: state.weeklyTargetMinutes,
+        manualAdjustmentMinutes: state.manualAdjustmentMinutes,
+        holidayYearSettings: state.holidayYearSettings,
+        displayName: state.displayName,
+        viewFromHour: state.viewFromHour,
+        viewTillHour: state.viewTillHour,
+        entryTypeColors: state.entryTypeColors,
+        visibleWeekdays: state.visibleWeekdays,
+      }
+    },
   },
 
   actions: {
@@ -399,6 +418,72 @@ export const useScheduleStore = defineStore('schedule', {
         // not schedule data, so it's left untouched.
         await balanceAdjustmentApi.set(0)
         this.manualAdjustmentMinutes = 0
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
+    // Full replace, not a merge: wipes everything currently here and
+    // recreates it from the backup. Best-effort on the settings fields -
+    // anything missing or wrong-typed is just skipped rather than failing
+    // the whole import, since this is a personal backup file, not a format
+    // with real version-migration guarantees.
+    async importSnapshot(data) {
+      this.error = null
+      if (!data || !Array.isArray(data.entries)) {
+        throw new Error("That file doesn't look like a schedule-planner backup - no entries array found.")
+      }
+
+      try {
+        await api.deleteBulk(null)
+        this.entries = []
+
+        const created = []
+        for (const entry of data.entries) {
+          const res = await api.create({
+            title: entry.title ?? null,
+            date: entry.date,
+            allDay: !!entry.allDay,
+            startTime: entry.allDay ? null : entry.startTime,
+            endTime: entry.allDay ? null : entry.endTime,
+            entryType: entry.entryType,
+            workLocation: entry.workLocation ?? null,
+            notes: entry.notes ?? null,
+          })
+          created.push(res.data)
+        }
+        this.entries = created
+
+        if (typeof data.weeklyTargetMinutes === 'number') {
+          await this.setWorkGoal(data.weeklyTargetMinutes)
+        }
+
+        if (typeof data.manualAdjustmentMinutes === 'number') {
+          await this.applyAdjustment(data.manualAdjustmentMinutes - this.manualAdjustmentMinutes)
+        }
+
+        if (data.holidayYearSettings && typeof data.holidayYearSettings === 'object') {
+          for (const [year, setting] of Object.entries(data.holidayYearSettings)) {
+            if (setting && typeof setting.allotmentDays === 'number') {
+              await this.setHolidayYearSetting(Number(year), setting.allotmentDays, setting.adjustmentDays ?? 0)
+            }
+          }
+        }
+
+        if (typeof data.displayName === 'string') this.setDisplayName(data.displayName)
+        if (Number.isInteger(data.viewFromHour) && Number.isInteger(data.viewTillHour)) {
+          this.setViewRange(data.viewFromHour, data.viewTillHour)
+        }
+        if (data.entryTypeColors && typeof data.entryTypeColors === 'object') {
+          for (const [type, hex] of Object.entries(data.entryTypeColors)) {
+            this.setEntryTypeColor(type, hex)
+          }
+        }
+        if (Array.isArray(data.visibleWeekdays) && data.visibleWeekdays.length > 0) {
+          this.visibleWeekdays = data.visibleWeekdays
+          localStorage.setItem(VISIBLE_WEEKDAYS_STORAGE_KEY, JSON.stringify(data.visibleWeekdays))
+        }
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err
