@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { TriangleAlert, StickyNote, Briefcase, House } from '@lucide/vue'
+import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
@@ -434,195 +434,191 @@ function blockTimeLabel(entry) {
 </script>
 
 <template>
-  <section class="day-table" :class="{ 'is-today': isToday }">
-    <div class="day-body">
-      <div class="day-info">
+  <section class="day-row" :class="{ 'is-today': isToday }">
+    <div class="day-info">
+      <div class="day-weekday-row">
         <span class="day-weekday">{{ weekdayAbbrev }}</span>
-        <span class="day-date">{{ monthDayLabel }}</span>
-        <span v-if="breakWarning" class="break-warning-wrap">
-          <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup">
-            <TriangleAlert :size="12" />
+        <span v-if="isToday" class="today-dot"></span>
+      </div>
+      <span class="day-date">{{ monthDayLabel }}</span>
+      <span v-if="breakWarning" class="break-warning-wrap">
+        <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup">
+          <TriangleAlert :size="12" />
+        </button>
+        <div v-if="showBreakPopup" class="break-popup" @click.stop>{{ breakWarningTitle }}</div>
+      </span>
+      <span v-if="hiddenTimedEntries.length > 0" class="break-warning-wrap">
+        <button type="button" class="hidden-warning" @click.stop="toggleHiddenPopup">
+          {{ hiddenTimedEntries.length }} hidden
+        </button>
+        <div v-if="showHiddenPopup" class="break-popup hidden-popup" @click.stop>
+          <button
+            v-for="entry in hiddenTimedEntries"
+            :key="entry.id"
+            type="button"
+            class="hidden-entry-item"
+            @click="handleHiddenEntryClick(entry)"
+          >
+            <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="12" class="inline-icon" />
+            {{ entryLeftLabel(entry) }} — {{ entryRightLabel(entry) }}
           </button>
-          <div v-if="showBreakPopup" class="break-popup" @click.stop>{{ breakWarningTitle }}</div>
-        </span>
-        <span v-if="hiddenTimedEntries.length > 0" class="break-warning-wrap">
-          <button type="button" class="hidden-warning" @click.stop="toggleHiddenPopup">
-            {{ hiddenTimedEntries.length }} hidden
-          </button>
-          <div v-if="showHiddenPopup" class="break-popup hidden-popup" @click.stop>
-            <button
-              v-for="entry in hiddenTimedEntries"
-              :key="entry.id"
-              type="button"
-              class="hidden-entry-item"
-              @click="handleHiddenEntryClick(entry)"
-            >
-              <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="12" class="inline-icon" />
-              {{ entryLeftLabel(entry) }} — {{ entryRightLabel(entry) }}
-            </button>
-          </div>
-        </span>
+        </div>
+      </span>
+    </div>
+
+    <div class="day-timeline">
+      <div class="hour-labels">
+        <span
+          v-for="h in labeledHours"
+          :key="h"
+          class="hour-label"
+          :style="{ left: hourLabelLeft(h) }"
+        >{{ h }}:00</span>
       </div>
 
-      <table class="timeline-table">
-        <thead>
-          <tr>
-            <th :colspan="visibleHours.length" class="hour-labels-cell">
-              <span
-                v-for="h in labeledHours"
-                :key="h"
-                class="hour-label"
-                :style="{ left: hourLabelLeft(h) }"
-              >{{ h }}:00</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in allDayEntries" :key="'allday-' + entry.id" class="all-day-row">
-            <td :colspan="visibleHours.length" class="all-day-cell" :style="bannerStyle(entry)" @click="emit('edit', entry)">
-              <div class="block-content">
-                <span class="block-left">
-                  <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="13" class="inline-icon" />
-                  {{ entryLeftLabel(entry) }}
-                </span>
-                <span class="block-right">{{ entryRightLabel(entry) }}</span>
-              </div>
-            </td>
-          </tr>
-          <tr class="timeline-row">
-            <td :colspan="visibleHours.length" class="hour-track-cell">
-              <div class="hour-track" ref="trackEl" @mousedown="handleTrackMouseDown">
-              <div class="track-grid">
-                <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
-              </div>
-              <div class="blocks">
-                <div
-                  v-for="entry in visibleTimedEntries"
-                  :key="entry.id"
-                  class="block"
-                  :style="blockStyle(entry)"
-                  :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
-                  @mousedown.stop="handleBlockMouseDown($event, entry)"
-                >
-                  <div
-                    class="resize-handle left"
-                    :class="{ active: dragMode === 'resize-start' && dragEntry?.id === entry.id }"
-                    @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"
-                  ></div>
-                  <div
-                    class="resize-handle right"
-                    :class="{ active: dragMode === 'resize-end' && dragEntry?.id === entry.id }"
-                    @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
-                  ></div>
-                  <div class="block-content">
-                    <span class="block-title">
-                      <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
-                      {{ blockTitleLabel(entry) }}
-                    </span>
-                    <span class="block-time">{{ blockTimeLabel(entry) }}</span>
-                  </div>
-                  <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
-                </div>
-                <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
-              </div>
-              <div v-if="nowLinePosition" class="now-line" :style="{ left: nowLinePosition }"></div>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-if="allDayEntries.length > 0" class="all-day-list">
+        <div
+          v-for="entry in allDayEntries"
+          :key="'allday-' + entry.id"
+          class="all-day-banner"
+          :style="bannerStyle(entry)"
+          @click="emit('edit', entry)"
+        >
+          <div class="block-content">
+            <span class="block-left">
+              <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="13" class="inline-icon" />
+              {{ entryLeftLabel(entry) }}
+            </span>
+            <span class="block-right">{{ entryRightLabel(entry) }}</span>
+          </div>
+        </div>
+      </div>
 
-      <div class="day-stats">
-        <div class="total-value-row stat-box">
+      <div class="hour-track" ref="trackEl" @mousedown="handleTrackMouseDown">
+        <div class="track-grid">
+          <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
+        </div>
+        <div class="blocks">
+          <div
+            v-for="entry in visibleTimedEntries"
+            :key="entry.id"
+            class="block"
+            :style="blockStyle(entry)"
+            :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
+            @mousedown.stop="handleBlockMouseDown($event, entry)"
+          >
+            <div
+              class="resize-handle left"
+              :class="{ active: dragMode === 'resize-start' && dragEntry?.id === entry.id }"
+              @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"
+            ></div>
+            <div
+              class="resize-handle right"
+              :class="{ active: dragMode === 'resize-end' && dragEntry?.id === entry.id }"
+              @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
+            ></div>
+            <div class="block-content">
+              <span class="block-title">
+                <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
+                {{ blockTitleLabel(entry) }}
+              </span>
+              <span class="block-time">{{ blockTimeLabel(entry) }}</span>
+            </div>
+            <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
+          </div>
+          <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
+        </div>
+        <div v-if="nowLinePosition" class="now-line" :style="{ left: nowLinePosition }"></div>
+      </div>
+    </div>
+
+    <div class="day-stats">
+      <div class="stat-block">
+        <div class="stat-total">
           <span class="total-value" :class="showGoalDiff && dailyStatus ? 'status-' + dailyStatus : ''">{{ formatHours(dayTotalHours) }}</span>
           <span v-if="showGoalDiff" class="total-value-target">/ {{ formatHours(dailyTargetHours) }}</span>
         </div>
-        <div v-if="showGoalDiff && dailyStatus" class="goal-diff stat-box" :class="'status-' + dailyStatus">
+        <div v-if="showGoalDiff && dailyStatus" class="goal-diff" :class="'status-' + dailyStatus">
           {{ formatDiff(dailyDiffHours) }}
         </div>
-        <div class="day-actions">
-          <button type="button" class="clear-day-btn" :disabled="entries.length === 0" @click="handleClearDayClick">
-            Clear
-          </button>
-          <button class="add-btn" type="button" @click="emit('add', date)">+ Add</button>
-        </div>
+      </div>
+      <div class="day-actions">
+        <button
+          type="button"
+          class="icon-action clear"
+          :disabled="entries.length === 0"
+          title="Clear day"
+          aria-label="Clear day"
+          @click="handleClearDayClick"
+        >
+          <Eraser :size="13" />
+        </button>
+        <button type="button" class="icon-action add" title="Add entry" aria-label="Add entry" @click="emit('add', date)">
+          <Plus :size="13" />
+        </button>
       </div>
     </div>
   </section>
 </template>
 
 <style scoped>
-.day-table {
+.day-row {
   position: relative;
-  margin-bottom: 1.5rem;
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  padding: 0.75rem 1rem 1rem;
-  background: var(--color-background-soft);
+  display: grid;
+  grid-template-columns: 104px 1fr 184px;
+  gap: 26px;
+  align-items: center;
+  padding: 20px 4px;
+  border-bottom: 1px solid var(--line);
 }
 
-.day-body {
-  display: flex;
-  align-items: stretch;
-  gap: 0.9rem;
+.day-row:last-child {
+  border-bottom: none;
+}
+
+.day-row:hover {
+  background: var(--accent-tint);
+}
+
+.day-row.is-today {
+  background: var(--accent-tint);
 }
 
 .day-info {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
   gap: 0.3rem;
-  min-width: 3.5rem;
-  text-align: center;
+  margin-left: 10px;
+}
+
+.day-weekday-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .day-weekday {
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: var(--color-heading);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--fg);
+}
+
+.day-row.is-today .day-weekday {
+  color: var(--accent);
+}
+
+.today-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .day-date {
-  font-size: 0.85rem;
-  opacity: 0.65;
-}
-
-/* Same oversized linear-gradient + background-position technique as the
-   Today button's text (WeekSummary.vue) - no glow/border, the animated
-   gradient is clipped to the weekday text itself instead. */
-.day-table.is-today .day-weekday {
-  background: linear-gradient(
-    45deg,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c
-  );
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: today-heading-gradient 24s linear infinite;
-}
-
-@keyframes today-heading-gradient {
-  0% {
-    background-position: 0 0;
-  }
-  50% {
-    background-position: 400% 0;
-  }
-  100% {
-    background-position: 0 0;
-  }
+  font-size: 11px;
+  color: var(--mute);
 }
 
 .break-warning-wrap {
@@ -633,10 +629,10 @@ function blockTimeLabel(entry) {
 .break-warning {
   font-size: 0.7rem;
   font-weight: 600;
-  color: #f59e0b;
+  color: var(--warn);
   background: transparent;
-  border: 1px solid #f59e0b;
-  border-radius: 4px;
+  border: 1px solid var(--warn);
+  border-radius: var(--r);
   padding: 0.1rem 0.4rem;
   cursor: pointer;
   font-family: inherit;
@@ -649,13 +645,13 @@ function blockTimeLabel(entry) {
   z-index: 10;
   width: max-content;
   max-width: 16rem;
-  background: var(--color-background);
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--warn);
+  border-radius: var(--r2);
   padding: 0.5rem 0.65rem;
   font-size: 0.75rem;
   font-weight: 400;
-  color: var(--color-text);
+  color: var(--dim);
   text-align: left;
   white-space: normal;
   cursor: default;
@@ -665,11 +661,10 @@ function blockTimeLabel(entry) {
 .hidden-warning {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--color-text);
-  opacity: 0.75;
+  color: var(--mute);
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
   padding: 0.1rem 0.4rem;
   cursor: pointer;
   font-family: inherit;
@@ -680,125 +675,109 @@ function blockTimeLabel(entry) {
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.4rem;
-  border-color: var(--color-border);
+  border-color: var(--line-2);
 }
 
 .hidden-entry-item {
   text-align: left;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
   padding: 0.3rem 0.5rem;
-  color: var(--color-text);
+  color: var(--dim);
   font-size: 0.75rem;
   font-family: inherit;
   cursor: pointer;
 }
 
 .hidden-entry-item:hover {
-  border-color: var(--color-border-hover);
+  border-color: var(--accent);
 }
 
 .day-actions {
   display: flex;
-  justify-content: center;
-  gap: 0.4rem;
-  margin-top: 0.15rem;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-right: 10px;
 }
 
-.clear-day-btn,
-.add-btn {
-  flex: 1;
-}
-
-.clear-day-btn,
-.add-btn {
-  height: 1.6rem;
-  font-size: 0.75rem;
-  padding: 0 0.55rem;
-  border-radius: 5px;
+.icon-action {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--mute);
   cursor: pointer;
-  font-family: inherit;
 }
 
-.clear-day-btn {
-  border: 2px solid #dc2626;
-  background: var(--color-background);
-  color: #dc2626;
+.icon-action.add {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.clear-day-btn:hover {
-  background: #dc2626;
-  color: #fff;
+.icon-action.add:hover {
+  background: var(--accent-tint);
 }
 
-.clear-day-btn:disabled {
+.icon-action.clear:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.icon-action:disabled {
   opacity: 0.4;
   cursor: default;
-  background: var(--color-background);
-  color: #dc2626;
 }
 
-.add-btn {
-  border: none;
-  background: #3b82f6;
-  color: #fff;
-}
-
-.add-btn:hover {
-  background: #2563eb;
-}
-
-.timeline-table {
-  flex: 1;
+.day-timeline {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
 }
 
-.hour-labels-cell {
+.hour-labels {
   position: relative;
-  height: 1.4rem;
-  padding: 0 0 0.25rem;
+  height: 11px;
 }
 
 .hour-label {
   position: absolute;
   top: 0;
   transform: translateX(-50%);
-  font-size: 0.65rem;
-  font-weight: 400;
-  color: var(--color-text);
-  opacity: 0.6;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--mute);
   white-space: nowrap;
 }
 
-.hour-label::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -9px;
-  width: 2px;
-  height: 9px;
-  background: rgba(255, 255, 255, 0.45);
-  transform: translateX(-50%);
+.all-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 7px;
 }
 
-.hour-track-cell {
-  padding: 0;
+.all-day-banner {
+  border-radius: var(--r2);
+  border: none;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
 }
 
 .hour-track {
   position: relative;
-  height: 3.25rem;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  height: 52px;
+  margin-top: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
   cursor: crosshair;
   user-select: none;
   overflow: hidden;
-  background: var(--color-background);
+  background: var(--track);
 }
 
 .track-grid {
@@ -809,7 +788,7 @@ function blockTimeLabel(entry) {
 
 .grid-line {
   flex: 1;
-  border-right: 2px solid var(--color-border);
+  border-right: 1px solid var(--line);
 }
 
 .grid-line:last-child {
@@ -826,7 +805,7 @@ function blockTimeLabel(entry) {
   top: 5px;
   bottom: 5px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--r2);
   font-size: 0.7rem;
   line-height: 1.35;
   padding: 0.3rem 0.35rem 0.3rem 0.65rem;
@@ -835,6 +814,10 @@ function blockTimeLabel(entry) {
   display: flex;
   align-items: center;
   container-type: inline-size;
+}
+
+.block:hover {
+  filter: brightness(1.15);
 }
 
 .block:active {
@@ -854,25 +837,25 @@ function blockTimeLabel(entry) {
 
 .resize-handle:hover,
 .resize-handle.active {
-  background: rgba(255, 255, 255, 0.45);
+  background: color-mix(in srgb, var(--fg) 35%, transparent);
 }
 
 .resize-handle.left {
   left: 0;
-  border-radius: 3px 0 0 3px;
+  border-radius: var(--r2) 0 0 var(--r2);
 }
 
 .resize-handle.right {
   right: 0;
-  border-radius: 0 3px 3px 0;
+  border-radius: 0 var(--r2) var(--r2) 0;
 }
 
 .drag-ghost {
   position: absolute;
   top: 5px;
   bottom: 5px;
-  border: 2px dashed var(--color-heading);
-  border-radius: 3px;
+  border: 2px dashed var(--fg);
+  border-radius: var(--r2);
   background: transparent;
   pointer-events: none;
 }
@@ -881,9 +864,8 @@ function blockTimeLabel(entry) {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: #fff;
-  box-shadow: 0 0 4px rgba(255, 255, 255, 0.7);
+  width: 2px;
+  background: var(--accent);
   transform: translateX(-50%);
   z-index: 5;
   pointer-events: none;
@@ -902,15 +884,16 @@ function blockTimeLabel(entry) {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .block-time {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  opacity: 0.85;
-  font-size: 0.9em;
+  opacity: 0.75;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
 }
 
 /* "5 chars before it'd need an ellipsis" is a rough width, not a literal
@@ -951,85 +934,71 @@ function blockTimeLabel(entry) {
   overflow: hidden;
   white-space: nowrap;
   opacity: 0.85;
+  font-family: var(--font-mono);
 }
 
 .day-stats {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 0.35rem;
-  min-width: 7rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
   white-space: nowrap;
 }
 
-/* Stretched to match the width of .day-actions below (the widest row in
-   this column, since day-stats shrink-wraps to its widest child) - gives
-   the total/diff rows a box spanning the same width as Clear+Add combined. */
-.stat-box {
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  border-radius: 6px;
-  padding: 0.25rem 0.4rem;
-  text-align: center;
-  background: var(--color-background);
+.stat-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
 }
 
-.total-value-row {
+.stat-total {
   display: flex;
   align-items: baseline;
-  justify-content: center;
-  gap: 0.25rem;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 .total-value {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
 }
 
 .total-value.status-green {
-  color: #16a34a;
+  color: var(--ok);
 }
 
 .total-value.status-yellow {
-  color: #ca8a04;
+  color: var(--warn);
 }
 
 .total-value.status-red {
-  color: #dc2626;
+  color: var(--bad);
 }
 
 .total-value-target {
-  font-size: 0.7rem;
-  font-weight: 600;
-  opacity: 0.55;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--mute);
 }
 
 .goal-diff {
-  font-size: 0.65rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
 }
 
 .goal-diff.status-green {
-  color: #16a34a;
+  color: var(--ok);
 }
 
 .goal-diff.status-yellow {
-  color: #ca8a04;
+  color: var(--warn);
 }
 
 .goal-diff.status-red {
-  color: #dc2626;
-}
-
-.all-day-row .all-day-cell {
-  border-radius: 4px;
-  border: none;
-  font-size: 0.75rem;
-  padding: 0.35rem 0.6rem;
-  cursor: pointer;
-}
-
-.all-day-row td {
-  padding-bottom: 0.35rem;
+  color: var(--bad);
 }
 </style>

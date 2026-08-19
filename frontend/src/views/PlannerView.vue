@@ -3,10 +3,17 @@ import { ref, computed } from 'vue'
 import { X, ChartColumn } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
+import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
+
+// "OvertimeCompensation" -> "Overtime Compensation" - purely a display
+// label for the legend, doesn't touch the stored enum value anywhere.
+function formatEntryTypeLabel(type) {
+  return type.replace(/([a-z])([A-Z])/g, '$1 $2')
+}
 
 const store = useScheduleStore()
 
@@ -27,6 +34,14 @@ const modalError = ref(null)
 const saving = ref(false)
 
 const showWeeklyBalanceModal = ref(false)
+
+const entryTypeLegend = computed(() =>
+  ENTRY_TYPES.map((type) => ({
+    type,
+    label: formatEntryTypeLabel(type),
+    ...colorStyleForType(type, store.entryTypeColors),
+  })),
+)
 
 async function handleApplyHolidayAdjustment(deltaDays) {
   try {
@@ -209,21 +224,32 @@ async function handleDelete(id) {
 
     <p v-if="store.loading" class="loading">Loading…</p>
 
-    <DayTable
-      v-for="date in visibleWeekDates"
-      :key="toISODate(date)"
-      :date="date"
-      :entries="entriesForDate(date)"
-      :show-goal-diff="showGoalDiffFor(date)"
-      :daily-target-hours="store.dailyTargetHours"
-      :view-from-hour="store.viewFromHour"
-      :view-till-hour="store.viewTillHour"
-      :entry-type-colors="store.entryTypeColors"
-      @add="openAdd"
-      @edit="openEdit"
-      @clear-day="handleClearDay"
-      @resize-entry="handleResizeEntry"
-    />
+    <div class="days-header">
+      <span class="days-kicker">Days</span>
+      <div class="entry-legend">
+        <span v-for="l in entryTypeLegend" :key="l.type" class="legend-item">
+          <span class="legend-swatch" :style="{ background: l.bg, borderColor: l.border }"></span>{{ l.label }}
+        </span>
+      </div>
+    </div>
+
+    <div class="days-list">
+      <DayTable
+        v-for="date in visibleWeekDates"
+        :key="toISODate(date)"
+        :date="date"
+        :entries="entriesForDate(date)"
+        :show-goal-diff="showGoalDiffFor(date)"
+        :daily-target-hours="store.dailyTargetHours"
+        :view-from-hour="store.viewFromHour"
+        :view-till-hour="store.viewTillHour"
+        :entry-type-colors="store.entryTypeColors"
+        @add="openAdd"
+        @edit="openEdit"
+        @clear-day="handleClearDay"
+        @resize-entry="handleResizeEntry"
+      />
+    </div>
 
     <EntryFormModal
       v-if="showModal"
@@ -278,6 +304,51 @@ async function handleDelete(id) {
 .weekly-balance-btn:hover {
   color: var(--fg);
   border-color: var(--accent);
+}
+
+.days-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 2px 12px;
+}
+
+.days-kicker {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--mute);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.entry-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r);
+  border: 1px solid;
+}
+
+.days-list {
+  border-top: 1px solid var(--line);
+  border-radius: var(--r2);
+  overflow: hidden;
 }
 
 .loading {
