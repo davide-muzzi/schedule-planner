@@ -180,18 +180,15 @@ async function handleDelete(id) {
 
 <template>
   <div class="planner">
-    <div class="page-header">
-      <h1 class="page-title">{{ store.greeting }}</h1>
-      <div class="header-actions">
-        <button type="button" class="header-btn" @click="openWeeklyBalance">
-          <ChartColumn :size="14" /> Weekly Balance
-        </button>
-      </div>
-    </div>
-
     <div v-if="store.error && !showModal" class="global-error">
       {{ store.error }}
       <button type="button" @click="store.clearError()"><X :size="16" /></button>
+    </div>
+
+    <div class="toolbar">
+      <button type="button" class="weekly-balance-btn" @click="openWeeklyBalance">
+        <ChartColumn :size="13" /> Weekly Balance
+      </button>
     </div>
 
     <WeekSummary
@@ -252,45 +249,39 @@ async function handleDelete(id) {
 
 <style scoped>
 .planner {
-  max-width: 100%;
+  max-width: 1180px;
 }
 
-.page-header {
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.weekly-balance-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.6rem;
-}
-
-.page-title {
-  font-size: 1.4rem;
-  color: var(--color-heading);
-}
-
-.header-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  border: 2px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
+  gap: 5px;
+  padding: 7px 13px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.header-btn:hover {
-  border-color: var(--color-border-hover);
+.weekly-balance-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
 }
 
 .loading {
-  opacity: 0.7;
+  color: var(--mute);
   margin-bottom: 1rem;
 }
 
@@ -298,11 +289,11 @@ async function handleDelete(id) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: color-mix(in srgb, var(--bad) 15%, transparent);
+  color: var(--bad);
+  border: 1px solid var(--bad);
   padding: 0.6rem 0.9rem;
-  border-radius: 6px;
+  border-radius: var(--r2);
   margin-bottom: 1rem;
   font-size: 0.85rem;
 }

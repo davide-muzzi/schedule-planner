@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { ChevronLeft, ChevronRight } from '@lucide/vue'
-import { formatWeekRange, formatHours, getMonday, toISODate } from '@/utils/date'
+import { ChevronLeft, ChevronRight, CalendarDays } from '@lucide/vue'
+import { formatWeekRange, formatHours, getMonday, toISODate, getISOWeekNumber } from '@/utils/date'
 import {
   OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
   OVERALL_BALANCE_RED_THRESHOLD_HOURS,
@@ -33,6 +33,7 @@ const emit = defineEmits([
 ])
 
 const isCurrentWeek = computed(() => toISODate(props.monday) === toISODate(getMonday(new Date())))
+const weekKicker = computed(() => `Calendar week ${getISOWeekNumber(props.monday)}`)
 
 const diff = computed(() => props.overallBalance.diffHours)
 
@@ -148,305 +149,287 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 </script>
 
 <template>
-  <div class="week-summary-row">
-    <div class="summary-card nav-card">
-      <button type="button" class="nav-btn" @click="emit('prev')" aria-label="Previous week"><ChevronLeft :size="16" /></button>
+  <div class="planner-header">
+    <div class="header-top">
+      <div class="header-title">
+        <p class="kicker">{{ weekKicker }}</p>
+        <h1 class="date-range">{{ formatWeekRange(monday) }}</h1>
+      </div>
 
-      <div class="range-picker">
-        <button type="button" class="range-trigger" @click.stop="toggleCalendar">
-          <span class="range-label">{{ formatWeekRange(monday) }}</span>
-          <span class="range-hint">Click to select</span>
+      <div class="header-nav">
+        <button type="button" class="icon-btn" @click="emit('prev')" aria-label="Previous week"><ChevronLeft :size="16" /></button>
+        <button type="button" class="icon-btn" @click="emit('next')" aria-label="Next week"><ChevronRight :size="16" /></button>
+        <button type="button" class="today-btn" :class="{ 'is-current': isCurrentWeek }" @click="emit('today')">Today</button>
+        <div class="pick-week">
+          <button type="button" class="pick-week-btn" @click.stop="toggleCalendar">
+            <CalendarDays :size="14" /> Pick week
+          </button>
+          <MiniCalendar v-if="showCalendar" :monday="monday" @select="selectDate" />
+        </div>
+      </div>
+    </div>
+
+    <div class="status-strip">
+      <div class="strip-cell">
+        <span class="cell-label">Upcoming appointments</span>
+        <span class="cell-value">{{ formatHours(futureAppointmentHours) }}</span>
+      </div>
+
+      <div class="strip-cell adjustable">
+        <button type="button" class="cell-trigger" @click.stop="toggleHolidayPopup">
+          <span class="cell-label">Vacation remaining</span>
+          <span class="cell-value">{{ formatDays(holidaysRemaining) }}</span>
+          <span class="cell-hint">Click to adjust</span>
         </button>
-        <MiniCalendar v-if="showCalendar" :monday="monday" @select="selectDate" />
-      </div>
 
-      <button type="button" class="nav-btn" @click="emit('next')" aria-label="Next week"><ChevronRight :size="16" /></button>
-      <button type="button" class="today-btn" :class="{ 'is-today': isCurrentWeek }" @click="emit('today')">
-        <span :class="{ 'today-btn-text': isCurrentWeek }">Today</span>
-      </button>
-    </div>
-
-    <div class="summary-card stat-card">
-      <span class="total-label">Upcoming appointments</span>
-      <span class="total-value">{{ formatHours(futureAppointmentHours) }}</span>
-    </div>
-
-    <div class="summary-card stat-card adjustable">
-      <button type="button" class="adjust-trigger" @click.stop="toggleHolidayPopup">
-        <span class="total-label">Vacation remaining</span>
-        <span class="total-value">{{ formatDays(holidaysRemaining) }}</span>
-        <span class="adjust-hint">Click to adjust</span>
-      </button>
-
-      <div v-if="showHolidayPopup" class="adjust-popup holiday-popup" @click.stop>
-        <p class="adjust-current">{{ currentHolidayAdjustmentLabel }}</p>
-        <div class="adjust-inputs">
-          <label>
-            days
-            <input v-model.number="holidayAdjustDays" type="number" min="0" />
-          </label>
-          <label>
-            h
-            <input v-model.number="holidayAdjustHours" type="number" min="0" />
-          </label>
-          <label>
-            min
-            <input v-model.number="holidayAdjustMinutes" type="number" min="0" max="59" />
-          </label>
-        </div>
-        <div class="adjust-actions">
-          <button type="button" class="adjust-btn subtract" @click="applyHolidayAdjustment(-1)">− Subtract</button>
-          <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
+        <div v-if="showHolidayPopup" class="adjust-popup holiday-popup" @click.stop>
+          <p class="adjust-current">{{ currentHolidayAdjustmentLabel }}</p>
+          <div class="adjust-inputs">
+            <label>
+              days
+              <input v-model.number="holidayAdjustDays" type="number" min="0" />
+            </label>
+            <label>
+              h
+              <input v-model.number="holidayAdjustHours" type="number" min="0" />
+            </label>
+            <label>
+              min
+              <input v-model.number="holidayAdjustMinutes" type="number" min="0" max="59" />
+            </label>
+          </div>
+          <div class="adjust-actions">
+            <button type="button" class="adjust-btn subtract" @click="applyHolidayAdjustment(-1)">− Subtract</button>
+            <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="summary-card stat-card adjustable">
-      <button type="button" class="adjust-trigger" @click.stop="toggleAdjustPopup">
-        <span class="total-label">Overall balance</span>
-        <span class="total-value" :class="'status-' + status">{{ diffLabel }}</span>
-        <span class="adjust-hint">Click to adjust</span>
-      </button>
+      <div class="strip-cell adjustable">
+        <button type="button" class="cell-trigger" @click.stop="toggleAdjustPopup">
+          <span class="cell-label">Overall balance</span>
+          <span class="cell-value" :class="'status-' + status">{{ diffLabel }}</span>
+          <span class="cell-hint">Click to adjust</span>
+        </button>
 
-      <div v-if="showAdjustPopup" class="adjust-popup" @click.stop>
-        <p class="adjust-current">{{ currentAdjustmentLabel }}</p>
-        <div class="adjust-inputs">
-          <label>
-            h
-            <input v-model.number="adjustHours" type="number" min="0" />
-          </label>
-          <label>
-            min
-            <input v-model.number="adjustMinutes" type="number" min="0" max="59" />
-          </label>
-        </div>
-        <div class="adjust-actions">
-          <button type="button" class="adjust-btn subtract" @click="applyAdjustment(-1)">− Subtract</button>
-          <button type="button" class="adjust-btn add" @click="applyAdjustment(1)">+ Add</button>
+        <div v-if="showAdjustPopup" class="adjust-popup" @click.stop>
+          <p class="adjust-current">{{ currentAdjustmentLabel }}</p>
+          <div class="adjust-inputs">
+            <label>
+              h
+              <input v-model.number="adjustHours" type="number" min="0" />
+            </label>
+            <label>
+              min
+              <input v-model.number="adjustMinutes" type="number" min="0" max="59" />
+            </label>
+          </div>
+          <div class="adjust-actions">
+            <button type="button" class="adjust-btn subtract" @click="applyAdjustment(-1)">− Subtract</button>
+            <button type="button" class="adjust-btn add" @click="applyAdjustment(1)">+ Add</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="summary-card worked-card">
-      <div class="total-block">
-        <span class="total-label">Worked this week</span>
-        <span class="total-value-row">
-          <span class="total-value" :class="'status-' + weeklyStatus">{{ formatHours(weeklyTotalHours) }}</span>
-          <span class="total-value-target">/ {{ formatHours(weeklyTargetHours) }}</span>
+      <div class="strip-cell worked-cell">
+        <span class="cell-label">Worked this week</span>
+        <span class="cell-value-row">
+          <span class="cell-value" :class="'status-' + weeklyStatus">{{ formatHours(weeklyTotalHours) }}</span>
+          <span class="cell-value-target">/ {{ formatHours(weeklyTargetHours) }}</span>
         </span>
+        <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
       </div>
-
-      <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
     </div>
   </div>
 </template>
 
 <style scoped>
-.week-summary-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+.planner-header {
+  margin-bottom: 2rem;
 }
 
-.summary-card {
+.header-top {
   display: flex;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  background: var(--color-background-soft);
-}
-
-.nav-card {
-  flex: 1;
+  align-items: flex-end;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding-bottom: 1.4rem;
 }
 
-.stat-card {
-  flex-direction: column;
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--mute);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.date-range {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.header-nav {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.2rem;
-  min-width: 8rem;
+  gap: 6px;
 }
 
-.worked-card {
-  gap: 1rem;
-  min-width: 26rem;
-}
-
-.nav-btn {
+.icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-  color: var(--color-text);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--dim);
   cursor: pointer;
 }
 
-.nav-btn:hover {
-  border-color: var(--color-border-hover);
-}
-
-.range-picker {
-  position: relative;
-  /* Fixed width so cross-month ranges ("Aug 31 – Sep 4, 2026") don't push
-     everything after this around compared to same-month ones
-     ("Aug 10 – 14, 2026") - the box stays constant, only the text inside it
-     changes. */
-  min-width: 11rem;
-}
-
-.range-trigger {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  background: none;
-  border: none;
-  margin: 0;
-  padding: 0;
-  appearance: none;
-  font-family: inherit;
-  line-height: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
-.range-label {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-heading);
-  text-align: center;
-}
-
-.range-hint {
-  font-size: 0.65rem;
-  opacity: 0.5;
+.icon-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
 }
 
 .today-btn {
-  display: flex;
-  align-items: center;
-  height: 1.6rem;
-  padding: 0 0.75rem;
-  font-size: 0.7rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
+  padding: 7px 13px;
+  border-radius: var(--r);
+  border: 1px solid var(--accent);
   background: transparent;
-  color: var(--color-text);
-  opacity: 0.75;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.today-btn-text {
-  background: linear-gradient(
-    45deg,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c,
-    #00c3ff,
-    #ffff1c
-  );
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: today-btn-gradient 24s linear infinite;
-}
-
-@keyframes today-btn-gradient {
-  0% {
-    background-position: 0 0;
-  }
-  50% {
-    background-position: 400% 0;
-  }
-  100% {
-    background-position: 0 0;
-  }
-}
-
 .today-btn:hover {
-  border-color: #1d4ed8;
-  background: #3b82f6;
-  color: #fff;
-  opacity: 1;
+  background: var(--accent-tint);
 }
 
-.today-btn:hover .today-btn-text {
-  background: none;
-  -webkit-background-clip: initial;
-  background-clip: initial;
-  color: #fff;
-  animation: none;
+.today-btn.is-current {
+  background: var(--accent);
+  color: var(--bg);
 }
 
-.total-block {
+.pick-week {
+  position: relative;
+}
+
+.pick-week-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pick-week-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.status-strip {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.strip-cell {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  padding: 16px 24px;
+  border-right: 1px solid var(--line);
+  min-width: 9rem;
 }
 
-.total-label {
-  font-size: 0.7rem;
-  opacity: 0.65;
+.strip-cell:last-child {
+  border-right: none;
 }
 
-.total-value {
-  font-size: 1.05rem;
-  font-weight: 700;
+.worked-cell {
+  flex: 1.7;
+  gap: 8px;
+  min-width: 16rem;
 }
 
-.adjust-hint {
-  font-size: 0.65rem;
-  opacity: 0.5;
+.cell-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--mute);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.total-value-row {
+.cell-value {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.cell-hint {
+  font-size: 10px;
+  color: var(--mute);
+}
+
+.cell-value-row {
   display: flex;
   align-items: baseline;
   gap: 0.3rem;
 }
 
-.total-value-target {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
-  opacity: 0.55;
+.cell-value-target {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--mute);
 }
 
-.total-value.status-green {
-  color: #16a34a;
+.cell-value.status-green {
+  color: var(--ok);
 }
 
-.total-value.status-yellow {
-  color: #ca8a04;
+.cell-value.status-yellow {
+  color: var(--warn);
 }
 
-.total-value.status-red {
-  color: #dc2626;
+.cell-value.status-red {
+  color: var(--bad);
 }
 
 .adjustable {
   position: relative;
 }
 
-.adjust-trigger {
+.cell-trigger {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  gap: 5px;
   background: none;
   border: none;
   margin: 0;
@@ -465,9 +448,9 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   left: 0;
   z-index: 10;
   width: 13rem;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r2);
   padding: 0.75rem;
   text-align: left;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -479,7 +462,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 
 .adjust-current {
   font-size: 0.75rem;
-  opacity: 0.75;
+  color: var(--dim);
   margin-bottom: 0.5rem;
 }
 
@@ -495,18 +478,18 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
   gap: 0.2rem;
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--color-heading);
+  color: var(--fg);
   flex: 1;
 }
 
 .adjust-inputs input {
   padding: 0.3rem 0.4rem;
-  border-radius: 5px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background-soft);
-  color: var(--color-text);
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--surface2);
+  color: var(--fg);
   font-size: 0.85rem;
-  font-family: inherit;
+  font-family: var(--font-mono);
   width: 100%;
 }
 
@@ -518,21 +501,21 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 .adjust-btn {
   flex: 1;
   padding: 0.35rem 0;
-  border-radius: 5px;
+  border-radius: var(--r2);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .adjust-btn.add {
-  background: #3b82f6;
-  border: 1px solid #1d4ed8;
-  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--bg);
 }
 
 .adjust-btn.subtract {
-  background: #dc2626;
-  border: 1px solid #b91c1c;
-  color: #fff;
+  background: var(--bad);
+  border: 1px solid var(--bad);
+  color: var(--bg);
 }
 </style>

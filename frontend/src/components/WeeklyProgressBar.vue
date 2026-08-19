@@ -65,15 +65,15 @@ const hourMarks = computed(() => {
 .progress-track {
   position: relative;
   height: 1.1rem;
-  border-radius: 3px;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
+  border-radius: var(--r2);
+  background: var(--track);
+  border: 1px solid var(--line);
   overflow: visible;
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--r2);
   transition: width 0.2s ease;
 }
 
@@ -82,20 +82,20 @@ const hourMarks = computed(() => {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.35);
+  background: color-mix(in srgb, var(--fg) 35%, transparent);
   transform: translateX(-0.5px);
 }
 
 .progress-fill.status-green {
-  background: #16a34a;
+  background: var(--ok);
 }
 
 .progress-fill.status-yellow {
-  background: #ca8a04;
+  background: var(--warn);
 }
 
 .progress-fill.status-red {
-  background: #dc2626;
+  background: var(--bad);
 }
 
 .goal-tick {
@@ -103,7 +103,7 @@ const hourMarks = computed(() => {
   top: -0.2rem;
   bottom: -0.2rem;
   width: 2px;
-  background: var(--color-heading);
+  background: var(--fg);
   transform: translateX(-1px);
 }
 </style>
