@@ -21,6 +21,11 @@ export const WEEKLY_WORKED_GREEN_MAX_OVER_HOURS = 2
 export const WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS = 2
 export const WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS = 5
 
+// "Upcoming appointments" coloring: green once the overall balance already
+// covers them. Yellow while they'd only push you up to 2h further behind,
+// red beyond that.
+export const UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS = 2
+
 export const BUSINESS_DAYS_PER_WEEK = 5
 export const DAILY_RED_THRESHOLD_HOURS = 1
 

@@ -8,6 +8,7 @@ import {
   WEEKLY_WORKED_GREEN_MAX_OVER_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
+  UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS,
   BUSINESS_DAYS_PER_WEEK,
 } from '@/utils/constants'
 import WeeklyProgressBar from './WeeklyProgressBar.vue'
@@ -49,6 +50,16 @@ const diffLabel = computed(() => {
   if (Math.abs(diff.value) < 0.01) return 'right on target'
   const label = formatHours(Math.abs(diff.value))
   return diff.value > 0 ? `${label} over` : `${label} under`
+})
+
+// How far the overall balance falls short of covering the upcoming
+// appointments - <= 0 means the balance already covers them.
+const appointmentsGap = computed(() => props.futureAppointmentHours - diff.value)
+
+const appointmentsStatus = computed(() => {
+  if (appointmentsGap.value <= 0) return 'green' // balance already covers the upcoming appointments
+  if (appointmentsGap.value <= UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS) return 'yellow'
+  return 'red'
 })
 
 const weeklyDiff = computed(() => props.weeklyTotalHours - props.weeklyTargetHours)
@@ -203,7 +214,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 
       <div class="strip-cell">
         <span class="cell-label">Upcoming appointments</span>
-        <span class="cell-value">{{ formatHours(futureAppointmentHours) }}</span>
+        <span class="cell-value" :class="'status-' + appointmentsStatus">{{ formatHours(futureAppointmentHours) }}</span>
       </div>
 
       <div class="strip-cell adjustable">
