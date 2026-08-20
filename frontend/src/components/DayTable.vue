@@ -463,6 +463,13 @@ function blockStyle(entry) {
   }
 }
 
+// Live "start - end" readout for the in-progress create-drag ghost -
+// updates every mousemove same as the ghost's own position/width, since
+// both read off the same dragPreviewStart/End refs.
+const dragRangeLabel = computed(() =>
+  dragMode.value === 'create' ? `${hoursToTimeString(dragPreviewStart.value)} - ${hoursToTimeString(dragPreviewEnd.value)}` : '',
+)
+
 function ghostStyle() {
   const clippedStart = Math.max(dragPreviewStart.value, props.viewFromHour)
   const clippedEnd = Math.min(dragPreviewEnd.value, props.viewTillHour)
@@ -634,7 +641,9 @@ function blockTimeLabel(entry) {
             </div>
             <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
           </div>
-          <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
+          <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()">
+            <span class="drag-ghost-label">{{ dragRangeLabel }}</span>
+          </div>
         </div>
         <div v-if="nowLinePosition" class="now-line" :style="{ left: nowLinePosition }"></div>
         <div v-if="hoverLinePosition" class="hover-line" :style="{ left: hoverLinePosition }">
@@ -980,6 +989,21 @@ function blockTimeLabel(entry) {
   border-radius: var(--r2);
   background: transparent;
   pointer-events: none;
+}
+
+.drag-ghost-label {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  padding: 1px 4px;
+  white-space: nowrap;
 }
 
 .now-line {
