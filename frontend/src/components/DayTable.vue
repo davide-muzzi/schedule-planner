@@ -205,28 +205,37 @@ function snapHours(hours, ctrlKey) {
   return Math.round(hours / grid) * grid
 }
 
-// Edge drags: a start-edge can only ever come to rest at a neighbor's END
-// (snapping it to the neighbor's own start would nest it inside that span
-// and always overlap), and an end-edge can only ever come to rest at a
-// neighbor's START, for the same reason in reverse. Which half of the
-// neighbor you're hovering doesn't matter here - only one boundary is ever
-// a valid target.
-function magnetSnapForStart(hours, excludeId) {
-  for (const other of timedEntries.value) {
-    if (other.id === excludeId) continue
-    const { start, end } = entryRange(other)
-    if (hours > start && hours < end) return end
+// Clamps a moving edge so it can never cross past the nearest existing
+// entry lying between `reference` (a fixed point that doesn't move during
+// this drag - the anchor for a create-drag, the entry's own untouched
+// opposite edge for a resize) and `target` (the raw, unclamped pointer
+// position). Scans every entry in that swept range rather than just
+// checking whether the pointer currently sits inside one - a fast drag can
+// jump clean over a neighbor's whole width between two mousemove events, so
+// "does the raw position fall inside a neighbor right now" can miss it and
+// let the edge land past (or inside) it. This always finds the *nearest*
+// boundary in the direction of travel, so nothing gets skipped no matter
+// how far or fast the pointer moves.
+function clampToNearestEntry(target, reference, excludeId) {
+  if (target > reference) {
+    let limit = target
+    for (const other of timedEntries.value) {
+      if (other.id === excludeId) continue
+      const { start } = entryRange(other)
+      if (start >= reference && start < limit) limit = start
+    }
+    return limit
   }
-  return hours
-}
-
-function magnetSnapForEnd(hours, excludeId) {
-  for (const other of timedEntries.value) {
-    if (other.id === excludeId) continue
-    const { start, end } = entryRange(other)
-    if (hours > start && hours < end) return start
+  if (target < reference) {
+    let limit = target
+    for (const other of timedEntries.value) {
+      if (other.id === excludeId) continue
+      const { end } = entryRange(other)
+      if (end <= reference && end > limit) limit = end
+    }
+    return limit
   }
-  return hours
+  return target
 }
 
 // Whole-entry move: which half of a hovered neighbor the cursor is over
@@ -317,13 +326,21 @@ function handleDragMove(event) {
   const snapped = snapHours(raw, event.ctrlKey)
 
   if (dragMode.value === 'create') {
-    dragPreviewStart.value = Math.min(dragAnchorHours.value, snapped)
-    dragPreviewEnd.value = Math.max(dragAnchorHours.value, snapped)
+    // Same boundary-clamping as resizing - whichever edge is moving (the
+    // anchor stays put) can never cross past the nearest neighbor in that
+    // direction, no matter how far past it the pointer moves.
+    if (snapped >= dragAnchorHours.value) {
+      dragPreviewStart.value = dragAnchorHours.value
+      dragPreviewEnd.value = clampToNearestEntry(snapped, dragAnchorHours.value, null)
+    } else {
+      dragPreviewEnd.value = dragAnchorHours.value
+      dragPreviewStart.value = clampToNearestEntry(snapped, dragAnchorHours.value, null)
+    }
   } else if (dragMode.value === 'resize-start') {
-    const magnet = magnetSnapForStart(snapped, dragEntry.value.id)
+    const magnet = clampToNearestEntry(snapped, entryRange(dragEntry.value).start, dragEntry.value.id)
     dragPreviewStart.value = Math.min(magnet, dragPreviewEnd.value - MIN_DURATION_HOURS)
   } else if (dragMode.value === 'resize-end') {
-    const magnet = magnetSnapForEnd(snapped, dragEntry.value.id)
+    const magnet = clampToNearestEntry(snapped, entryRange(dragEntry.value).end, dragEntry.value.id)
     dragPreviewEnd.value = Math.max(magnet, dragPreviewStart.value + MIN_DURATION_HOURS)
   } else if (dragMode.value === 'move') {
     const { start: origStart, end: origEnd } = entryRange(dragEntry.value)
