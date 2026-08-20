@@ -356,6 +356,7 @@ function handleBlockMouseDown(event, entry) {
   dragGrabOffsetHours.value = hoursFromClientX(event.clientX) - start
   dragPreviewStart.value = start
   dragPreviewEnd.value = end
+  hoveredEntry.value = null
   startDragListeners()
 }
 
@@ -366,6 +367,7 @@ function handleEdgeMouseDown(event, entry, edge) {
   dragEntry.value = entry
   dragPreviewStart.value = start
   dragPreviewEnd.value = end
+  hoveredEntry.value = null
   startDragListeners()
 }
 
@@ -540,6 +542,44 @@ function blockTimeLabel(entry) {
   const range = `${hoursToTimeString(dragPreviewStart.value)}-${hoursToTimeString(dragPreviewEnd.value)}`
   return `${duration} (${range})`
 }
+
+// "OvertimeCompensation" -> "Overtime Compensation" - display only, doesn't
+// touch the stored enum value.
+function formatEntryTypeLabel(type) {
+  return type.replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
+// Rich hover tooltip (replaces the plain native `title` attribute) showing
+// every field an entry has, not just title/time. Teleported to <body> and
+// positioned from the hovered block's own rect, same reasoning as the
+// calendar/modal fixes elsewhere in this app - staying a normal descendant
+// here would put it at the mercy of the track's overflow:hidden and this
+// row's own stacking context.
+const hoveredEntry = ref(null)
+const tooltipStyle = ref({})
+
+function showEntryTooltip(event, entry) {
+  if (dragMode.value) return // a drag is already showing its own live label
+  hoveredEntry.value = entry
+  const rect = event.currentTarget.getBoundingClientRect()
+  const left = Math.min(Math.max(rect.left + rect.width / 2, 130), window.innerWidth - 130)
+  const spaceBelow = window.innerHeight - rect.bottom
+  tooltipStyle.value =
+    spaceBelow < 180
+      ? { left: `${left}px`, bottom: `${window.innerHeight - rect.top + 8}px` }
+      : { left: `${left}px`, top: `${rect.bottom + 8}px` }
+}
+
+function hideEntryTooltip() {
+  hoveredEntry.value = null
+}
+
+const tooltipTimeText = computed(() => {
+  const entry = hoveredEntry.value
+  if (!entry) return ''
+  if (entry.allDay) return 'All day'
+  return `${entry.startTime?.slice(0, 5)} – ${entry.endTime?.slice(0, 5)} (${formatHours(durationHours(entry.startTime, entry.endTime))})`
+})
 </script>
 
 <template>
@@ -592,6 +632,8 @@ function blockTimeLabel(entry) {
           class="all-day-banner"
           :style="[bannerStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
           @click="emit('edit', entry)"
+          @mouseenter="showEntryTooltip($event, entry)"
+          @mouseleave="hideEntryTooltip"
         >
           <div class="block-content">
             <span class="block-left">
@@ -619,8 +661,9 @@ function blockTimeLabel(entry) {
             :key="entry.id"
             class="block"
             :style="[blockStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
-            :title="`${entryLeftLabel(entry)} — ${entryRightLabel(entry)}`"
             @mousedown.stop="handleBlockMouseDown($event, entry)"
+            @mouseenter="showEntryTooltip($event, entry)"
+            @mouseleave="hideEntryTooltip"
           >
             <div
               class="resize-handle left"
@@ -651,6 +694,31 @@ function blockTimeLabel(entry) {
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="hoveredEntry"
+        class="entry-tooltip"
+        :style="[tooltipStyle, { borderLeftColor: colorStyleForType(hoveredEntry.entryType, entryTypeColors).border }]"
+      >
+        <div class="tooltip-title">
+          <component :is="locationIcon(hoveredEntry)" v-if="locationIcon(hoveredEntry)" :size="12" class="inline-icon" />
+          {{ hoveredEntry.title || formatEntryTypeLabel(hoveredEntry.entryType) }}
+        </div>
+        <div v-if="hoveredEntry.title" class="tooltip-row">
+          <span class="tooltip-label">Type</span><span>{{ formatEntryTypeLabel(hoveredEntry.entryType) }}</span>
+        </div>
+        <div class="tooltip-row">
+          <span class="tooltip-label">Time</span><span>{{ tooltipTimeText }}</span>
+        </div>
+        <div v-if="hoveredEntry.workLocation" class="tooltip-row">
+          <span class="tooltip-label">Location</span><span>{{ hoveredEntry.workLocation }}</span>
+        </div>
+        <div v-if="hoveredEntry.notes" class="tooltip-row notes">
+          <span class="tooltip-label">Notes</span><span>{{ hoveredEntry.notes }}</span>
+        </div>
+      </div>
+    </Teleport>
 
     <div class="day-stats">
       <div class="stat-block">
@@ -778,6 +846,47 @@ function blockTimeLabel(entry) {
   white-space: normal;
   cursor: default;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.entry-tooltip {
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 300;
+  width: max-content;
+  max-width: 15rem;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--line-2);
+  border-radius: var(--r2);
+  padding: 0.55rem 0.7rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.tooltip-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 0.3rem;
+}
+
+.tooltip-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--dim);
+  padding: 0.1rem 0;
+}
+
+.tooltip-row.notes {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.tooltip-label {
+  flex: none;
+  min-width: 3.6rem;
+  color: var(--mute);
 }
 
 .hidden-warning {
