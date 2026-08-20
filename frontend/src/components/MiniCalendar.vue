@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import { getMonday, toISODate, addDays } from '@/utils/date'
 
@@ -19,15 +19,33 @@ const emit = defineEmits(['select'])
 // relative to a parent.
 const popupStyle = ref({})
 
-onMounted(() => {
+function computePosition() {
   const rect = props.anchor?.getBoundingClientRect?.()
   if (!rect) return
+  // Right-edge aligned rather than centered under the button - the button
+  // sits close to the page's right edge, so centering could push the wider
+  // calendar panel half off-screen.
   popupStyle.value = {
     position: 'fixed',
     top: `${rect.bottom + 8}px`,
-    left: `${rect.left + rect.width / 2}px`,
-    transform: 'translateX(-50%)',
+    right: `${window.innerWidth - rect.right}px`,
   }
+}
+
+onMounted(() => {
+  computePosition()
+  // The button's label is set in a web font (IBM Plex Mono) - if it's still
+  // loading at mount time, the button briefly renders in a fallback font
+  // with different metrics, so its measured width (and right edge) can
+  // shift once the real font swaps in. Re-measuring once fonts are
+  // confirmed loaded (and on resize, for the same reason in general)
+  // keeps this from drifting out of alignment.
+  document.fonts?.ready?.then(computePosition)
+  window.addEventListener('resize', computePosition)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', computePosition)
 })
 
 const viewMonth = ref(new Date(props.monday.getFullYear(), props.monday.getMonth(), 1))
