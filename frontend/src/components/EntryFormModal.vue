@@ -155,10 +155,27 @@ function handleKeydown(event) {
 
 onMounted(() => document.addEventListener('keydown', handleKeydown))
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
+
+// A text-selection drag that starts inside the modal (e.g. dragging across
+// a word in a field) but happens to release the mouse past the modal's
+// edge lands its "click" event on the overlay too - @click.self alone
+// can't tell that apart from an actual click on the backdrop. Only close
+// when the *mousedown* also started on the bare overlay, not just the
+// click's resolved target.
+const overlayMouseDownOnSelf = ref(false)
+
+function handleOverlayMouseDown(event) {
+  overlayMouseDownOnSelf.value = event.target === event.currentTarget
+}
+
+function handleOverlayClick(event) {
+  if (overlayMouseDownOnSelf.value && event.target === event.currentTarget) emit('close')
+}
 </script>
 
 <template>
-  <div class="overlay" @click.self="emit('close')">
+  <Teleport to="body">
+  <div class="overlay" @mousedown="handleOverlayMouseDown" @click="handleOverlayClick">
     <div class="modal">
       <header class="modal-header">
         <h2>{{ isEdit ? 'Edit entry' : 'Add entry' }}</h2>
@@ -243,6 +260,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
       </form>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <style scoped>

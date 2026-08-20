@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { X } from '@lucide/vue'
 import { formatWeekRange, formatHours } from '@/utils/date'
 import { RED_THRESHOLD_HOURS, YELLOW_THRESHOLD_HOURS } from '@/utils/constants'
@@ -44,10 +44,23 @@ function handleKeydown(event) {
 
 onMounted(() => document.addEventListener('keydown', handleKeydown))
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
+
+// Same fix as EntryFormModal - a text-selection drag that releases past the
+// modal's edge shouldn't count as a click on the backdrop.
+const overlayMouseDownOnSelf = ref(false)
+
+function handleOverlayMouseDown(event) {
+  overlayMouseDownOnSelf.value = event.target === event.currentTarget
+}
+
+function handleOverlayClick(event) {
+  if (overlayMouseDownOnSelf.value && event.target === event.currentTarget) emit('close')
+}
 </script>
 
 <template>
-  <div class="overlay" @click.self="emit('close')">
+  <Teleport to="body">
+  <div class="overlay" @mousedown="handleOverlayMouseDown" @click="handleOverlayClick">
     <div class="modal">
       <header class="modal-header">
         <h2>Weekly Balance</h2>
@@ -92,6 +105,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
       </footer>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <style scoped>
