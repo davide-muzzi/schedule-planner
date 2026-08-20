@@ -596,6 +596,8 @@ async function saveWeeklyGoal() {
 }
 
 .select-input {
+  width: 6.5rem;
+  padding-right: 16px;
   font-family: var(--font-mono);
 }
 
@@ -651,6 +653,8 @@ async function saveWeeklyGoal() {
 .unit-field {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  width: 6.5rem;
   padding: 9px 11px;
   border-radius: var(--r2);
   border: 1px solid var(--line-2);
