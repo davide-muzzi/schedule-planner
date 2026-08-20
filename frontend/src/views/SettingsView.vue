@@ -464,7 +464,6 @@ async function saveWeeklyGoal() {
 
 <style scoped>
 .page {
-  max-width: 900px;
   animation: fadeUp 0.34s var(--ease) both;
 }
 
@@ -758,7 +757,6 @@ async function saveWeeklyGoal() {
   display: flex;
   flex-direction: column;
   gap: 26px;
-  max-width: 560px;
   animation: fadeUp 0.3s var(--ease) both;
 }
 
@@ -772,6 +770,7 @@ async function saveWeeklyGoal() {
 
 .data-action p,
 .danger-action p {
+  max-width: 560px;
   font-size: 12px;
   color: var(--mute);
 }

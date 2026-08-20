@@ -282,7 +282,6 @@ async function handleDelete(id) {
 
 <style scoped>
 .planner {
-  max-width: 1180px;
   animation: fadeUp 0.34s var(--ease) both;
 }
 
