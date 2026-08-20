@@ -437,11 +437,20 @@ function blockTitleLabel(entry) {
   return entry.title || entry.entryType
 }
 
+// Same shape as formatHours, but the leading "0h" is redundant clutter on a
+// sub-hour entry (e.g. a 30-minute break) - dropped whenever there isn't a
+// whole hour to show. Scoped to timeline entry labels only, not the shared
+// util used for day/week totals elsewhere.
+function formatBlockDuration(hours) {
+  const formatted = formatHours(hours)
+  return formatted.startsWith('0h ') ? formatted.slice(3) : formatted
+}
+
 // Right side / row 2: total duration, with the exact time range in brackets
 // - or "All Day" for all-day entries.
 function entryRightLabel(entry) {
   if (entry.allDay) return 'All Day'
-  const duration = formatHours(durationHours(entry.startTime, entry.endTime))
+  const duration = formatBlockDuration(durationHours(entry.startTime, entry.endTime))
   const range = `${entry.startTime?.slice(0, 5)}-${entry.endTime?.slice(0, 5)}`
   return `${duration} (${range})`
 }
@@ -455,7 +464,7 @@ function blockTimeLabel(entry) {
     (dragMode.value === 'move' || dragMode.value === 'resize-start' || dragMode.value === 'resize-end')
   if (!isDraggingThis) return entryRightLabel(entry)
 
-  const duration = formatHours(dragPreviewEnd.value - dragPreviewStart.value)
+  const duration = formatBlockDuration(dragPreviewEnd.value - dragPreviewStart.value)
   const range = `${hoursToTimeString(dragPreviewStart.value)}-${hoursToTimeString(dragPreviewEnd.value)}`
   return `${duration} (${range})`
 }
