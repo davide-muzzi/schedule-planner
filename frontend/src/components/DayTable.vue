@@ -1120,11 +1120,26 @@ const tooltipTimeText = computed(() => {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: var(--accent);
+  background: var(--fg);
   transform: translateX(-50%);
   z-index: 5;
   pointer-events: none;
   animation: pulseLine 2.4s ease-in-out infinite;
+}
+
+.now-line::before {
+  /* top: 0 (flush with the track's top edge) rather than straddling it
+     with a negative offset - the track has overflow:hidden, so anything
+     positioned above y:0 gets clipped clean off instead of just poking out. */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg);
+  transform: translateX(-50%);
 }
 
 .hover-line {
