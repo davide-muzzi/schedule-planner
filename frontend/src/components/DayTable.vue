@@ -936,10 +936,10 @@ function blockTimeLabel(entry) {
   font-size: 0.85em;
 }
 
-/* "5 chars before it'd need an ellipsis" is a rough width, not a literal
-   character count - measured off the block's own rendered width via a
-   container query so it stays correct across every zoom level/window size. */
-@container (max-width: 52px) {
+/* "2 chars or less before it'd need an ellipsis" is a rough width, not a
+   literal character count - measured off the block's own rendered width via
+   a container query so it stays correct across every zoom level/window size. */
+@container (max-width: 28px) {
   .block-content,
   .note-icon {
     display: none;
