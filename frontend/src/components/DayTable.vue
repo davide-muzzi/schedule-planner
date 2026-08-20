@@ -280,11 +280,24 @@ function effectiveRange(entry) {
 function startDragListeners() {
   document.addEventListener('mousemove', handleDragMove)
   document.addEventListener('mouseup', handleDragEnd)
+  document.addEventListener('keydown', handleDragKeydown)
 }
 
 function stopDragListeners() {
   document.removeEventListener('mousemove', handleDragMove)
   document.removeEventListener('mouseup', handleDragEnd)
+  document.removeEventListener('keydown', handleDragKeydown)
+}
+
+// Escape while still sketching a new entry (mouse still held down) backs
+// out without opening the add-entry modal - only applies to a fresh
+// create-drag, not an in-progress resize/move of an existing entry.
+function handleDragKeydown(event) {
+  if (event.key !== 'Escape' || dragMode.value !== 'create') return
+  event.preventDefault()
+  stopDragListeners()
+  dragMode.value = null
+  dragEntry.value = null
 }
 
 onBeforeUnmount(stopDragListeners)
@@ -297,8 +310,43 @@ function handleTrackMouseDown(event) {
   dragAnchorHours.value = start
   dragPreviewStart.value = start
   dragPreviewEnd.value = start
+  hoverHours.value = null
   startDragListeners()
 }
+
+// A live "what time is under my cursor" line for empty track space - same
+// snapping (1min, or 5min with Ctrl held) as the drag-to-create handlers
+// above, so the line always previews exactly where a click-drag would
+// start. Hidden once a drag is underway (the ghost/preview takes over) and
+// over any already-occupied time (nothing to create there).
+const hoverHours = ref(null)
+
+function isHourOccupied(hours) {
+  return timedEntries.value.some((e) => {
+    const { start, end } = entryRange(e)
+    return hours >= start && hours < end
+  })
+}
+
+function handleTrackMouseMove(event) {
+  if (dragMode.value) {
+    hoverHours.value = null
+    return
+  }
+  const snapped = snapHours(hoursFromClientX(event.clientX), event.ctrlKey)
+  hoverHours.value = isHourOccupied(snapped) ? null : snapped
+}
+
+function handleTrackMouseLeave() {
+  hoverHours.value = null
+}
+
+const hoverLinePosition = computed(() => {
+  if (hoverHours.value === null) return null
+  return `${((hoverHours.value - props.viewFromHour) / rangeSpan.value) * 100}%`
+})
+
+const hoverTimeLabel = computed(() => (hoverHours.value === null ? '' : hoursToTimeString(hoverHours.value)))
 
 function handleBlockMouseDown(event, entry) {
   event.preventDefault()
@@ -548,7 +596,13 @@ function blockTimeLabel(entry) {
         </div>
       </div>
 
-      <div class="hour-track" ref="trackEl" @mousedown="handleTrackMouseDown">
+      <div
+        class="hour-track"
+        ref="trackEl"
+        @mousedown="handleTrackMouseDown"
+        @mousemove="handleTrackMouseMove"
+        @mouseleave="handleTrackMouseLeave"
+      >
         <div class="track-grid">
           <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
         </div>
@@ -583,6 +637,9 @@ function blockTimeLabel(entry) {
           <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()"></div>
         </div>
         <div v-if="nowLinePosition" class="now-line" :style="{ left: nowLinePosition }"></div>
+        <div v-if="hoverLinePosition" class="hover-line" :style="{ left: hoverLinePosition }">
+          <span class="hover-time-label">{{ hoverTimeLabel }}</span>
+        </div>
       </div>
     </div>
 
@@ -935,6 +992,32 @@ function blockTimeLabel(entry) {
   z-index: 5;
   pointer-events: none;
   animation: pulseLine 2.4s ease-in-out infinite;
+}
+
+.hover-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-2);
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.hover-time-label {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--dim);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  padding: 1px 4px;
+  white-space: nowrap;
 }
 
 .block-content {
