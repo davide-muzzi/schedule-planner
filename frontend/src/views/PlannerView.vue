@@ -17,6 +17,16 @@ function formatEntryTypeLabel(type) {
 
 const store = useScheduleStore()
 
+// "Sat", "Sun", or "Sat & Sun" - whichever weekend days are currently
+// hidden. Empty when neither is, so the info-hint line can drop the clause
+// entirely instead of pointing at a setting that isn't even in effect.
+const hiddenWeekendLabel = computed(() => {
+  const hidden = []
+  if (!store.visibleWeekdays.includes(6)) hidden.push('Sat')
+  if (!store.visibleWeekdays.includes(0)) hidden.push('Sun')
+  return hidden.join(' & ')
+})
+
 const currentMonday = ref(getMonday(new Date()))
 // All 7 days of the current week, Mon-Sun - calculations (totals, balance)
 // always use this full set regardless of which days are visible.
@@ -255,7 +265,11 @@ async function handleDelete(id) {
 
     <div class="info-hint">
       <Info :size="14" />
-      <span>Drag inside a track to sketch a new entry · Sat &amp; Sun hidden in settings</span>
+      <span
+        >Drag inside a track to sketch a new entry<template v-if="hiddenWeekendLabel">
+          · {{ hiddenWeekendLabel }} hidden in <RouterLink to="/settings" class="info-link">settings</RouterLink></template
+        ></span
+      >
     </div>
 
     <EntryFormModal
@@ -368,6 +382,15 @@ async function handleDelete(id) {
   padding: 18px 2px;
   font-size: 11.5px;
   color: var(--mute);
+}
+
+.info-link {
+  color: var(--mute);
+  text-decoration: underline;
+}
+
+.info-link:hover {
+  color: var(--accent);
 }
 
 .loading {
