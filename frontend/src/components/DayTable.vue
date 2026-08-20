@@ -117,12 +117,16 @@ const WEEKDAY_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const weekdayAbbrev = computed(() => WEEKDAY_ABBR[props.date.getDay()])
 const monthDayLabel = computed(() => props.date.toLocaleString(undefined, { month: 'short', day: 'numeric' }))
 
-// An all-day Vacation entry credits the full daily target, same as the
-// overall balance does - the day reads as "on target", not a shortfall.
-const hasVacationCredit = computed(() => props.entries.some((e) => e.entryType === 'Vacation' && e.allDay))
+// An all-day Vacation or Public Holiday entry credits the full daily
+// target, same as the overall balance does - the day reads as "on target",
+// not a shortfall.
+const FULL_DAY_CREDIT_TYPES = ['Vacation', 'PublicHoliday']
+const hasFullDayCredit = computed(() =>
+  props.entries.some((e) => FULL_DAY_CREDIT_TYPES.includes(e.entryType) && e.allDay),
+)
 
 const dailyDiffHours = computed(() =>
-  hasVacationCredit.value ? 0 : dayTotalHours.value - props.dailyTargetHours,
+  hasFullDayCredit.value ? 0 : dayTotalHours.value - props.dailyTargetHours,
 )
 
 const dailyStatus = computed(() => {

@@ -9,6 +9,15 @@ const WORK_LOCATIONS = ['Office', 'Remote']
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTE_OPTIONS = ['00', '15', '30', '45']
 
+// Only entry types that genuinely make sense as a whole day (a vacation
+// day, a public holiday, or a free-form "other" day off) can be All Day -
+// Working/Appointment/OvertimeCompensation always need an actual time
+// range. Vacation and Public Holiday go further and auto-force it on,
+// since a partial-day vacation/holiday isn't a real concept here; Other
+// stays a plain optional toggle.
+const ALL_DAY_ALLOWED_TYPES = ['Vacation', 'PublicHoliday', 'Other']
+const AUTO_ALL_DAY_TYPES = ['Vacation', 'PublicHoliday']
+
 const props = defineProps({
   entry: { type: Object, default: null }, // null => create mode
   defaultDate: { type: Date, required: true },
@@ -91,21 +100,9 @@ const startMinute = makeTimePart('startTime', 1)
 const endHour = makeTimePart('endTime', 0)
 const endMinute = makeTimePart('endTime', 1)
 
-// You can't "work" an all-day entry - if All Day gets checked while Working
-// is selected, force an explicit re-choice instead of silently keeping an
-// entry type that's now nonsensical. Work location is cleared outright since
-// it never applies to a non-Working entry.
-watch(
-  () => form.value.allDay,
-  (allDay) => {
-    if (allDay) {
-      if (form.value.entryType === 'Working') {
-        form.value.entryType = ''
-      }
-      form.value.workLocation = ''
-    }
-  },
-)
+// Drives the All Day checkbox's disabled state - it's only ever checkable
+// for types where a whole day actually makes sense.
+const canToggleAllDay = computed(() => ALL_DAY_ALLOWED_TYPES.includes(form.value.entryType))
 
 // Deliberately a @change handler, not a watcher: it must only react to the
 // user actually picking a new type in the dropdown, not to the form being
@@ -114,7 +111,11 @@ watch(
 // overwrite an already-saved, valid workLocation like "Remote" back to
 // "Office" the moment you open that entry).
 function handleEntryTypeChange() {
-  form.value.allDay = form.value.entryType === 'Vacation'
+  if (AUTO_ALL_DAY_TYPES.includes(form.value.entryType)) {
+    form.value.allDay = true
+  } else if (!ALL_DAY_ALLOWED_TYPES.includes(form.value.entryType)) {
+    form.value.allDay = false
+  }
   form.value.workLocation = form.value.entryType === 'Working' ? 'Office' : ''
 }
 
@@ -195,8 +196,8 @@ function handleOverlayClick(event) {
           </div>
           <div class="field checkbox-field">
             <span class="field-label-spacer">&nbsp;</span>
-            <label class="checkbox-box">
-              <input v-model="form.allDay" type="checkbox" />
+            <label class="checkbox-box" :class="{ disabled: !canToggleAllDay }" :title="canToggleAllDay ? '' : 'Only Vacation, Public Holiday and Other can be all day'">
+              <input v-model="form.allDay" type="checkbox" :disabled="!canToggleAllDay" />
               All day
             </label>
           </div>
@@ -341,6 +342,15 @@ function handleOverlayClick(event) {
   font-weight: normal;
   font-size: 0.9rem;
   cursor: pointer;
+}
+
+.checkbox-box.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-box input[type='checkbox']:disabled {
+  cursor: not-allowed;
 }
 
 .checkbox-box input[type='checkbox'] {

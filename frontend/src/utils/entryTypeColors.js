@@ -1,8 +1,9 @@
-export const ENTRY_TYPES = ['Working', 'Vacation', 'Appointment', 'OvertimeCompensation', 'Other']
+export const ENTRY_TYPES = ['Working', 'Vacation', 'PublicHoliday', 'Appointment', 'OvertimeCompensation', 'Other']
 
 export const DEFAULT_ENTRY_TYPE_COLORS = {
   Working: '#3b82f6',
   Vacation: '#22c55e',
+  PublicHoliday: '#14b8a6',
   Appointment: '#ef4444',
   OvertimeCompensation: '#a855f7',
   Other: '#f97316',
