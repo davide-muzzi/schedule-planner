@@ -171,11 +171,6 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
     </div>
 
     <div class="status-strip">
-      <div class="strip-cell">
-        <span class="cell-label">Upcoming appointments</span>
-        <span class="cell-value">{{ formatHours(futureAppointmentHours) }}</span>
-      </div>
-
       <div class="strip-cell adjustable">
         <button type="button" class="cell-trigger" @click.stop="toggleHolidayPopup">
           <span class="cell-label">Vacation remaining</span>
@@ -204,6 +199,11 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
             <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
           </div>
         </div>
+      </div>
+
+      <div class="strip-cell">
+        <span class="cell-label">Upcoming appointments</span>
+        <span class="cell-value">{{ formatHours(futureAppointmentHours) }}</span>
       </div>
 
       <div class="strip-cell adjustable">
