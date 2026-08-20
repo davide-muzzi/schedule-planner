@@ -7,6 +7,20 @@ import { ref, watch } from 'vue'
 const THEME_KEY = 'schedulePlanner.theme'
 const COLLAPSED_KEY = 'schedulePlanner.sidebarCollapsed'
 const RESPECT_REDUCED_MOTION_KEY = 'schedulePlanner.respectReducedMotion'
+const SIDEBAR_WIDTH_KEY = 'schedulePlanner.sidebarWidth'
+
+export const DEFAULT_SIDEBAR_WIDTH = 248
+export const MIN_SIDEBAR_WIDTH = 200
+export const MAX_SIDEBAR_WIDTH = 400
+
+function clampSidebarWidth(value) {
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)))
+}
+
+function initialSidebarWidth() {
+  const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+  return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : DEFAULT_SIDEBAR_WIDTH
+}
 
 function initialTheme() {
   const stored = localStorage.getItem(THEME_KEY)
@@ -16,6 +30,7 @@ function initialTheme() {
 
 const theme = ref(initialTheme())
 const collapsed = ref(localStorage.getItem(COLLAPSED_KEY) === 'true')
+const sidebarWidth = ref(initialSidebarWidth())
 
 // Off by default (respect the OS) - this only comes into play for people
 // who explicitly flip it, so accessibility intent stays the default.
@@ -77,6 +92,15 @@ export function useAppShell() {
     respectReducedMotion.value = value
   }
 
+  // Commits a width - used both for the final value at the end of a resize
+  // drag and for the Settings input. Live visual feedback during an
+  // in-progress drag is handled locally in AppSidebar instead of writing
+  // here on every mousemove, so a resize doesn't spam localStorage.
+  function setSidebarWidth(value) {
+    sidebarWidth.value = clampSidebarWidth(value)
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+  }
+
   return {
     theme,
     collapsed,
@@ -85,5 +109,7 @@ export function useAppShell() {
     toggleCollapsed,
     respectReducedMotion,
     setRespectReducedMotion,
+    sidebarWidth,
+    setSidebarWidth,
   }
 }

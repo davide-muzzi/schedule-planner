@@ -2,13 +2,13 @@
 import { ref, computed, watch } from 'vue'
 import { TriangleAlert, CircleAlert, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
-import { useAppShell } from '@/composables/useAppShell'
+import { useAppShell, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from '@/composables/useAppShell'
 import { BUSINESS_DAYS_PER_WEEK, DEFAULT_HOLIDAY_ALLOTMENT_DAYS } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours, toISODate } from '@/utils/date'
 
 const store = useScheduleStore()
-const { theme, setTheme, respectReducedMotion, setRespectReducedMotion } = useAppShell()
+const { theme, setTheme, respectReducedMotion, setRespectReducedMotion, sidebarWidth, setSidebarWidth } = useAppShell()
 
 // Inline error message for the two fields that hit the backend (weekly
 // goal, holiday allotment) - keyed by field, null/absent while idle. No
@@ -381,6 +381,23 @@ async function saveWeeklyGoal() {
         <div class="theme-buttons">
           <button type="button" class="pill-btn" :class="{ active: respectReducedMotion }" @click="setRespectReducedMotion(true)">Respect it</button>
           <button type="button" class="pill-btn" :class="{ active: !respectReducedMotion }" @click="setRespectReducedMotion(false)">Always animate</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">
+          <div class="row-title">Sidebar width</div>
+          <div class="row-desc">Drag the sidebar's right edge to resize, or set an exact width here.</div>
+        </div>
+        <div class="unit-field">
+          <input
+            :value="sidebarWidth"
+            type="number"
+            :min="MIN_SIDEBAR_WIDTH"
+            :max="MAX_SIDEBAR_WIDTH"
+            @input="setSidebarWidth($event.target.valueAsNumber || sidebarWidth)"
+          />
+          <span class="unit-suffix">px</span>
         </div>
       </div>
 

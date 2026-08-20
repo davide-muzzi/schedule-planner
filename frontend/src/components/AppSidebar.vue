@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Clock,
@@ -12,11 +12,39 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from '@lucide/vue'
-import { useAppShell } from '@/composables/useAppShell'
+import { useAppShell, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from '@/composables/useAppShell'
 import { getISOWeekNumber } from '@/utils/date'
 
 const route = useRoute()
-const { theme, collapsed, toggleTheme, toggleCollapsed } = useAppShell()
+const { theme, collapsed, toggleTheme, toggleCollapsed, sidebarWidth, setSidebarWidth } = useAppShell()
+
+// Live width while actively dragging the resize handle - only committed to
+// the persisted sidebarWidth (and localStorage) on mouseup, so a drag
+// doesn't write on every mousemove tick.
+const resizing = ref(false)
+const dragPreviewWidth = ref(null)
+const currentWidth = () => (collapsed.value ? 68 : resizing.value ? dragPreviewWidth.value : sidebarWidth.value)
+
+function handleResizeMouseDown(event) {
+  if (collapsed.value) return
+  event.preventDefault()
+  resizing.value = true
+  dragPreviewWidth.value = sidebarWidth.value
+  document.addEventListener('mousemove', handleResizeMouseMove)
+  document.addEventListener('mouseup', handleResizeMouseUp)
+}
+
+function handleResizeMouseMove(event) {
+  dragPreviewWidth.value = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, event.clientX))
+}
+
+function handleResizeMouseUp() {
+  document.removeEventListener('mousemove', handleResizeMouseMove)
+  document.removeEventListener('mouseup', handleResizeMouseUp)
+  if (dragPreviewWidth.value !== null) setSidebarWidth(dragPreviewWidth.value)
+  resizing.value = false
+  dragPreviewWidth.value = null
+}
 
 const NAV_ITEMS = [
   { to: '/planner', label: 'Planner', icon: LayoutList },
@@ -34,7 +62,7 @@ function isActive(to) {
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed }">
+  <aside class="sidebar" :class="{ collapsed, resizing }" :style="{ width: currentWidth() + 'px' }">
     <div class="brand">
       <div class="brand-mark"><Clock :size="14" /></div>
       <div class="brand-text">
@@ -82,13 +110,20 @@ function isActive(to) {
         <span class="collapse-label">Collapse</span>
       </button>
     </div>
+
+    <div
+      v-if="!collapsed"
+      class="sidebar-resize-handle"
+      title="Drag to resize"
+      @mousedown="handleResizeMouseDown"
+    ></div>
   </aside>
 </template>
 
 <style scoped>
 .sidebar {
+  position: relative;
   flex: none;
-  width: 248px;
   display: flex;
   flex-direction: column;
   background: var(--sb);
@@ -97,8 +132,22 @@ function isActive(to) {
   overflow: hidden;
 }
 
-.sidebar.collapsed {
-  width: 68px;
+.sidebar.resizing {
+  transition: none;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.sidebar-resize-handle:hover {
+  background: var(--accent-tint);
 }
 
 .brand {
