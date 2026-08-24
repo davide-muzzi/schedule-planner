@@ -191,6 +191,7 @@ const dragAnchorHours = ref(0) // create only: the time under the mouse at mouse
 const dragPreviewStart = ref(0)
 const dragPreviewEnd = ref(0)
 const dragGrabOffsetHours = ref(0) // move only: time-under-cursor minus entry.start at mousedown
+const dragMoved = ref(false) // move/resize only: whether the pointer actually moved this gesture
 
 const MIN_DURATION_HOURS = 1 / 60
 
@@ -367,6 +368,7 @@ function handleBlockMouseDown(event, entry) {
   dragGrabOffsetHours.value = hoursFromClientX(event.clientX) - start
   dragPreviewStart.value = start
   dragPreviewEnd.value = end
+  dragMoved.value = false
   hoveredEntry.value = null
   startDragListeners()
 }
@@ -378,6 +380,7 @@ function handleEdgeMouseDown(event, entry, edge) {
   dragEntry.value = entry
   dragPreviewStart.value = start
   dragPreviewEnd.value = end
+  dragMoved.value = false
   hoveredEntry.value = null
   startDragListeners()
 }
@@ -385,6 +388,7 @@ function handleEdgeMouseDown(event, entry, edge) {
 function handleDragMove(event) {
   const raw = hoursFromClientX(event.clientX)
   const snapped = snapHours(raw, event.ctrlKey)
+  dragMoved.value = true
 
   if (dragMode.value === 'create') {
     // Same boundary-clamping as resizing - whichever edge is moving (the
@@ -443,12 +447,17 @@ function handleDragEnd() {
     return
   }
 
-  const original = entryRange(entry)
-  const changed = Math.abs(start - original.start) > 1e-6 || Math.abs(end - original.end) > 1e-6
-  if (!changed) {
-    emit('edit', entry) // no real drag happened - treat it as a click
+  if (!dragMoved.value) {
+    emit('edit', entry) // the pointer never moved - treat it as a click, not a drag
     return
   }
+  // The pointer did move, but a coarse Ctrl-grid snap can still land back on
+  // the entry's original range - that's a real drag gesture, just not one
+  // worth saving, so it's neither a click (don't open the edit modal) nor a
+  // change (don't fire a no-op save).
+  const original = entryRange(entry)
+  const changed = Math.abs(start - original.start) > 1e-6 || Math.abs(end - original.end) > 1e-6
+  if (!changed) return
   if (hasOverlap(start, end, entry.id)) {
     showToast('This time range overlaps with an existing entry.')
     return
