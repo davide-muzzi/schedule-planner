@@ -143,19 +143,19 @@ function cellTitle(day) {
 }
 
 .cell.level-1 {
-  background: color-mix(in srgb, var(--ok) 30%, var(--surface2));
+  background: var(--bad);
 }
 
 .cell.level-2 {
-  background: color-mix(in srgb, var(--ok) 55%, var(--surface2));
+  background: var(--warn);
 }
 
 .cell.level-3 {
-  background: color-mix(in srgb, var(--ok) 80%, var(--surface2));
+  background: var(--ok);
 }
 
 .cell.level-4 {
-  background: var(--ok);
+  background: var(--accent);
 }
 
 .scale-footer {
@@ -180,18 +180,18 @@ function cellTitle(day) {
 }
 
 .scale-swatch.level-1 {
-  background: color-mix(in srgb, var(--ok) 30%, var(--surface2));
+  background: var(--bad);
 }
 
 .scale-swatch.level-2 {
-  background: color-mix(in srgb, var(--ok) 55%, var(--surface2));
+  background: var(--warn);
 }
 
 .scale-swatch.level-3 {
-  background: color-mix(in srgb, var(--ok) 80%, var(--surface2));
+  background: var(--ok);
 }
 
 .scale-swatch.level-4 {
-  background: var(--ok);
+  background: var(--accent);
 }
 </style>

@@ -133,10 +133,10 @@ export function timeBreakdownByType(entries, year, dailyTargetHours) {
     .sort((a, b) => b.hours - a.hours)
 }
 
-// Tracking-streak bucket, darkest (least worked) to brightest (most worked):
-// 0 = no Working entry at all (rendered as a distinct empty cell, not bucket
-// 1), 1 = 0-5.5h, 2 = 5.5-7h, 3 = 7-9h, 4 = 9h+. A value sitting exactly on a
-// boundary (5.5, 7, 9) always rounds up into the brighter bucket.
+// Tracking-streak bucket: 0 = no Working entry at all (rendered as a
+// distinct empty cell, not bucket 1), 1 = 0-5.5h, 2 = 5.5-7h, 3 = 7-9h,
+// 4 = 9h+. A value sitting exactly on a boundary (5.5, 7, 9) always rounds
+// up into the next bucket.
 export function streakLevelForHours(hours) {
   if (hours <= 0) return 0
   if (hours < 5.5) return 1
