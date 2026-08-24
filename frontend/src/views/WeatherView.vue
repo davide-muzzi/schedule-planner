@@ -27,7 +27,7 @@ const eyebrowLocation = computed(() => locationLabel.value || '…')
 
 const updatedTime = computed(() => {
   if (!lastFetchedAt.value) return DASH
-  return lastFetchedAt.value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+  return lastFetchedAt.value.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
 })
 
 // Values collapse to "–" rather than the page showing a spinner/skeleton

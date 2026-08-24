@@ -74,7 +74,7 @@ const longestDayCaption = computed(() => {
   const day = longestDayData.value
   if (!day) return ''
   const date = new Date(day.date + 'T00:00:00')
-  const label = date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const label = date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   return day.workLocation ? `${label} · ${day.workLocation}` : label
 })
 </script>

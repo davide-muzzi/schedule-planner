@@ -74,7 +74,7 @@ const axisLabels = computed(() => {
     const month = week.monday.getMonth()
     const show = month !== lastMonth
     lastMonth = month
-    return show ? week.monday.toLocaleString(undefined, { month: 'short' }).toUpperCase() : ''
+    return show ? week.monday.toLocaleString('en-GB', { month: 'short' }).toUpperCase() : ''
   })
 })
 

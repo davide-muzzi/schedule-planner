@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste } from '@lucide/vue'
+import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
@@ -17,9 +17,45 @@ const props = defineProps({
   viewTillHour: { type: Number, required: true },
   entryTypeColors: { type: Object, required: true },
   hasCopiedDay: { type: Boolean, default: false },
+  pasteSuccess: { type: Object, default: null }, // { date, id } - set by the parent right after a successful paste
 })
 
 const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry', 'copy-day', 'paste-day'])
+
+// Briefly swaps the copy icon for a checkmark so the click has visible
+// confirmation - the copy itself is synchronous/local, so there's nothing
+// to await here, just a timed revert.
+const justCopied = ref(false)
+let copiedResetTimeoutId = null
+onBeforeUnmount(() => clearTimeout(copiedResetTimeoutId))
+
+function handleCopyClick() {
+  emit('copy-day', props.date)
+  justCopied.value = true
+  clearTimeout(copiedResetTimeoutId)
+  copiedResetTimeoutId = setTimeout(() => {
+    justCopied.value = false
+  }, 1500)
+}
+
+// Paste can fail (overwrite declined, store error) or need a confirmation
+// dialog first, so unlike copy this can't just flash on click - the parent
+// tells us via `pasteSuccess` once the paste has actually gone through.
+const justPasted = ref(false)
+let pastedResetTimeoutId = null
+onBeforeUnmount(() => clearTimeout(pastedResetTimeoutId))
+
+watch(
+  () => props.pasteSuccess,
+  (success) => {
+    if (!success || toISODate(success.date) !== toISODate(props.date)) return
+    justPasted.value = true
+    clearTimeout(pastedResetTimeoutId)
+    pastedResetTimeoutId = setTimeout(() => {
+      justPasted.value = false
+    }, 1500)
+  },
+)
 
 // The set of entries this row's initial cascade belongs to. Not simply
 // "whatever props.entries held at setup()" - the store's initial fetch is
@@ -116,7 +152,7 @@ const nowLinePosition = computed(() => {
 
 const WEEKDAY_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const weekdayAbbrev = computed(() => WEEKDAY_ABBR[props.date.getDay()])
-const monthDayLabel = computed(() => props.date.toLocaleString(undefined, { month: 'short', day: 'numeric' }))
+const monthDayLabel = computed(() => props.date.toLocaleString('en-GB', { month: 'short', day: 'numeric' }))
 
 // An all-day Vacation or Public Holiday entry credits the full daily
 // target, same as the overall balance does - the day reads as "on target",
@@ -796,22 +832,26 @@ const tooltipTimeText = computed(() => {
         <button
           type="button"
           class="icon-action copy"
+          :class="{ confirmed: justCopied }"
           :disabled="entries.length === 0"
           title="Copy day"
           aria-label="Copy day"
-          @click="emit('copy-day', date)"
+          @click="handleCopyClick"
         >
-          <Copy :size="13" />
+          <Check v-if="justCopied" :size="13" />
+          <Copy v-else :size="13" />
         </button>
         <button
           type="button"
           class="icon-action paste"
+          :class="{ confirmed: justPasted }"
           :disabled="!hasCopiedDay"
           title="Paste day"
           aria-label="Paste day"
           @click="emit('paste-day', date)"
         >
-          <ClipboardPaste :size="13" />
+          <Check v-if="justPasted" :size="13" />
+          <ClipboardPaste v-else :size="13" />
         </button>
       </div>
     </div>
@@ -1027,6 +1067,20 @@ const tooltipTimeText = computed(() => {
 .icon-action.clear:hover {
   color: var(--bad);
   border-color: var(--bad);
+}
+
+.icon-action.copy:hover,
+.icon-action.paste:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.icon-action.confirmed,
+.icon-action.confirmed:hover {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: transparent;
 }
 
 .icon-action:disabled {

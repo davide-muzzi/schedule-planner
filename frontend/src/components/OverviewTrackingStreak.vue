@@ -21,12 +21,12 @@ const monthLabels = computed(() => {
     const month = col.monday.getMonth()
     const show = month !== lastMonth
     lastMonth = month
-    return show ? col.monday.toLocaleString(undefined, { month: 'short' }).toUpperCase() : ''
+    return show ? col.monday.toLocaleString('en-GB', { month: 'short' }).toUpperCase() : ''
   })
 })
 
 function cellTitle(day) {
-  const dateLabel = day.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const dateLabel = day.date.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' })
   return day.level === 0 ? `${dateLabel} · no entry` : `${dateLabel} · ${formatHours(day.hours)}`
 }
 </script>

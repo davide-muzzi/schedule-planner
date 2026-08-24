@@ -202,6 +202,16 @@ async function pasteCopiedEntriesOnto(date) {
   }
 }
 
+// Tells the DayTable row for `date` to flash its paste-confirmed checkmark.
+// A fresh object each time (rather than just the date) so pasting onto the
+// same day twice in a row still registers as a change for the row's watcher.
+const pasteSuccess = ref(null)
+let pasteSuccessCounter = 0
+function markPasteSuccess(date) {
+  pasteSuccessCounter += 1
+  pasteSuccess.value = { date, id: pasteSuccessCounter }
+}
+
 async function handlePasteDay(date) {
   if (!copiedDayEntries.value) return
   if (entriesForDate(date).length > 0) {
@@ -210,6 +220,7 @@ async function handlePasteDay(date) {
   }
   try {
     await pasteCopiedEntriesOnto(date)
+    markPasteSuccess(date)
   } catch {
     // store.error is already set; the global error banner picks it up
   }
@@ -221,6 +232,7 @@ async function confirmPasteOverwrite() {
   try {
     await store.clearDay(toISODate(date))
     await pasteCopiedEntriesOnto(date)
+    markPasteSuccess(date)
   } catch {
     // store.error is already set; the global error banner picks it up
   }
@@ -229,7 +241,7 @@ async function confirmPasteOverwrite() {
 const pasteOverwriteMessage = computed(() => {
   const date = pastePendingOverwriteDate.value
   if (!date) return ''
-  const label = date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+  const label = date.toLocaleDateString('en-GB', { weekday: 'long', month: 'short', day: 'numeric' })
   return `${label} already has entries on it. Pasting here will replace all of them with the copied day, and this can't be undone.`
 })
 
@@ -362,6 +374,7 @@ async function handleDelete(id) {
         :view-till-hour="store.viewTillHour"
         :entry-type-colors="store.entryTypeColors"
         :has-copied-day="!!copiedDayEntries"
+        :paste-success="pasteSuccess"
         @add="openAdd"
         @edit="openEdit"
         @clear-day="handleClearDay"

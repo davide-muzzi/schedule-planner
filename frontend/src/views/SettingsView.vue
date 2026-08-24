@@ -458,7 +458,7 @@ async function saveWeeklyGoal() {
       <div class="danger-action">
         <p>
           Permanently delete {{ store.oldEntriesCount }} entr{{ store.oldEntriesCount === 1 ? 'y' : 'ies' }} dated before
-          {{ store.oldEntriesCutoffDate.toLocaleDateString() }}.
+          {{ store.oldEntriesCutoffDate.toLocaleDateString('en-GB') }}.
         </p>
         <button
           type="button"
@@ -491,7 +491,7 @@ async function saveWeeklyGoal() {
     <ConfirmDialog
       v-if="showClearOldConfirm"
       title="Clear old entries?"
-      :message="`This permanently deletes ${store.oldEntriesCount} entr${store.oldEntriesCount === 1 ? 'y' : 'ies'} dated before ${store.oldEntriesCutoffDate.toLocaleDateString()}. This can't be undone.`"
+      :message="`This permanently deletes ${store.oldEntriesCount} entr${store.oldEntriesCount === 1 ? 'y' : 'ies'} dated before ${store.oldEntriesCutoffDate.toLocaleDateString('en-GB')}. This can't be undone.`"
       confirm-label="Delete"
       danger
       require-typed-word="confirm"

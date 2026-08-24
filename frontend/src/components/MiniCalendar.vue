@@ -50,7 +50,7 @@ onBeforeUnmount(() => {
 
 const viewMonth = ref(new Date(props.monday.getFullYear(), props.monday.getMonth(), 1))
 
-const monthLabel = computed(() => viewMonth.value.toLocaleString(undefined, { month: 'long', year: 'numeric' }))
+const monthLabel = computed(() => viewMonth.value.toLocaleString('en-GB', { month: 'long', year: 'numeric' }))
 
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 

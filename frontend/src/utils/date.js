@@ -46,8 +46,8 @@ export function getISOWeekNumber(date) {
 
 export function formatWeekRange(monday) {
   const friday = addDays(monday, 4)
-  const startLabel = monday.toLocaleString(undefined, { month: 'short', day: 'numeric' })
-  const endLabel = friday.toLocaleString(undefined, { month: 'short', day: 'numeric' })
+  const startLabel = monday.toLocaleString('en-GB', { month: 'short', day: 'numeric' })
+  const endLabel = friday.toLocaleString('en-GB', { month: 'short', day: 'numeric' })
   return `${startLabel} – ${endLabel}, ${friday.getFullYear()}`
 }
 
