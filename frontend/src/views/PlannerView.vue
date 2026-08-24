@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { X, ChartColumn, Info } from '@lucide/vue'
+import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
@@ -8,7 +8,6 @@ import { showToast } from '@/utils/toast'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
-import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 // Fields that make up an entry's "content" (everything except its id) -
@@ -51,8 +50,6 @@ const modalDefaultDate = ref(new Date())
 const modalPrefillTimes = ref(null) // { startTime, endTime } from a timeline drag-to-create
 const modalError = ref(null)
 const saving = ref(false)
-
-const showWeeklyBalanceModal = ref(false)
 
 const entryTypeLegend = computed(() =>
   ENTRY_TYPES.map((type) => ({
@@ -124,14 +121,6 @@ async function handleApplyAdjustment(deltaMinutes) {
   } catch {
     // store.error is already set; the global error banner picks it up
   }
-}
-
-function openWeeklyBalance() {
-  showWeeklyBalanceModal.value = true
-}
-
-function closeWeeklyBalance() {
-  showWeeklyBalanceModal.value = false
 }
 
 function openAdd(date, prefill = null) {
@@ -332,12 +321,6 @@ async function handleDelete(id) {
       <button type="button" @click="store.clearError()"><X :size="16" /></button>
     </div>
 
-    <div class="toolbar">
-      <button type="button" class="weekly-balance-btn" @click="openWeeklyBalance">
-        <ChartColumn :size="13" /> Weekly Balance
-      </button>
-    </div>
-
     <WeekSummary
       :key="toISODate(currentMonday)"
       :monday="currentMonday"
@@ -410,13 +393,6 @@ async function handleDelete(id) {
       @delete="handleDelete"
     />
 
-    <WeeklyBalanceModal
-      v-if="showWeeklyBalanceModal"
-      :weeks="store.weeklyBalances"
-      :manual-adjustment-hours="store.overallBalance.manualAdjustmentHours"
-      @close="closeWeeklyBalance"
-    />
-
     <ConfirmDialog
       v-if="pastePendingOverwriteDate"
       title="Overwrite this day?"
@@ -432,37 +408,6 @@ async function handleDelete(id) {
 <style scoped>
 .planner {
   animation: fadeUp 0.34s var(--ease) both;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.75rem;
-}
-
-.weekly-balance-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 13px;
-  border-radius: var(--r);
-  border: 1px solid var(--line-2);
-  background: transparent;
-  color: var(--dim);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    color 0.16s,
-    border-color 0.16s;
-}
-
-.weekly-balance-btn:hover {
-  color: var(--fg);
-  border-color: var(--accent);
 }
 
 .days-header {
