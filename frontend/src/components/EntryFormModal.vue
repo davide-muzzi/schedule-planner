@@ -11,7 +11,7 @@ const MINUTE_OPTIONS = ['00', '15', '30', '45']
 
 // Only entry types that genuinely make sense as a whole day (a vacation
 // day, a public holiday, or a free-form "other" day off) can be All Day -
-// Working/Appointment/OvertimeCompensation always need an actual time
+// Working/Lunch/Appointment/OvertimeCompensation always need an actual time
 // range. Vacation and Public Holiday go further and auto-force it on,
 // since a partial-day vacation/holiday isn't a real concept here; Other
 // stays a plain optional toggle.

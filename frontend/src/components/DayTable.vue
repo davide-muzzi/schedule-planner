@@ -261,7 +261,11 @@ function moveMagnetTarget(rawHours, duration, excludeId) {
   return null
 }
 
+// An All Day entry blocks (and is blocked by) everything else on its day -
+// checked first, unconditionally, since it has no time range of its own to
+// compare against `start`/`end`.
 function hasOverlap(start, end, excludeId) {
+  if (allDayEntries.value.some((e) => e.id !== excludeId)) return true
   return timedEntries.value.some((e) => {
     if (e.id === excludeId) return false
     const r = entryRange(e)
@@ -309,6 +313,7 @@ function handleDragKeydown(event) {
 onBeforeUnmount(stopDragListeners)
 
 function handleTrackMouseDown(event) {
+  if (allDayEntries.value.length > 0) return // the whole day is already spoken for
   event.preventDefault() // stops the browser's native text-selection drag from kicking in
   const start = snapHours(hoursFromClientX(event.clientX), event.ctrlKey)
   dragMode.value = 'create'
@@ -335,7 +340,7 @@ function isHourOccupied(hours) {
 }
 
 function handleTrackMouseMove(event) {
-  if (dragMode.value) {
+  if (dragMode.value || allDayEntries.value.length > 0) {
     hoverHours.value = null
     return
   }
@@ -487,9 +492,14 @@ function ghostStyle() {
   }
 }
 
-function bannerStyle(entry) {
+// All Day entries sit on the actual timeline grid, filled across the whole
+// visible range (left/width are always 0%/100% - there's no start/end time
+// to clip against, unlike blockStyle above).
+function allDayBlockStyle(entry) {
   const style = colorStyleForType(entry.entryType, props.entryTypeColors)
   return {
+    left: '0%',
+    width: '100%',
     backgroundColor: style.bg,
     color: style.text,
   }
@@ -631,28 +641,9 @@ const tooltipTimeText = computed(() => {
         >{{ h }}:00</span>
       </div>
 
-      <div v-if="allDayEntries.length > 0" class="all-day-list">
-        <div
-          v-for="(entry, entryIndex) in allDayEntries"
-          :key="'allday-' + entry.id"
-          class="all-day-banner"
-          :style="[bannerStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
-          @click="emit('edit', entry)"
-          @mouseenter="showEntryTooltip($event, entry)"
-          @mouseleave="hideEntryTooltip"
-        >
-          <div class="block-content">
-            <span class="block-left">
-              <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="13" class="inline-icon" />
-              {{ entryLeftLabel(entry) }}
-            </span>
-            <span class="block-right">{{ entryRightLabel(entry) }}</span>
-          </div>
-        </div>
-      </div>
-
       <div
         class="hour-track"
+        :class="{ blocked: allDayEntries.length > 0 }"
         ref="trackEl"
         @mousedown="handleTrackMouseDown"
         @mousemove="handleTrackMouseMove"
@@ -662,6 +653,24 @@ const tooltipTimeText = computed(() => {
           <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
         </div>
         <div class="blocks">
+          <div
+            v-for="(entry, entryIndex) in allDayEntries"
+            :key="'allday-' + entry.id"
+            class="block all-day-block"
+            :style="[allDayBlockStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
+            @click="emit('edit', entry)"
+            @mouseenter="showEntryTooltip($event, entry)"
+            @mouseleave="hideEntryTooltip"
+          >
+            <div class="block-content">
+              <span class="block-title">
+                <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
+                {{ blockTitleLabel(entry) }}
+              </span>
+              <span class="block-time">{{ blockTimeLabel(entry) }}</span>
+            </div>
+            <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
+          </div>
           <div
             v-for="(entry, entryIndex) in visibleTimedEntries"
             :key="entry.id"
@@ -747,7 +756,14 @@ const tooltipTimeText = computed(() => {
         >
           <Eraser :size="13" />
         </button>
-        <button type="button" class="icon-action add" title="Add entry" aria-label="Add entry" @click="emit('add', date)">
+        <button
+          type="button"
+          class="icon-action add"
+          :disabled="allDayEntries.length > 0"
+          :title="allDayEntries.length > 0 ? 'This day is already fully booked by an All Day entry' : 'Add entry'"
+          aria-label="Add entry"
+          @click="emit('add', date)"
+        >
           <Plus :size="13" />
         </button>
       </div>
@@ -994,23 +1010,6 @@ const tooltipTimeText = computed(() => {
   white-space: nowrap;
 }
 
-.all-day-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 7px;
-}
-
-.all-day-banner {
-  border-radius: var(--r2);
-  border: none;
-  font-size: 0.75rem;
-  padding: 0.35rem 0.6rem;
-  cursor: pointer;
-  transform-origin: left;
-  animation: growX 0.5s var(--ease) both;
-}
-
 .hour-track {
   position: relative;
   height: 52px;
@@ -1021,6 +1020,10 @@ const tooltipTimeText = computed(() => {
   user-select: none;
   overflow: hidden;
   background: var(--track);
+}
+
+.hour-track.blocked {
+  cursor: default;
 }
 
 .track-grid {
@@ -1068,6 +1071,14 @@ const tooltipTimeText = computed(() => {
 
 .block:active {
   cursor: grabbing;
+}
+
+.all-day-block {
+  cursor: pointer;
+}
+
+.all-day-block:active {
+  cursor: pointer;
 }
 
 .resize-handle {

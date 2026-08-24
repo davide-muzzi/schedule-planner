@@ -84,10 +84,25 @@ public class ScheduleEntryService : IScheduleEntryService
         return matching.Count;
     }
 
+    // Only entry types that genuinely make sense as a whole day (a vacation
+    // day, a public holiday, or a free-form "other" day off) may be AllDay -
+    // kept in sync with ALL_DAY_ALLOWED_TYPES in EntryFormModal.vue.
+    private static readonly HashSet<EntryType> AllDayAllowedTypes = new()
+    {
+        EntryType.Vacation,
+        EntryType.PublicHoliday,
+        EntryType.Other,
+    };
+
     private void ValidateAllDay(ScheduleEntry entry)
     {
         if (entry.AllDay)
         {
+            if (!AllDayAllowedTypes.Contains(entry.EntryType))
+            {
+                throw new ArgumentException($"{entry.EntryType} entries cannot be set to All Day.");
+            }
+
             entry.StartTime = null;
             entry.EndTime = null;
         }
@@ -101,19 +116,29 @@ public class ScheduleEntryService : IScheduleEntryService
         }
     }
 
+    // An All Day entry occupies the entire day, so it can neither be added
+    // alongside any other entry on that date, nor can any other entry be
+    // added on a date that already has one.
     private async Task CheckForOverlapAsync(ScheduleEntry entry, int? excludeId = null)
     {
         if (entry.AllDay)
         {
-            return; // no time range to overlap-check
+            var anyOtherEntryOnDate = await _context.ScheduleEntries
+                .Where(e => e.Id != excludeId && e.Date == entry.Date)
+                .AnyAsync();
+
+            if (anyOtherEntryOnDate)
+            {
+                throw new InvalidOperationException("An All Day entry cannot share a day with other entries.");
+            }
+
+            return;
         }
 
         var overlapping = await _context.ScheduleEntries
             .Where(e => e.Id != excludeId
                      && e.Date == entry.Date
-                     && !e.AllDay
-                     && e.StartTime < entry.EndTime
-                     && e.EndTime > entry.StartTime)
+                     && (e.AllDay || (e.StartTime < entry.EndTime && e.EndTime > entry.StartTime)))
             .AnyAsync();
 
         if (overlapping)

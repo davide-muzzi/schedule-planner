@@ -23,6 +23,7 @@ public enum EntryType
     OvertimeCompensation = 4,
     Other = 5,
     PublicHoliday = 6,
+    Lunch = 7,
 }
 
 public enum WorkLocation
