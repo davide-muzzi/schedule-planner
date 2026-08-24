@@ -6,6 +6,7 @@ import { useAppShell, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from '@/composables
 import { BUSINESS_DAYS_PER_WEEK, DEFAULT_HOLIDAY_ALLOTMENT_DAYS } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours, toISODate } from '@/utils/date'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const store = useScheduleStore()
 const { theme, setTheme, respectReducedMotion, setRespectReducedMotion, sidebarWidth, setSidebarWidth } = useAppShell()
@@ -116,14 +117,24 @@ watch(viewTill, (till) => {
   store.setViewRange(viewFrom.value, till)
 })
 
+const showClearOldConfirm = ref(false)
+const showClearAllConfirm = ref(false)
+
 function handleClearOldClick() {
-  if (!window.confirm(`Permanently delete ${store.oldEntriesCount} entr${store.oldEntriesCount === 1 ? 'y' : 'ies'} older than 1 year?`))
-    return
-  handleClearOldEntries()
+  showClearOldConfirm.value = true
 }
 
 function handleClearAllClick() {
-  if (!window.confirm(`Permanently delete all ${store.entries.length} entries and reset your manual correction?`)) return
+  showClearAllConfirm.value = true
+}
+
+function confirmClearOld() {
+  showClearOldConfirm.value = false
+  handleClearOldEntries()
+}
+
+function confirmClearAll() {
+  showClearAllConfirm.value = false
   handleClearAllData()
 }
 
@@ -476,6 +487,28 @@ async function saveWeeklyGoal() {
       <Info :size="14" />
       <span>Settings are saved automatically</span>
     </div>
+
+    <ConfirmDialog
+      v-if="showClearOldConfirm"
+      title="Clear old entries?"
+      :message="`This permanently deletes ${store.oldEntriesCount} entr${store.oldEntriesCount === 1 ? 'y' : 'ies'} dated before ${store.oldEntriesCutoffDate.toLocaleDateString()}. This can't be undone.`"
+      confirm-label="Delete"
+      danger
+      require-typed-word="confirm"
+      @confirm="confirmClearOld"
+      @cancel="showClearOldConfirm = false"
+    />
+
+    <ConfirmDialog
+      v-if="showClearAllConfirm"
+      title="Clear all data?"
+      :message="`This permanently deletes all ${store.entries.length} entries and resets your manual correction. This can't be undone.`"
+      confirm-label="Delete everything"
+      danger
+      require-typed-word="confirm"
+      @confirm="confirmClearAll"
+      @cancel="showClearAllConfirm = false"
+    />
   </section>
 </template>
 

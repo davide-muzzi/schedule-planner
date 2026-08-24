@@ -482,8 +482,6 @@ function handleDragEnd() {
 
 function handleClearDayClick() {
   if (props.entries.length === 0) return
-  if (!window.confirm(`Delete all ${props.entries.length} entr${props.entries.length === 1 ? 'y' : 'ies'} on this day? This cannot be undone.`))
-    return
   emit('clear-day', props.date)
 }
 

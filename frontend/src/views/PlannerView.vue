@@ -4,10 +4,19 @@ import { X, ChartColumn, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
+import { showToast } from '@/utils/toast'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+
+// Fields that make up an entry's "content" (everything except its id) -
+// what gets snapshotted for an undo and what a create/update payload needs.
+function entryPayload(entry) {
+  const { id, ...rest } = entry
+  return rest
+}
 
 // "OvertimeCompensation" -> "Overtime Compensation" - purely a display
 // label for the legend, doesn't touch the stored enum value anywhere.
@@ -147,10 +156,33 @@ function closeModal() {
 }
 
 async function handleClearDay(date) {
+  const iso = toISODate(date)
+  const snapshot = entriesForDate(date).map(entryPayload)
+  if (snapshot.length === 0) return
   try {
-    await store.clearDay(toISODate(date))
+    await store.clearDay(iso)
+    showToast(`Cleared ${snapshot.length} entr${snapshot.length === 1 ? 'y' : 'ies'}.`, {
+      variant: 'error',
+      duration: 6000,
+      actionLabel: 'Undo',
+      onAction: () => restoreEntries(snapshot),
+    })
   } catch {
     // store.error is already set; the global error banner picks it up
+  }
+}
+
+// Recreates a batch of entry snapshots (from a clear-day undo or a paste),
+// one at a time - concurrent inserts would race each other's overlap/All-Day
+// checks against a target day that's still empty from each other's
+// perspective.
+async function restoreEntries(entries) {
+  try {
+    for (const entry of entries) {
+      await store.createEntry(entry)
+    }
+  } catch {
+    showToast("Couldn't restore everything - some entries may be missing.")
   }
 }
 
@@ -164,35 +196,75 @@ const copiedDayEntries = ref(null)
 function handleCopyDay(date) {
   const entries = entriesForDate(date)
   if (entries.length === 0) return
-  copiedDayEntries.value = entries.map(({ id, date: _date, ...rest }) => ({ ...rest }))
+  copiedDayEntries.value = entries.map((entry) => {
+    const { date: _date, ...rest } = entryPayload(entry)
+    return rest
+  })
+}
+
+// The day pending an overwrite confirmation when pasting onto a non-empty
+// day - null while the ConfirmDialog is closed.
+const pastePendingOverwriteDate = ref(null)
+
+async function pasteCopiedEntriesOnto(date) {
+  const targetIso = toISODate(date)
+  for (const entry of copiedDayEntries.value) {
+    await store.createEntry({ ...entry, date: targetIso })
+  }
 }
 
 async function handlePasteDay(date) {
   if (!copiedDayEntries.value) return
-  const targetIso = toISODate(date)
   if (entriesForDate(date).length > 0) {
-    if (!window.confirm('This shi already got an entry, u sure u wanna overwrite it?')) return
-    try {
-      await store.clearDay(targetIso)
-    } catch {
-      return // store.error is already set; the global error banner picks it up
-    }
+    pastePendingOverwriteDate.value = date
+    return
   }
   try {
-    // Sequential, not Promise.all - concurrent inserts would race each
-    // other's overlap/All-Day checks against a target day that's still
-    // empty from each other's perspective.
-    for (const entry of copiedDayEntries.value) {
-      await store.createEntry({ ...entry, date: targetIso })
-    }
+    await pasteCopiedEntriesOnto(date)
   } catch {
     // store.error is already set; the global error banner picks it up
   }
 }
 
+async function confirmPasteOverwrite() {
+  const date = pastePendingOverwriteDate.value
+  pastePendingOverwriteDate.value = null
+  try {
+    await store.clearDay(toISODate(date))
+    await pasteCopiedEntriesOnto(date)
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
+}
+
+const pasteOverwriteMessage = computed(() => {
+  const date = pastePendingOverwriteDate.value
+  if (!date) return ''
+  const label = date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+  return `${label} already has entries on it. Pasting here will replace all of them with the copied day, and this can't be undone.`
+})
+
+// Shared by any successful update (modal edit, drag-to-resize/move) - shows
+// an undo toast that reverts the entry back to its pre-update field values.
+function showUpdateUndoToast(id, previousPayload) {
+  showToast('Entry updated.', {
+    variant: 'warn',
+    duration: 6000,
+    actionLabel: 'Undo',
+    onAction: async () => {
+      try {
+        await store.updateEntry(id, previousPayload)
+      } catch {
+        showToast("Couldn't undo that edit.")
+      }
+    },
+  })
+}
+
 async function handleResizeEntry(id, startTime, endTime) {
   const entry = store.entries.find((e) => e.id === id)
   if (!entry) return
+  const previousPayload = entryPayload(entry)
   try {
     await store.updateEntry(id, {
       title: entry.title,
@@ -204,6 +276,7 @@ async function handleResizeEntry(id, startTime, endTime) {
       workLocation: entry.workLocation,
       notes: entry.notes,
     })
+    showUpdateUndoToast(id, previousPayload)
   } catch {
     // store.error is already set; the global error banner picks it up
   }
@@ -212,13 +285,17 @@ async function handleResizeEntry(id, startTime, endTime) {
 async function handleSubmit(payload) {
   saving.value = true
   modalError.value = null
+  const previousEntry = editingEntry.value
   try {
-    if (editingEntry.value) {
-      await store.updateEntry(editingEntry.value.id, payload)
+    if (previousEntry) {
+      const previousPayload = entryPayload(previousEntry)
+      await store.updateEntry(previousEntry.id, payload)
+      closeModal()
+      showUpdateUndoToast(previousEntry.id, previousPayload)
     } else {
       await store.createEntry(payload)
+      closeModal()
     }
-    closeModal()
   } catch {
     modalError.value = store.error
   } finally {
@@ -228,9 +305,18 @@ async function handleSubmit(payload) {
 
 async function handleDelete(id) {
   saving.value = true
+  const entry = store.entries.find((e) => e.id === id)
   try {
     await store.deleteEntry(id)
     closeModal()
+    if (entry) {
+      showToast('Entry deleted.', {
+        variant: 'error',
+        duration: 6000,
+        actionLabel: 'Undo',
+        onAction: () => restoreEntries([entryPayload(entry)]),
+      })
+    }
   } catch {
     modalError.value = store.error
   } finally {
@@ -329,6 +415,16 @@ async function handleDelete(id) {
       :weeks="store.weeklyBalances"
       :manual-adjustment-hours="store.overallBalance.manualAdjustmentHours"
       @close="closeWeeklyBalance"
+    />
+
+    <ConfirmDialog
+      v-if="pastePendingOverwriteDate"
+      title="Overwrite this day?"
+      :message="pasteOverwriteMessage"
+      confirm-label="Overwrite"
+      danger
+      @confirm="confirmPasteOverwrite"
+      @cancel="pastePendingOverwriteDate = null"
     />
   </div>
 </template>

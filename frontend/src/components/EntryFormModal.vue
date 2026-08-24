@@ -147,7 +147,6 @@ function handleSubmit() {
 }
 
 function handleDeleteClick() {
-  if (!window.confirm('Delete this entry? This cannot be undone.')) return
   emit('delete', props.entry.id)
 }
 
