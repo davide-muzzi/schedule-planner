@@ -67,9 +67,13 @@ export function durationHours(startTime, endTime) {
 
 export function formatHours(hours) {
   const sign = hours < 0 ? '-' : ''
-  const abs = Math.abs(hours)
-  const h = Math.floor(abs)
-  const m = Math.round((abs - h) * 60)
+  // Round to whole minutes first, then split - rounding h and m separately
+  // (e.g. h = floor(1.999999999), m = round((1.999999999 - 1) * 60)) can
+  // let floating-point drift round m up to 60 without ever carrying into h,
+  // showing "1h 60m" instead of "2h 0m".
+  const totalMinutes = Math.round(Math.abs(hours) * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
   if (m === 0) return `${sign}${h}h`
   return `${sign}${h}h ${m}m`
 }

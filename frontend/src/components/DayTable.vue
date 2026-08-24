@@ -171,9 +171,11 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 function formatDiff(hours) {
   if (Math.abs(hours) < 0.01) return 'on target'
   const sign = hours > 0 ? '+' : '-'
-  const abs = Math.abs(hours)
-  const h = Math.floor(abs)
-  const m = Math.round((abs - h) * 60)
+  // Round to whole minutes first, then split - see formatHours in
+  // utils/date.js for why rounding h and m independently can show "1h 60m".
+  const totalMinutes = Math.round(Math.abs(hours) * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
   if (h === 0) return `${sign}${m}m`
   if (m === 0) return `${sign}${h}h`
   return `${sign}${h}h ${m}m`
