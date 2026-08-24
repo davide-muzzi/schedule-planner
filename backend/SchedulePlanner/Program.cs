@@ -17,6 +17,11 @@ builder.Services.AddScoped<IScheduleEntryService, ScheduleEntryService>();
 builder.Services.AddScoped<BalanceAdjustmentService>();
 builder.Services.AddScoped<WorkGoalSettingsService>();
 builder.Services.AddScoped<HolidayYearSettingService>();
+builder.Services.AddHttpClient<WeatherService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.open-meteo.com/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddCors(options =>
     options.AddPolicy("Dev", policy => policy
         .WithOrigins("http://localhost:5173")
