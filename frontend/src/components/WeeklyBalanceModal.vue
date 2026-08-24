@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { X } from '@lucide/vue'
-import { formatWeekRange, formatHours } from '@/utils/date'
+import { formatWeekRange, formatHours, getISOWeekNumber } from '@/utils/date'
 import { RED_THRESHOLD_HOURS, YELLOW_THRESHOLD_HOURS } from '@/utils/constants'
 
 const props = defineProps({
@@ -15,6 +15,10 @@ const totalWorkedHours = computed(() => props.weeks.reduce((sum, w) => sum + w.w
 const totalDiffHours = computed(
   () => props.weeks.reduce((sum, w) => sum + w.diffHours, 0) + props.manualAdjustmentHours,
 )
+
+function weekNumberLabel(monday) {
+  return `W${getISOWeekNumber(monday)}`
+}
 
 function status(diffHours) {
   if (diffHours >= 0) return 'green' // goal reached or exceeded
@@ -79,7 +83,7 @@ function handleOverlayClick(event) {
         </thead>
         <tbody>
           <tr v-for="week in weeks" :key="week.monday.getTime()">
-            <td>{{ formatWeekRange(week.monday) }}</td>
+            <td><span class="week-num">{{ weekNumberLabel(week.monday) }}</span>{{ formatWeekRange(week.monday) }}</td>
             <td>{{ formatHours(week.workedHours) }}</td>
             <td :class="'status-' + status(week.diffHours)">{{ diffLabel(week.diffHours) }}</td>
           </tr>
@@ -170,7 +174,7 @@ function handleOverlayClick(event) {
   font-weight: 600;
   color: var(--color-heading);
   opacity: 0.7;
-  padding-bottom: 0.5rem;
+  padding: 0 1px 0.5rem;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -180,10 +184,21 @@ function handleOverlayClick(event) {
 }
 
 .weeks-table td {
-  padding: 0.5rem 0;
+  padding: 0.5rem 1px;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text);
   white-space: nowrap;
+}
+
+.week-num {
+  display: inline-block;
+  min-width: 2.2rem;
+  margin-right: 0.5rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  opacity: 0.6;
 }
 
 .weeks-table tbody tr:last-child td {
