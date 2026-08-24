@@ -87,9 +87,9 @@ const hoveredAccentColor = computed(() => {
   <div class="balance-trend">
     <div class="chart-area">
       <div class="y-axis">
-        <span class="y-label">+{{ formatHours(scaleMaxHours) }}</span>
+        <span class="y-label top">+{{ formatHours(scaleMaxHours) }}</span>
         <span class="y-label zero">0h</span>
-        <span class="y-label">−{{ formatHours(scaleMaxHours) }}</span>
+        <span class="y-label bottom">−{{ formatHours(scaleMaxHours) }}</span>
       </div>
       <div class="plot">
         <svg viewBox="0 0 240 84" preserveAspectRatio="none" class="chart-svg">
@@ -135,9 +135,7 @@ const hoveredAccentColor = computed(() => {
 }
 
 .y-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  position: relative;
   width: 34px;
   flex-shrink: 0;
   text-align: right;
@@ -146,8 +144,24 @@ const hoveredAccentColor = computed(() => {
   color: var(--mute);
 }
 
+.y-label {
+  position: absolute;
+  right: 0;
+  white-space: nowrap;
+}
+
+.y-label.top {
+  top: 0;
+}
+
 .y-label.zero {
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--line-2);
+}
+
+.y-label.bottom {
+  bottom: 0;
 }
 
 .plot {
