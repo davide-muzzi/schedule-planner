@@ -147,12 +147,26 @@ const breakWarningTitle = computed(() => {
 
 const showBreakPopup = ref(false)
 const showHiddenPopup = ref(false)
+const breakPopupStyle = ref({})
+const hiddenPopupStyle = ref({})
 
-function toggleBreakPopup() {
+// Both popups are teleported to <body> and positioned from their trigger
+// button's own rect, same reasoning as the entry tooltip below - staying a
+// normal descendant here would put them at the mercy of this row's own
+// stacking context (its fadeUp animation makes every .day-row form one, so
+// a later row always paints over an earlier row's in-flow popup regardless
+// of z-index).
+function popupStyleFor(rect) {
+  return { left: `${rect.left}px`, top: `${rect.bottom + 6}px` }
+}
+
+function toggleBreakPopup(event) {
+  if (!showBreakPopup.value) breakPopupStyle.value = popupStyleFor(event.currentTarget.getBoundingClientRect())
   showBreakPopup.value = !showBreakPopup.value
 }
 
-function toggleHiddenPopup() {
+function toggleHiddenPopup(event) {
+  if (!showHiddenPopup.value) hiddenPopupStyle.value = popupStyleFor(event.currentTarget.getBoundingClientRect())
   showHiddenPopup.value = !showHiddenPopup.value
 }
 
@@ -617,16 +631,21 @@ const tooltipTimeText = computed(() => {
       </div>
       <span class="day-date">{{ monthDayLabel }}</span>
       <span v-if="breakWarning" class="break-warning-wrap">
-        <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup">
+        <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup($event)">
           <TriangleAlert :size="12" />
         </button>
-        <div v-if="showBreakPopup" class="break-popup" @click.stop>{{ breakWarningTitle }}</div>
       </span>
       <span v-if="hiddenTimedEntries.length > 0" class="break-warning-wrap">
-        <button type="button" class="hidden-warning" @click.stop="toggleHiddenPopup">
+        <button type="button" class="hidden-warning" @click.stop="toggleHiddenPopup($event)">
           {{ hiddenTimedEntries.length }} hidden
         </button>
-        <div v-if="showHiddenPopup" class="break-popup hidden-popup" @click.stop>
+      </span>
+
+      <Teleport to="body">
+        <div v-if="showBreakPopup" class="break-popup" :style="breakPopupStyle" @click.stop>{{ breakWarningTitle }}</div>
+      </Teleport>
+      <Teleport to="body">
+        <div v-if="showHiddenPopup" class="break-popup hidden-popup" :style="hiddenPopupStyle" @click.stop>
           <button
             v-for="entry in hiddenTimedEntries"
             :key="entry.id"
@@ -638,7 +657,7 @@ const tooltipTimeText = computed(() => {
             {{ entryLeftLabel(entry) }} — {{ entryRightLabel(entry) }}
           </button>
         </div>
-      </span>
+      </Teleport>
     </div>
 
     <div class="day-timeline">
@@ -881,10 +900,8 @@ const tooltipTimeText = computed(() => {
 }
 
 .break-popup {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 0;
-  z-index: 10;
+  position: fixed;
+  z-index: 300;
   width: max-content;
   max-width: 16rem;
   background: var(--surface);
