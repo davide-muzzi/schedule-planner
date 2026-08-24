@@ -88,6 +88,33 @@ const holidayAdjustDays = ref(0)
 const holidayAdjustHours = ref(0)
 const holidayAdjustMinutes = ref(0)
 
+// Both adjust popups are teleported to <body> (see template) for the same
+// reason MiniCalendar's popup is: left as regular absolutely-positioned
+// descendants, they end up trapped behind day-row entry blocks once those
+// settle into a resting `transform: scaleX(1)` and pick up their own
+// stacking context, painting over a same-page popover despite its z-index.
+// Teleporting means position has to be computed from the trigger button's
+// own rect instead of relying on CSS being relative to a parent.
+const adjustBtnRef = ref(null)
+const holidayBtnRef = ref(null)
+const adjustPopupStyle = ref({})
+const holidayPopupStyle = ref({})
+
+function anchoredStyle(anchorEl) {
+  const rect = anchorEl?.getBoundingClientRect?.()
+  if (!rect) return {}
+  return {
+    position: 'fixed',
+    top: `${rect.bottom + 8}px`,
+    left: `${rect.left}px`,
+  }
+}
+
+function repositionOpenPopups() {
+  if (showAdjustPopup.value) adjustPopupStyle.value = anchoredStyle(adjustBtnRef.value)
+  if (showHolidayPopup.value) holidayPopupStyle.value = anchoredStyle(holidayBtnRef.value)
+}
+
 // A day of holiday isn't a fixed 24h/8h block, it's whatever the current
 // daily worktime goal says a day is worth - same conversion the rest of the
 // app already uses for a Vacation day's credit.
@@ -99,6 +126,7 @@ function toggleAdjustPopup() {
   showAdjustPopup.value = !showAdjustPopup.value
   adjustHours.value = 0
   adjustMinutes.value = 0
+  if (showAdjustPopup.value) adjustPopupStyle.value = anchoredStyle(adjustBtnRef.value)
 }
 
 function toggleCalendar() {
@@ -114,6 +142,7 @@ function toggleHolidayPopup() {
   holidayAdjustDays.value = 0
   holidayAdjustHours.value = 0
   holidayAdjustMinutes.value = 0
+  if (showHolidayPopup.value) holidayPopupStyle.value = anchoredStyle(holidayBtnRef.value)
 }
 
 function closePopups() {
@@ -156,8 +185,14 @@ function selectDate(date) {
   emit('select-date', date)
 }
 
-onMounted(() => document.addEventListener('click', closePopups))
-onBeforeUnmount(() => document.removeEventListener('click', closePopups))
+onMounted(() => {
+  document.addEventListener('click', closePopups)
+  window.addEventListener('resize', repositionOpenPopups)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closePopups)
+  window.removeEventListener('resize', repositionOpenPopups)
+})
 </script>
 
 <template>
@@ -183,33 +218,35 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 
     <div class="status-strip">
       <div class="strip-cell adjustable">
-        <button type="button" class="cell-trigger" @click.stop="toggleHolidayPopup">
+        <button ref="holidayBtnRef" type="button" class="cell-trigger" @click.stop="toggleHolidayPopup">
           <span class="cell-label">Vacation remaining</span>
           <span class="cell-value">{{ formatDays(holidaysRemaining) }}</span>
           <span class="cell-hint">Click to adjust</span>
         </button>
 
-        <div v-if="showHolidayPopup" class="adjust-popup holiday-popup" @click.stop>
-          <p class="adjust-current">{{ currentHolidayAdjustmentLabel }}</p>
-          <div class="adjust-inputs">
-            <label>
-              days
-              <input v-model.number="holidayAdjustDays" type="number" min="0" />
-            </label>
-            <label>
-              h
-              <input v-model.number="holidayAdjustHours" type="number" min="0" />
-            </label>
-            <label>
-              min
-              <input v-model.number="holidayAdjustMinutes" type="number" min="0" max="59" />
-            </label>
+        <Teleport to="body">
+          <div v-if="showHolidayPopup" class="adjust-popup holiday-popup" :style="holidayPopupStyle" @click.stop>
+            <p class="adjust-current">{{ currentHolidayAdjustmentLabel }}</p>
+            <div class="adjust-inputs">
+              <label>
+                days
+                <input v-model.number="holidayAdjustDays" type="number" min="0" />
+              </label>
+              <label>
+                h
+                <input v-model.number="holidayAdjustHours" type="number" min="0" />
+              </label>
+              <label>
+                min
+                <input v-model.number="holidayAdjustMinutes" type="number" min="0" max="59" />
+              </label>
+            </div>
+            <div class="adjust-actions">
+              <button type="button" class="adjust-btn subtract" @click="applyHolidayAdjustment(-1)">− Subtract</button>
+              <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
+            </div>
           </div>
-          <div class="adjust-actions">
-            <button type="button" class="adjust-btn subtract" @click="applyHolidayAdjustment(-1)">− Subtract</button>
-            <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
-          </div>
-        </div>
+        </Teleport>
       </div>
 
       <div class="strip-cell">
@@ -218,29 +255,31 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
       </div>
 
       <div class="strip-cell adjustable">
-        <button type="button" class="cell-trigger" @click.stop="toggleAdjustPopup">
+        <button ref="adjustBtnRef" type="button" class="cell-trigger" @click.stop="toggleAdjustPopup">
           <span class="cell-label">Overall balance</span>
           <span class="cell-value" :class="'status-' + status">{{ diffLabel }}</span>
           <span class="cell-hint">Click to adjust</span>
         </button>
 
-        <div v-if="showAdjustPopup" class="adjust-popup" @click.stop>
-          <p class="adjust-current">{{ currentAdjustmentLabel }}</p>
-          <div class="adjust-inputs">
-            <label>
-              h
-              <input v-model.number="adjustHours" type="number" min="0" />
-            </label>
-            <label>
-              min
-              <input v-model.number="adjustMinutes" type="number" min="0" max="59" />
-            </label>
+        <Teleport to="body">
+          <div v-if="showAdjustPopup" class="adjust-popup" :style="adjustPopupStyle" @click.stop>
+            <p class="adjust-current">{{ currentAdjustmentLabel }}</p>
+            <div class="adjust-inputs">
+              <label>
+                h
+                <input v-model.number="adjustHours" type="number" min="0" />
+              </label>
+              <label>
+                min
+                <input v-model.number="adjustMinutes" type="number" min="0" max="59" />
+              </label>
+            </div>
+            <div class="adjust-actions">
+              <button type="button" class="adjust-btn subtract" @click="applyAdjustment(-1)">− Subtract</button>
+              <button type="button" class="adjust-btn add" @click="applyAdjustment(1)">+ Add</button>
+            </div>
           </div>
-          <div class="adjust-actions">
-            <button type="button" class="adjust-btn subtract" @click="applyAdjustment(-1)">− Subtract</button>
-            <button type="button" class="adjust-btn add" @click="applyAdjustment(1)">+ Add</button>
-          </div>
-        </div>
+        </Teleport>
       </div>
 
       <div class="strip-cell worked-cell">
@@ -463,10 +502,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closePopups))
 }
 
 .adjust-popup {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  left: 0;
-  z-index: 10;
+  z-index: 300;
   width: 13rem;
   background: var(--surface);
   border: 1px solid var(--line-2);
