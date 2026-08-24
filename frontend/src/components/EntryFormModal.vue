@@ -47,6 +47,7 @@ function blankForm() {
 const form = ref(blankForm())
 const localError = ref(null)
 const originalFormSnapshot = ref(null)
+const titleInputEl = ref(null)
 
 watch(
   () => props.entry,
@@ -151,10 +152,25 @@ function handleDeleteClick() {
 }
 
 function handleKeydown(event) {
-  if (event.key === 'Escape') emit('close')
+  if (event.key === 'Escape') {
+    emit('close')
+    return
+  }
+  // Enter anywhere in the form saves & closes, same as clicking Save -
+  // except inside Notes (a textarea, where Enter should insert a newline)
+  // or on another button (Cancel/Delete/Close, where Enter should activate
+  // that button instead of hijacking it into a save).
+  if (event.key === 'Enter' && event.target.tagName !== 'TEXTAREA' && event.target.tagName !== 'BUTTON') {
+    if (props.saving || !isDirty.value) return
+    event.preventDefault()
+    handleSubmit()
+  }
 }
 
-onMounted(() => document.addEventListener('keydown', handleKeydown))
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+  titleInputEl.value?.focus()
+})
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 // A text-selection drag that starts inside the modal (e.g. dragging across
@@ -186,7 +202,7 @@ function handleOverlayClick(event) {
       <form @submit.prevent="handleSubmit">
         <div class="field">
           <label>Title</label>
-          <input v-model="form.title" type="text" placeholder="(optional)" />
+          <input ref="titleInputEl" v-model="form.title" type="text" placeholder="(optional)" />
         </div>
 
         <div class="field-row">

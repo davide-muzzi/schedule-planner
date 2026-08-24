@@ -154,6 +154,42 @@ async function handleClearDay(date) {
   }
 }
 
+// Holds the source day's entries with id/date stripped, ready to be
+// recreated on whatever day gets pasted onto next. A plain ref (not store
+// state) since it's a transient clipboard, not schedule data - it doesn't
+// need to survive a reload, just week navigation, which this view already
+// does without unmounting.
+const copiedDayEntries = ref(null)
+
+function handleCopyDay(date) {
+  const entries = entriesForDate(date)
+  if (entries.length === 0) return
+  copiedDayEntries.value = entries.map(({ id, date: _date, ...rest }) => ({ ...rest }))
+}
+
+async function handlePasteDay(date) {
+  if (!copiedDayEntries.value) return
+  const targetIso = toISODate(date)
+  if (entriesForDate(date).length > 0) {
+    if (!window.confirm('This shi already got an entry, u sure u wanna overwrite it?')) return
+    try {
+      await store.clearDay(targetIso)
+    } catch {
+      return // store.error is already set; the global error banner picks it up
+    }
+  }
+  try {
+    // Sequential, not Promise.all - concurrent inserts would race each
+    // other's overlap/All-Day checks against a target day that's still
+    // empty from each other's perspective.
+    for (const entry of copiedDayEntries.value) {
+      await store.createEntry({ ...entry, date: targetIso })
+    }
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
+}
+
 async function handleResizeEntry(id, startTime, endTime) {
   const entry = store.entries.find((e) => e.id === id)
   if (!entry) return
@@ -256,10 +292,13 @@ async function handleDelete(id) {
         :view-from-hour="store.viewFromHour"
         :view-till-hour="store.viewTillHour"
         :entry-type-colors="store.entryTypeColors"
+        :has-copied-day="!!copiedDayEntries"
         @add="openAdd"
         @edit="openEdit"
         @clear-day="handleClearDay"
         @resize-entry="handleResizeEntry"
+        @copy-day="handleCopyDay"
+        @paste-day="handlePasteDay"
       />
     </div>
 

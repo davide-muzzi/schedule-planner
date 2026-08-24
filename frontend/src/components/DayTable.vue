@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus } from '@lucide/vue'
+import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
@@ -16,9 +16,10 @@ const props = defineProps({
   viewFromHour: { type: Number, required: true },
   viewTillHour: { type: Number, required: true },
   entryTypeColors: { type: Object, required: true },
+  hasCopiedDay: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry'])
+const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry', 'copy-day', 'paste-day'])
 
 // The set of entries this row's initial cascade belongs to. Not simply
 // "whatever props.entries held at setup()" - the store's initial fetch is
@@ -775,6 +776,26 @@ const tooltipTimeText = computed(() => {
         >
           <Plus :size="13" />
         </button>
+        <button
+          type="button"
+          class="icon-action copy"
+          :disabled="entries.length === 0"
+          title="Copy day"
+          aria-label="Copy day"
+          @click="emit('copy-day', date)"
+        >
+          <Copy :size="13" />
+        </button>
+        <button
+          type="button"
+          class="icon-action paste"
+          :disabled="!hasCopiedDay"
+          title="Paste day"
+          aria-label="Paste day"
+          @click="emit('paste-day', date)"
+        >
+          <ClipboardPaste :size="13" />
+        </button>
       </div>
     </div>
   </section>
@@ -957,8 +978,8 @@ const tooltipTimeText = computed(() => {
 }
 
 .day-actions {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, 26px);
   gap: 4px;
   margin-right: 10px;
 }
