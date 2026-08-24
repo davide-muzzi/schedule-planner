@@ -278,6 +278,11 @@ const longestDayCaption = computed(() => {
   padding: 24px 26px;
 }
 
+.large-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .right-column {
   display: flex;
   flex-direction: column;
