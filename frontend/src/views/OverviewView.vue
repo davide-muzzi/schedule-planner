@@ -21,7 +21,7 @@ import OverviewBalanceTrend from '@/components/OverviewBalanceTrend.vue'
 import OverviewTimeBreakdown from '@/components/OverviewTimeBreakdown.vue'
 import OverviewTrackingStreak from '@/components/OverviewTrackingStreak.vue'
 
-const WEEKLY_CHART_WEEKS = 26
+const WEEKLY_CHART_WEEKS = 52
 const BALANCE_TREND_WEEKS = 13
 const STREAK_WEEKS = 52
 
@@ -116,7 +116,10 @@ const longestDayCaption = computed(() => {
             <OverviewWeekdayAverages :hours-by-weekday="weekdayAverages" :daily-target-hours="store.dailyTargetHours" />
           </div>
           <div>
-            <div class="card-heading"><h2>Balance trend</h2></div>
+            <div class="card-heading">
+              <h2>Balance trend</h2>
+              <span class="meta">LAST {{ balanceTrendSeries.length }} WEEKS</span>
+            </div>
             <OverviewBalanceTrend :series="balanceTrendSeries" />
           </div>
         </div>

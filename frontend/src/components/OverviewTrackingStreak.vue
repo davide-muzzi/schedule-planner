@@ -7,7 +7,10 @@ const props = defineProps({
   columns: { type: Array, required: true }, // trackingStreakGrid() output
 })
 
-const ROW_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', '']
+// Row 0 is Monday (trackingStreakGrid's days array is Mon-Sun, matching
+// getMonday()'s week start) - the label positions must match that, not the
+// Sun-Sat order a raw Date.getDay() index would imply.
+const ROW_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', '']
 
 // A month label sits above the first column that starts a new month - blank
 // slots elsewhere keep it aligned above the matching column in the grid row

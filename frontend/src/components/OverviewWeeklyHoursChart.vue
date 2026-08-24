@@ -1,7 +1,9 @@
 <script setup>
 import { computed } from 'vue'
-import { formatHours } from '@/utils/date'
+import { formatHours, formatWeekRange, getISOWeekNumber } from '@/utils/date'
 import { weeklyWorkedStatus } from '@/utils/status'
+import { useChartTooltip } from '@/composables/useChartTooltip'
+import ChartTooltip from './ChartTooltip.vue'
 
 const props = defineProps({
   series: { type: Array, required: true }, // [{ monday, hours }], oldest first
@@ -16,13 +18,19 @@ const SCALE_RATIO = 1.15
 const scaleMaxHours = computed(() => props.targetHours * SCALE_RATIO)
 const targetPercent = computed(() => Math.min(100, (props.targetHours / scaleMaxHours.value) * 100))
 
+const STATUS_COLOR = { green: 'var(--ok)', yellow: 'var(--warn)', red: 'var(--bad)' }
+
 const bars = computed(() =>
-  props.series.map((week, i) => ({
-    ...week,
-    index: i,
-    heightPercent: Math.min(100, (week.hours / scaleMaxHours.value) * 100),
-    status: weeklyWorkedStatus(week.hours, props.targetHours),
-  })),
+  props.series.map((week, i) => {
+    const status = weeklyWorkedStatus(week.hours, props.targetHours)
+    return {
+      ...week,
+      index: i,
+      heightPercent: Math.min(100, (week.hours / scaleMaxHours.value) * 100),
+      status,
+      accentColor: STATUS_COLOR[status],
+    }
+  }),
 )
 
 // A month label sits under the first bar of every month that appears -
@@ -36,6 +44,16 @@ const axisLabels = computed(() => {
     lastMonth = month
     return show ? week.monday.toLocaleString(undefined, { month: 'short' }).toUpperCase() : ''
   })
+})
+
+const { active: hovered, style: tooltipStyle, show: showTooltip, hide: hideTooltip } = useChartTooltip()
+
+const tooltipRows = computed(() => {
+  if (!hovered.value) return []
+  return [
+    { label: 'Range', value: formatWeekRange(hovered.value.monday) },
+    { label: 'Worked', value: formatHours(hovered.value.hours) },
+  ]
 })
 </script>
 
@@ -51,12 +69,21 @@ const axisLabels = computed(() => {
         class="bar"
         :class="'status-' + bar.status"
         :style="{ height: bar.heightPercent + '%', animationDelay: bar.index * 18 + 'ms' }"
-        :title="`Week of ${bar.monday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${formatHours(bar.hours)}`"
+        @mouseenter="showTooltip($event, bar)"
+        @mouseleave="hideTooltip"
       ></div>
     </div>
     <div class="axis-row">
       <span v-for="(label, i) in axisLabels" :key="i" class="axis-label">{{ label }}</span>
     </div>
+
+    <ChartTooltip
+      v-if="hovered"
+      :title="`Week ${getISOWeekNumber(hovered.monday)}`"
+      :rows="tooltipRows"
+      :pos-style="tooltipStyle"
+      :accent-color="hovered.accentColor"
+    />
   </div>
 </template>
 
