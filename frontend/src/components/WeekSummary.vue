@@ -72,6 +72,20 @@ const weeklyStatus = computed(() => {
   return 'red' // over 5h too much
 })
 
+// Same "+36m" / "on target" convention as DayTable's per-day goal-diff.
+function formatDiff(hours) {
+  if (Math.abs(hours) < 0.01) return 'on target'
+  const sign = hours > 0 ? '+' : '-'
+  const totalMinutes = Math.round(Math.abs(hours) * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  if (h === 0) return `${sign}${m}m`
+  if (m === 0) return `${sign}${h}h`
+  return `${sign}${h}h ${m}m`
+}
+
+const weeklyDiffLabel = computed(() => formatDiff(weeklyDiff.value))
+
 const currentAdjustmentLabel = computed(() => {
   const h = props.overallBalance.manualAdjustmentHours
   if (Math.abs(h) < 0.01) return 'No correction applied'
@@ -287,6 +301,7 @@ onBeforeUnmount(() => {
         <span class="cell-value-row">
           <span class="cell-value" :class="'status-' + weeklyStatus">{{ formatHours(weeklyTotalHours) }}</span>
           <span class="cell-value-target">/ {{ formatHours(weeklyTargetHours) }}</span>
+          <span class="cell-value-diff" :class="'status-' + weeklyStatus">{{ weeklyDiffLabel }}</span>
         </span>
         <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
       </div>
@@ -466,6 +481,24 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--mute);
+}
+
+.cell-value-diff {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  margin-left: auto;
+}
+
+.cell-value-diff.status-green {
+  color: var(--ok);
+}
+
+.cell-value-diff.status-yellow {
+  color: var(--warn);
+}
+
+.cell-value-diff.status-red {
+  color: var(--bad);
 }
 
 .cell-value.status-green {
