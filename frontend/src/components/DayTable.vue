@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
@@ -332,10 +332,52 @@ function hoursToTimeString(hours) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+// Bridges the gap between letting go of a drag and the save round-trip
+// landing back in `props.entries`: without this, clearing dragMode/dragEntry
+// immediately on mouseup makes effectiveRange fall back to entryRange(entry)
+// for one render - the pre-drag time, since the prop hasn't updated yet -
+// producing a visible snap-back-then-forward flicker. Keeping the dragged
+// value here until the prop actually catches up (or a timeout gives up, in
+// case the save fails) papers over that gap.
+const pendingOverrides = reactive({})
+const pendingOverrideTimeouts = {}
+
+function setPendingOverride(id, start, end) {
+  pendingOverrides[id] = { start, end }
+  clearTimeout(pendingOverrideTimeouts[id])
+  pendingOverrideTimeouts[id] = setTimeout(() => clearPendingOverride(id), 5000)
+}
+
+function clearPendingOverride(id) {
+  delete pendingOverrides[id]
+  clearTimeout(pendingOverrideTimeouts[id])
+  delete pendingOverrideTimeouts[id]
+}
+
+watch(
+  () => props.entries,
+  () => {
+    for (const id of Object.keys(pendingOverrides)) {
+      const entry = props.entries.find((e) => String(e.id) === id)
+      if (!entry) {
+        clearPendingOverride(id)
+        continue
+      }
+      const r = entryRange(entry)
+      const o = pendingOverrides[id]
+      if (Math.abs(r.start - o.start) < 1e-6 && Math.abs(r.end - o.end) < 1e-6) clearPendingOverride(id)
+    }
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => Object.keys(pendingOverrideTimeouts).forEach(clearPendingOverride))
+
 function effectiveRange(entry) {
   if (dragEntry.value?.id === entry.id && dragMode.value && dragMode.value !== 'create') {
     return { start: dragPreviewStart.value, end: dragPreviewEnd.value }
   }
+  if (pendingOverrides[entry.id]) return pendingOverrides[entry.id]
   return entryRange(entry)
 }
 
@@ -513,6 +555,7 @@ function handleDragEnd() {
     showToast('This time range overlaps with an existing entry.')
     return
   }
+  setPendingOverride(entry.id, start, end)
   emit('resize-entry', entry.id, hoursToTimeString(start), hoursToTimeString(end))
 }
 
