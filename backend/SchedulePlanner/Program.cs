@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SchedulePlanner.Models;
 using SchedulePlanner.Services;
@@ -29,6 +31,26 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()));
 
 var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+            context.RequestServices.GetRequiredService<ILogger<Program>>()
+                .LogError(exception, "Unhandled exception on {Path}", context.Request.Path);
+
+            context.Response.ContentType = "application/problem+json";
+            await context.Response.WriteAsJsonAsync(new ProblemDetails
+            {
+                Status = StatusCodes.Status500InternalServerError,
+                Title = "An unexpected error occurred."
+            });
+        });
+    });
+}
 
 app.UseCors("Dev");
 
