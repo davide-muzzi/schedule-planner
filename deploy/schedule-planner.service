@@ -1,0 +1,23 @@
+[Unit]
+Description=Schedule Planner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust these three paths/values for your actual Pi setup:
+User=pi
+WorkingDirectory=/home/pi/schedule-planner-publish
+ExecStart=/usr/bin/dotnet /home/pi/schedule-planner-publish/SchedulePlanner.dll
+
+Restart=on-failure
+RestartSec=5
+
+Environment=ASPNETCORE_ENVIRONMENT=Production
+# Binds only to the Pi's Tailscale address - not reachable from your home
+# WiFi, only from devices authorized on your tailnet. Replace the IP if the
+# Pi's Tailscale address ever changes (check the Tailscale admin console).
+Environment=ASPNETCORE_URLS=http://100.117.171.120:5000
+
+[Install]
+WantedBy=multi-user.target
