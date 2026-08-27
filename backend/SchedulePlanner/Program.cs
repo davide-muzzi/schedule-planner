@@ -32,6 +32,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Applies any pending migrations on startup, so a fresh deploy (e.g. onto the
+// Pi) doesn't need the `dotnet-ef` CLI installed just to create the schema.
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<ScheduleContext>().Database.Migrate();
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler(errorApp =>

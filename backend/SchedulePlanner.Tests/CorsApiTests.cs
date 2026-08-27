@@ -7,10 +7,10 @@ public class CorsApiTests : IAsyncLifetime
     private readonly TestWebApplicationFactory _factory = new();
     private HttpClient _client = null!;
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        await _factory.EnsureDatabaseCreatedAsync();
         _client = _factory.CreateClient();
+        return Task.CompletedTask;
     }
 
     public Task DisposeAsync()

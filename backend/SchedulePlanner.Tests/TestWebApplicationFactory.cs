@@ -29,12 +29,6 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         });
     }
 
-    public async Task EnsureDatabaseCreatedAsync()
-    {
-        using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<ScheduleContext>().Database.EnsureCreatedAsync();
-    }
-
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
