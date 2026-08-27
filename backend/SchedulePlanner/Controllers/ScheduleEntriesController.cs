@@ -10,10 +10,12 @@ using SchedulePlanner.Services;
 public class ScheduleEntriesController : ControllerBase
 {
     private readonly IScheduleEntryService _service;
+    private readonly ILogger<ScheduleEntriesController> _logger;
 
-    public ScheduleEntriesController(IScheduleEntryService service)
+    public ScheduleEntriesController(IScheduleEntryService service, ILogger<ScheduleEntriesController> logger)
     {
         _service = service;
+        _logger = logger;
     }
     
     // Get all entries
@@ -55,10 +57,12 @@ public class ScheduleEntriesController : ControllerBase
         try
         {
             var created = await _service.CreateAsync(entry);
+            _logger.LogInformation("Created schedule entry {Id} on {Date}", created.Id, created.Date);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
+            _logger.LogWarning(ex, "Rejected schedule entry creation for {Date}", dto.Date);
             return BadRequest(ex.Message);
         }
     }
@@ -86,10 +90,12 @@ public class ScheduleEntriesController : ControllerBase
             {
                 return NotFound();
             }
+            _logger.LogInformation("Updated schedule entry {Id}", id);
             return Ok(updated);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
+            _logger.LogWarning(ex, "Rejected schedule entry update for {Id}", id);
             return BadRequest(ex.Message);
         }
     }
@@ -103,6 +109,7 @@ public class ScheduleEntriesController : ControllerBase
         {
             return NotFound();
         }
+        _logger.LogInformation("Deleted schedule entry {Id}", id);
         return NoContent();
     }
 
@@ -116,6 +123,7 @@ public class ScheduleEntriesController : ControllerBase
             : DateOnly.FromDateTime(DateTime.Today).AddDays(-olderThanDays.Value);
 
         var deletedCount = await _service.DeleteBulkAsync(cutoff);
+        _logger.LogInformation("Bulk deleted {Count} schedule entries (cutoff: {Cutoff})", deletedCount, cutoff);
         return Ok(new { deletedCount });
     }
 }

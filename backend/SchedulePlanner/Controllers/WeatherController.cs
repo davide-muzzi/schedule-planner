@@ -14,10 +14,12 @@ public class WeatherController : ControllerBase
     private const double DefaultLongitude = 8.4326;
 
     private readonly WeatherService _service;
+    private readonly ILogger<WeatherController> _logger;
 
-    public WeatherController(WeatherService service)
+    public WeatherController(WeatherService service, ILogger<WeatherController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -30,6 +32,7 @@ public class WeatherController : ControllerBase
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {
+            _logger.LogError(ex, "Failed to fetch weather forecast for {Lat}, {Lon}", lat, lon);
             return StatusCode(StatusCodes.Status502BadGateway, "Failed to fetch weather data.");
         }
     }

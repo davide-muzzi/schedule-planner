@@ -9,10 +9,12 @@ using SchedulePlanner.Services;
 public class WorkGoalSettingsController : ControllerBase
 {
     private readonly WorkGoalSettingsService _service;
+    private readonly ILogger<WorkGoalSettingsController> _logger;
 
-    public WorkGoalSettingsController(WorkGoalSettingsService service)
+    public WorkGoalSettingsController(WorkGoalSettingsService service, ILogger<WorkGoalSettingsController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     // Get the current weekly worktime goal (single value, single-user app)
@@ -29,6 +31,7 @@ public class WorkGoalSettingsController : ControllerBase
     public async Task<ActionResult<WorkGoalSettings>> Set(WorkGoalSettings body)
     {
         var settings = await _service.SetAsync(body.WeeklyTargetMinutes);
+        _logger.LogInformation("Weekly work goal set to {WeeklyTargetMinutes} minutes", body.WeeklyTargetMinutes);
         return Ok(settings);
     }
 }

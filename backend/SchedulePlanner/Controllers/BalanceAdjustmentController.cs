@@ -9,10 +9,12 @@ using SchedulePlanner.Services;
 public class BalanceAdjustmentController : ControllerBase
 {
     private readonly BalanceAdjustmentService _service;
+    private readonly ILogger<BalanceAdjustmentController> _logger;
 
-    public BalanceAdjustmentController(BalanceAdjustmentService service)
+    public BalanceAdjustmentController(BalanceAdjustmentService service, ILogger<BalanceAdjustmentController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     // Get the current manual balance adjustment (single value, single-user app)
@@ -28,6 +30,7 @@ public class BalanceAdjustmentController : ControllerBase
     public async Task<ActionResult<BalanceAdjustment>> Set(BalanceAdjustment body)
     {
         var adjustment = await _service.SetAsync(body.TotalMinutes);
+        _logger.LogInformation("Balance adjustment set to {TotalMinutes} minutes", body.TotalMinutes);
         return Ok(adjustment);
     }
 }

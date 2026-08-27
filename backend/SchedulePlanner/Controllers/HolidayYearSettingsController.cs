@@ -9,10 +9,12 @@ using SchedulePlanner.Services;
 public class HolidayYearSettingsController : ControllerBase
 {
     private readonly HolidayYearSettingService _service;
+    private readonly ILogger<HolidayYearSettingsController> _logger;
 
-    public HolidayYearSettingsController(HolidayYearSettingService service)
+    public HolidayYearSettingsController(HolidayYearSettingService service, ILogger<HolidayYearSettingsController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     // Get the holiday allotment/adjustment for a given calendar year, creating
@@ -28,6 +30,9 @@ public class HolidayYearSettingsController : ControllerBase
     public async Task<ActionResult<HolidayYearSetting>> Set(int year, HolidayYearSetting body)
     {
         var settings = await _service.SetAsync(year, body.AllotmentDays, body.AdjustmentDays);
+        _logger.LogInformation(
+            "Holiday settings for {Year} set to {AllotmentDays} allotment / {AdjustmentDays} adjustment",
+            year, body.AllotmentDays, body.AdjustmentDays);
         return Ok(settings);
     }
 }
