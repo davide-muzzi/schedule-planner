@@ -169,6 +169,18 @@ export const useScheduleStore = defineStore('schedule', {
         .reduce((sum, e) => sum + durationHours(e.startTime, e.endTime), 0)
     },
 
+    // The soonest upcoming Appointment (today or later) - same filter as
+    // futureAppointmentHours, just sorted to pick out the first one instead
+    // of summing all of them. Backs the "Upcoming appointments" cell's
+    // click-to-view shortcut. Null once there's nothing left to jump to.
+    nextAppointment(state) {
+      const todayIso = toISODate(new Date())
+      const upcoming = state.entries
+        .filter((e) => e.entryType === 'Appointment' && !e.allDay && e.date >= todayIso)
+        .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
+      return upcoming[0] ?? null
+    },
+
     // Rolling cutoff - entries dated before this are what "older than 1
     // year" would remove. Used for the Settings danger-zone preview.
     oldEntriesCutoffDate() {

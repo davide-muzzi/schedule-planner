@@ -131,6 +131,10 @@ function openAdd(date, prefill = null) {
   showModal.value = true
 }
 
+function viewNextAppointment(entry) {
+  goToDate(new Date(entry.date + 'T00:00:00'))
+}
+
 function openEdit(entry) {
   editingEntry.value = entry
   modalError.value = null
@@ -340,6 +344,7 @@ async function handleDelete(id) {
       :weekly-target-hours="store.weeklyTargetHours"
       :overall-balance="store.overallBalance"
       :future-appointment-hours="store.futureAppointmentHours"
+      :next-appointment="store.nextAppointment"
       :holidays-remaining="store.holidaysRemaining"
       :holiday-adjustment-days="store.holidayYearSettings[store.currentHolidayYear]?.adjustmentDays ?? 0"
       @prev="goPrevWeek"
@@ -348,6 +353,7 @@ async function handleDelete(id) {
       @select-date="goToDate"
       @apply-adjustment="handleApplyAdjustment"
       @apply-holiday-adjustment="handleApplyHolidayAdjustment"
+      @view-next-appointment="viewNextAppointment"
     />
 
     <p v-if="store.loading" class="loading">Loading…</p>

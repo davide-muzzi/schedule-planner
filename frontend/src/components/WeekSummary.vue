@@ -20,6 +20,7 @@ const props = defineProps({
   weeklyTargetHours: { type: Number, required: true },
   overallBalance: { type: Object, required: true }, // { actualHours, expectedHours, manualAdjustmentHours, diffHours }
   futureAppointmentHours: { type: Number, required: true },
+  nextAppointment: { type: Object, default: null },
   holidaysRemaining: { type: Number, required: true },
   holidayAdjustmentDays: { type: Number, required: true },
 })
@@ -31,6 +32,7 @@ const emit = defineEmits([
   'select-date',
   'apply-adjustment',
   'apply-holiday-adjustment',
+  'view-next-appointment',
 ])
 
 const isCurrentWeek = computed(() => toISODate(props.monday) === toISODate(getMonday(new Date())))
@@ -263,9 +265,21 @@ onBeforeUnmount(() => {
         </Teleport>
       </div>
 
-      <div class="strip-cell">
-        <span class="cell-label">Upcoming appointments</span>
-        <span class="cell-value" :class="'status-' + appointmentsStatus">{{ formatHours(futureAppointmentHours) }}</span>
+      <div class="strip-cell" :class="{ adjustable: nextAppointment }">
+        <button
+          v-if="nextAppointment"
+          type="button"
+          class="cell-trigger"
+          @click.stop="emit('view-next-appointment', nextAppointment)"
+        >
+          <span class="cell-label">Upcoming appointments</span>
+          <span class="cell-value" :class="'status-' + appointmentsStatus">{{ formatHours(futureAppointmentHours) }}</span>
+          <span class="cell-hint">Click to view next appointment</span>
+        </button>
+        <template v-else>
+          <span class="cell-label">Upcoming appointments</span>
+          <span class="cell-value" :class="'status-' + appointmentsStatus">{{ formatHours(futureAppointmentHours) }}</span>
+        </template>
       </div>
 
       <div class="strip-cell adjustable">
