@@ -57,9 +57,11 @@ app.UseCors("Dev");
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-}
 
-app.UseHttpsRedirection();
+    // Dev-only: hosted over Tailscale as plain HTTP by design, so there's no
+    // HTTPS listener outside Development for this to redirect to.
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthorization();
 
