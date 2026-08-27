@@ -68,3 +68,8 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Top-level statements generate an internal Program class by default; making
+// it a public partial class lets the test project's WebApplicationFactory<Program>
+// reference it from another assembly.
+public partial class Program { }
