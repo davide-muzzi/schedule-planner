@@ -52,6 +52,11 @@ if (!app.Environment.IsDevelopment())
     });
 }
 
+// Serves the built frontend (frontend/dist copied into wwwroot) so the app
+// is a single process/port in production - see the deploy notes.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseCors("Dev");
 
 if (app.Environment.IsDevelopment())
@@ -66,6 +71,10 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Anything not matched by an API route or a static file falls back to the
+// SPA's index.html, so Vue Router's client-side routes work on a hard refresh.
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
