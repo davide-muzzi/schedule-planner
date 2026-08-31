@@ -46,6 +46,8 @@ public class TaskItemService : ITaskItemService
         existing.EstimatedMinutes = task.EstimatedMinutes;
         existing.Status = task.Status;
         existing.Color = task.Color;
+        existing.Notes = task.Notes;
+        existing.DueDate = task.DueDate;
 
         await _context.SaveChangesAsync();
         return existing;

@@ -24,6 +24,8 @@ function blankForm() {
     status: 'Open',
     hasColor: false,
     color: DEFAULT_COLOR,
+    dueDate: '',
+    notes: '',
   }
 }
 
@@ -43,6 +45,8 @@ watch(
         status: task.status,
         hasColor: !!task.color,
         color: task.color || DEFAULT_COLOR,
+        dueDate: task.dueDate || '',
+        notes: task.notes || '',
       }
     } else {
       form.value = blankForm()
@@ -73,6 +77,8 @@ function handleSubmit() {
     estimatedMinutes: totalMinutes,
     status: form.value.status,
     color: form.value.hasColor ? form.value.color : null,
+    dueDate: form.value.dueDate || null,
+    notes: form.value.notes.trim() || null,
   }
 
   emit('submit', payload)
@@ -139,11 +145,22 @@ function handleOverlayClick(event) {
           </div>
         </div>
 
+        <div class="field-row">
+          <div class="field">
+            <label>Status</label>
+            <select v-model="form.status" required @keydown.escape.stop>
+              <option v-for="s in STATUSES" :key="s" :value="s">{{ STATUS_LABELS[s] }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Due date <span class="label-hint">(optional)</span></label>
+            <input v-model="form.dueDate" type="date" @keydown.escape.stop />
+          </div>
+        </div>
+
         <div class="field">
-          <label>Status</label>
-          <select v-model="form.status" required @keydown.escape.stop>
-            <option v-for="s in STATUSES" :key="s" :value="s">{{ STATUS_LABELS[s] }}</option>
-          </select>
+          <label>Notes</label>
+          <textarea v-model="form.notes" rows="3" placeholder="Details for this task..."></textarea>
         </div>
 
         <div class="field">
@@ -245,7 +262,9 @@ label {
 
 input[type='text'],
 input[type='number'],
-select {
+input[type='date'],
+select,
+textarea {
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);
@@ -253,6 +272,22 @@ select {
   color: var(--color-text);
   font-size: 0.9rem;
   font-family: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input[type='date'] {
+  /* Tells the browser this field sits on a dark background, so its native
+     calendar icon renders light instead of the default dark-on-dark. */
+  color-scheme: dark;
+}
+
+.label-hint {
+  font-weight: normal;
+  color: var(--color-text);
+  opacity: 0.6;
 }
 
 .color-row {

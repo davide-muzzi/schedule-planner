@@ -13,6 +13,14 @@ public class TaskItem
     // diagonal stripes over this task's linked entries in the Planner.
     public string? Color { get; set; }
 
+    // Free-form details, shown only on the Tasks page itself - never
+    // surfaced on the Planner timeline (unlike the task name).
+    public string? Notes { get; set; }
+
+    // Purely informational and for sort ordering - no reminder/overdue
+    // logic reads this anywhere.
+    public DateOnly? DueDate { get; set; }
+
     // Not Include()d anywhere the API returns a TaskItem, so this stays an
     // empty list on every response - excluded from JSON rather than left to
     // serialize as misleadingly-always-empty.

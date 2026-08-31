@@ -85,12 +85,10 @@ export const useTasksStore = defineStore('tasks', {
 
       for (const task of dueTasks) {
         try {
-          await this.updateTask(task.id, {
-            name: task.name,
-            estimatedMinutes: task.estimatedMinutes,
-            status: 'InProgress',
-            color: task.color ?? null,
-          })
+          // Spread the full task rather than listing fields, so a future
+          // field addition can't silently go missing from this PUT the way
+          // color did before this comment was added.
+          await this.updateTask(task.id, { ...task, status: 'InProgress' })
         } catch {
           // store.error is already set; the caller's error banner picks it up
         }

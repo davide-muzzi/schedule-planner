@@ -48,6 +48,8 @@ public class TasksController : ControllerBase
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = dto.Status,
             Color = dto.Color,
+            Notes = dto.Notes,
+            DueDate = dto.DueDate,
         };
 
         try
@@ -73,6 +75,8 @@ public class TasksController : ControllerBase
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = dto.Status,
             Color = dto.Color,
+            Notes = dto.Notes,
+            DueDate = dto.DueDate,
         };
 
         try

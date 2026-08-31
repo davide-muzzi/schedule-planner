@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { Plus, X } from '@lucide/vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Plus, X, CalendarDays } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
@@ -11,11 +11,25 @@ import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 
 const STATUS_LABELS = { Open: 'Open', InProgress: 'In Progress', Done: 'Done' }
-const STATUS_ORDER = { Open: 0, InProgress: 1, Done: 2 }
+
+const SORT_OPTIONS = [
+  { value: 'id', label: 'ID' },
+  { value: 'name', label: 'Alphabetical' },
+  { value: 'dueDate', label: 'Due date' },
+]
+const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
+
+function loadSortBy() {
+  const stored = localStorage.getItem(SORT_STORAGE_KEY)
+  return SORT_OPTIONS.some((o) => o.value === stored) ? stored : 'id'
+}
 
 const scheduleStore = useScheduleStore()
 const tasksStore = useTasksStore()
 const { isNarrowViewport } = useAppShell()
+
+const sortBy = ref(loadSortBy())
+watch(sortBy, (value) => localStorage.setItem(SORT_STORAGE_KEY, value))
 
 // Entries/tasks are already loaded app-wide (see App.vue) - this just
 // re-checks the auto Open -> In Progress transition in case an entry's
@@ -43,17 +57,36 @@ function taskCard(task) {
   }
 }
 
-const taskCards = computed(() =>
-  tasksStore.tasks
-    .map(taskCard)
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.id - b.id),
-)
+// All three orderings are ascending, per-field, with id as the tiebreaker.
+// dueDate is a "YYYY-MM-DD" string (or null) - plain string comparison
+// already sorts it chronologically; tasks with no due date always sort
+// after every dated one, regardless of which field is active.
+function compareTasks(a, b) {
+  if (sortBy.value === 'name') return a.name.localeCompare(b.name) || a.id - b.id
+  if (sortBy.value === 'dueDate') {
+    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate) || a.id - b.id
+    if (a.dueDate) return -1
+    if (b.dueDate) return 1
+    return a.id - b.id
+  }
+  return a.id - b.id
+}
+
+const taskCards = computed(() => tasksStore.tasks.map(taskCard).sort(compareTasks))
 
 function formatDiff(task) {
   if (task.realMinutes === 0) return 'not started'
   if (task.diffMinutes === 0) return 'on target'
   const sign = task.diffMinutes > 0 ? '+' : '-'
   return `${sign}${hoursFor(Math.abs(task.diffMinutes))}`
+}
+
+function formatDueDate(dueDate) {
+  return new Date(`${dueDate}T00:00:00`).toLocaleDateString('en-GB', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
 const showModal = ref(false)
@@ -114,6 +147,8 @@ async function handleDelete(id) {
               estimatedMinutes: task.estimatedMinutes,
               status: task.status,
               color: task.color ?? null,
+              dueDate: task.dueDate ?? null,
+              notes: task.notes ?? null,
             })
           } catch {
             showToast("Couldn't restore that task.")
@@ -141,7 +176,15 @@ async function handleQuickDelete(task, event) {
         <p class="kicker">To-do</p>
         <h1 class="title">Tasks</h1>
       </div>
-      <button type="button" class="add-btn" @click="openAdd"><Plus :size="14" /> New Task</button>
+      <div class="header-actions">
+        <label class="sort-control">
+          Sort by
+          <select v-model="sortBy">
+            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
+        <button type="button" class="add-btn" @click="openAdd"><Plus :size="14" /> New Task</button>
+      </div>
     </div>
 
     <div v-if="tasksStore.error && !showModal" class="global-error">
@@ -172,6 +215,10 @@ async function handleQuickDelete(task, event) {
           <span v-if="task.color" class="task-color-swatch" :style="{ background: task.color }" title="Color shown on this task's timeline entries"></span>
           <span class="task-name-text">{{ task.name }}</span>
         </h3>
+
+        <span v-if="task.dueDate" class="task-due-date"><CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }}</span>
+
+        <p v-if="task.notes" class="task-notes" :title="task.notes">{{ task.notes }}</p>
 
         <div class="task-stats">
           <div class="task-stat">
@@ -245,6 +292,32 @@ async function handleQuickDelete(task, event) {
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--fg);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.sort-control select {
+  padding: 6px 8px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
 }
 
 .add-btn {
@@ -383,6 +456,26 @@ async function handleQuickDelete(task, event) {
   height: 9px;
   border-radius: var(--r);
   border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+.task-due-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--mute);
+}
+
+.task-notes {
+  font-size: 11.5px;
+  color: var(--dim);
+  line-height: 1.4;
+  /* Clamp to 2 lines instead of letting a long note stretch the card - the
+     full text is still available via the native title tooltip on hover. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .task-stats {
