@@ -47,6 +47,7 @@ public class TasksController : ControllerBase
             Name = dto.Name,
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = dto.Status,
+            Color = dto.Color,
         };
 
         try
@@ -71,6 +72,7 @@ public class TasksController : ControllerBase
             Name = dto.Name,
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = dto.Status,
+            Color = dto.Color,
         };
 
         try

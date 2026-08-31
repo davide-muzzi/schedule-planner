@@ -568,16 +568,43 @@ function handleClearDayClick() {
   emit('clear-day', props.date)
 }
 
+// A linked task's color (if it has one) rides on top of the entry's normal
+// type-color background as a diagonal stripe pattern - semi-transparent so
+// the underlying entry-type color still reads through. Only Working entries
+// can be linked to a task, and Working entries are never all-day, so this
+// only ever needs to apply here, not in allDayBlockStyle below.
+function taskStripeImage(entry) {
+  const color = taskById.value[entry.taskItemId]?.color
+  if (!color) return null
+  // 6-digit hex + a 2-digit alpha suffix is a valid 8-digit CSS hex color -
+  // cheaper than a hex->rgba conversion for what's just an overlay tint.
+  return `repeating-linear-gradient(45deg, ${color}99 0px, ${color}99 6px, transparent 6px, transparent 12px)`
+}
+
+// A faux-stroke halo around the label text, in the opposite tone from the
+// text color itself - only needed once the diagonal stripe overlay is in
+// play, since that's what can clash with style.text (chosen to contrast
+// with the flat entry-type color, not with an arbitrary stripe color on
+// top of it). text-shadow is inherited, so setting it on the block covers
+// block-title/block-time/note-icon text below without repeating it per element.
+function textHaloFor(textColor) {
+  const halo = textColor === '#ffffff' ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.75)'
+  return [-1, 1].flatMap((x) => [-1, 1].map((y) => `${x}px ${y}px 2px ${halo}`)).join(', ')
+}
+
 function blockStyle(entry) {
   const { start, end } = effectiveRange(entry)
   const clippedStart = Math.max(start, props.viewFromHour)
   const clippedEnd = Math.min(end, props.viewTillHour)
   const style = colorStyleForType(entry.entryType, props.entryTypeColors)
+  const stripeImage = taskStripeImage(entry)
   return {
     left: `${((clippedStart - props.viewFromHour) / rangeSpan.value) * 100}%`,
     width: `${((clippedEnd - clippedStart) / rangeSpan.value) * 100}%`,
     backgroundColor: style.bg,
+    backgroundImage: stripeImage || 'none',
     color: style.text,
+    textShadow: stripeImage ? textHaloFor(style.text) : 'none',
   }
 }
 

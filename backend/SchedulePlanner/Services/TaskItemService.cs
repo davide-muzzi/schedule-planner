@@ -1,5 +1,6 @@
 namespace SchedulePlanner.Services;
 
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using SchedulePlanner.Models;
 
@@ -44,6 +45,7 @@ public class TaskItemService : ITaskItemService
         existing.Name = task.Name;
         existing.EstimatedMinutes = task.EstimatedMinutes;
         existing.Status = task.Status;
+        existing.Color = task.Color;
 
         await _context.SaveChangesAsync();
         return existing;
@@ -70,6 +72,8 @@ public class TaskItemService : ITaskItemService
         return all.Count;
     }
 
+    private static readonly Regex HexColorPattern = new("^#[0-9A-Fa-f]{6}$");
+
     private static void Validate(TaskItem task)
     {
         if (string.IsNullOrWhiteSpace(task.Name))
@@ -79,6 +83,10 @@ public class TaskItemService : ITaskItemService
         if (task.EstimatedMinutes <= 0)
         {
             throw new ArgumentException("Estimated time must be greater than 0.");
+        }
+        if (task.Color is not null && !HexColorPattern.IsMatch(task.Color))
+        {
+            throw new ArgumentException("Color must be a hex value like #3b82f6.");
         }
     }
 }

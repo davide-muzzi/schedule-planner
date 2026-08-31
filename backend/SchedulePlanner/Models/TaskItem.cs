@@ -9,6 +9,10 @@ public class TaskItem
     public int EstimatedMinutes { get; set; }
     public TaskItemStatus Status { get; set; } = TaskItemStatus.Open;
 
+    // "#rrggbb", or null when the task has no assigned color. Shown as
+    // diagonal stripes over this task's linked entries in the Planner.
+    public string? Color { get; set; }
+
     // Not Include()d anywhere the API returns a TaskItem, so this stays an
     // empty list on every response - excluded from JSON rather than left to
     // serialize as misleadingly-always-empty.

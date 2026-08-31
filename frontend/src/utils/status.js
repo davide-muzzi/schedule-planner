@@ -10,6 +10,7 @@ import {
   WEEKLY_WORKED_GREEN_MAX_OVER_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
+  TASK_DIFF_YELLOW_THRESHOLD_MINUTES,
   TASK_DIFF_RED_THRESHOLD_MINUTES,
 } from './constants'
 
@@ -34,9 +35,9 @@ export function weeklyWorkedStatus(workedHours, targetHours) {
 
 // Task planned-vs-real coloring - inverted from the two above: those reward
 // meeting/exceeding a work goal, this rewards staying at or under a time
-// estimate. Green at/under estimate, red once over by more than the
-// threshold, yellow in between.
+// estimate. Green under an hour over (or under estimate entirely), yellow
+// 1-3h over, red 3h+ over.
 export function taskDiffStatus(diffMinutes) {
-  if (diffMinutes <= 0) return 'green'
-  return diffMinutes > TASK_DIFF_RED_THRESHOLD_MINUTES ? 'red' : 'yellow'
+  if (diffMinutes < TASK_DIFF_YELLOW_THRESHOLD_MINUTES) return 'green'
+  return diffMinutes < TASK_DIFF_RED_THRESHOLD_MINUTES ? 'yellow' : 'red'
 }

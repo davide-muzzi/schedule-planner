@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { Plus, Trash2, X } from '@lucide/vue'
+import { Plus, X } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { formatHours } from '@/utils/date'
@@ -107,7 +107,12 @@ async function handleDelete(id) {
         actionLabel: 'Undo',
         onAction: async () => {
           try {
-            await tasksStore.createTask({ name: task.name, estimatedMinutes: task.estimatedMinutes, status: task.status })
+            await tasksStore.createTask({
+              name: task.name,
+              estimatedMinutes: task.estimatedMinutes,
+              status: task.status,
+              color: task.color ?? null,
+            })
           } catch {
             showToast("Couldn't restore that task.")
           }
@@ -161,7 +166,10 @@ async function handleQuickDelete(task, event) {
           <span class="status-badge" :class="'badge-' + task.status">{{ STATUS_LABELS[task.status] }}</span>
         </div>
 
-        <h3 class="task-name">{{ task.name }}</h3>
+        <h3 class="task-name">
+          <span v-if="task.color" class="task-color-swatch" :style="{ background: task.color }" title="Color shown on this task's timeline entries"></span>
+          <span class="task-name-text">{{ task.name }}</span>
+        </h3>
 
         <div class="task-stats">
           <div class="task-stat">
@@ -181,7 +189,7 @@ async function handleQuickDelete(task, event) {
         </div>
 
         <button type="button" class="quick-delete" title="Delete task" aria-label="Delete task" @click="handleQuickDelete(task, $event)">
-          <Trash2 :size="13" />
+          <X :size="12" />
         </button>
       </button>
     </div>
@@ -308,12 +316,6 @@ async function handleQuickDelete(task, event) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* Clears the absolutely-positioned .quick-delete button in the card's
-     top-right corner - only matters visually once that button is actually
-     showing (always on mobile, on hover on desktop), but reserving the
-     space unconditionally keeps a long "In Progress" badge from ever
-     jumping when it does. */
-  padding-right: 26px;
 }
 
 .task-id {
@@ -351,12 +353,27 @@ async function handleQuickDelete(task, event) {
 }
 
 .task-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 14px;
   font-weight: 500;
   color: var(--fg);
+  min-width: 0;
+}
+
+.task-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-color-swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r);
+  border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
 }
 
 .task-stats {
@@ -400,13 +417,14 @@ async function handleQuickDelete(task, event) {
 
 .quick-delete {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 22px;
-  height: 22px;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
-  border-radius: var(--r);
+  padding: 0;
+  border-radius: 50%;
   border: 1px solid var(--line-2);
   background: var(--surface);
   color: var(--mute);
@@ -415,7 +433,8 @@ async function handleQuickDelete(task, event) {
   transition:
     opacity 0.16s,
     color 0.16s,
-    border-color 0.16s;
+    border-color 0.16s,
+    background-color 0.16s;
 }
 
 .task-card:hover .quick-delete {
@@ -423,7 +442,8 @@ async function handleQuickDelete(task, event) {
 }
 
 .quick-delete:hover {
-  color: var(--bad);
+  color: #fff;
+  background: var(--bad);
   border-color: var(--bad);
 }
 

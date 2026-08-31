@@ -89,6 +89,7 @@ export const useTasksStore = defineStore('tasks', {
             name: task.name,
             estimatedMinutes: task.estimatedMinutes,
             status: 'InProgress',
+            color: task.color ?? null,
           })
         } catch {
           // store.error is already set; the caller's error banner picks it up

@@ -4,6 +4,7 @@ import { X } from '@lucide/vue'
 
 const STATUSES = ['Open', 'InProgress', 'Done']
 const STATUS_LABELS = { Open: 'Open', InProgress: 'In Progress', Done: 'Done' }
+const DEFAULT_COLOR = '#3b82f6'
 
 const props = defineProps({
   task: { type: Object, default: null }, // null => create mode
@@ -21,6 +22,8 @@ function blankForm() {
     estimatedHours: 0,
     estimatedMinutes: 0,
     status: 'Open',
+    hasColor: false,
+    color: DEFAULT_COLOR,
   }
 }
 
@@ -38,6 +41,8 @@ watch(
         estimatedHours: Math.floor(task.estimatedMinutes / 60),
         estimatedMinutes: task.estimatedMinutes % 60,
         status: task.status,
+        hasColor: !!task.color,
+        color: task.color || DEFAULT_COLOR,
       }
     } else {
       form.value = blankForm()
@@ -67,6 +72,7 @@ function handleSubmit() {
     name: form.value.name.trim(),
     estimatedMinutes: totalMinutes,
     status: form.value.status,
+    color: form.value.hasColor ? form.value.color : null,
   }
 
   emit('submit', payload)
@@ -138,6 +144,23 @@ function handleOverlayClick(event) {
           <select v-model="form.status" required @keydown.escape.stop>
             <option v-for="s in STATUSES" :key="s" :value="s">{{ STATUS_LABELS[s] }}</option>
           </select>
+        </div>
+
+        <div class="field">
+          <label>Color</label>
+          <div class="color-row">
+            <label class="checkbox-box">
+              <input v-model="form.hasColor" type="checkbox" />
+              Assign color
+            </label>
+            <input
+              v-model="form.color"
+              type="color"
+              class="color-input"
+              :disabled="!form.hasColor"
+              title="Shown as diagonal stripes on this task's timeline entries"
+            />
+          </div>
         </div>
 
         <p v-if="localError || serverError" class="error-msg">{{ localError || serverError }}</p>
@@ -230,6 +253,48 @@ select {
   color: var(--color-text);
   font-size: 0.9rem;
   font-family: inherit;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.checkbox-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-weight: normal;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox-box input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.color-input {
+  width: 2.4rem;
+  height: 2.2rem;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  cursor: pointer;
+}
+
+.color-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .error-msg {

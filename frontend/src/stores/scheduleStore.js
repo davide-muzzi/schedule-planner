@@ -452,6 +452,7 @@ export const useScheduleStore = defineStore('schedule', {
               name: task.name,
               estimatedMinutes: task.estimatedMinutes,
               status: task.status ?? 'Open',
+              color: task.color ?? null,
             })
             taskIdMap[task.id] = createdTask.id
           }
