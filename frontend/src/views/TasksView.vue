@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Plus, X } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
+import { useAppShell } from '@/composables/useAppShell'
 import { formatHours } from '@/utils/date'
 import { realMinutesForTask } from '@/utils/taskStats'
 import { taskDiffStatus } from '@/utils/status'
@@ -14,6 +15,7 @@ const STATUS_ORDER = { Open: 0, InProgress: 1, Done: 2 }
 
 const scheduleStore = useScheduleStore()
 const tasksStore = useTasksStore()
+const { isNarrowViewport } = useAppShell()
 
 // Entries/tasks are already loaded app-wide (see App.vue) - this just
 // re-checks the auto Open -> In Progress transition in case an entry's
@@ -163,7 +165,7 @@ async function handleQuickDelete(task, event) {
       >
         <div class="task-card-top">
           <span class="task-id">#{{ task.id }}</span>
-          <span class="status-badge" :class="'badge-' + task.status">{{ STATUS_LABELS[task.status] }}</span>
+          <span v-if="task.status !== 'Open'" class="status-badge" :class="'badge-' + task.status">{{ STATUS_LABELS[task.status] }}</span>
         </div>
 
         <h3 class="task-name">
@@ -188,7 +190,14 @@ async function handleQuickDelete(task, event) {
           </div>
         </div>
 
-        <button type="button" class="quick-delete" title="Delete task" aria-label="Delete task" @click="handleQuickDelete(task, $event)">
+        <button
+          v-if="!isNarrowViewport"
+          type="button"
+          class="quick-delete"
+          title="Delete task"
+          aria-label="Delete task"
+          @click="handleQuickDelete(task, $event)"
+        >
           <X :size="12" />
         </button>
       </button>
@@ -450,10 +459,6 @@ async function handleQuickDelete(task, event) {
 @media (max-width: 900px) {
   .task-grid {
     grid-template-columns: 1fr;
-  }
-
-  .quick-delete {
-    opacity: 1;
   }
 }
 </style>
