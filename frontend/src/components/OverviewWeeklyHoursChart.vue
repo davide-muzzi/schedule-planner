@@ -1,13 +1,35 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { formatHours, formatWeekRange, getISOWeekNumber } from '@/utils/date'
 import { weeklyWorkedStatus } from '@/utils/status'
 import { useChartTooltip } from '@/composables/useChartTooltip'
+import { useAppShell } from '@/composables/useAppShell'
+import { useLinkedScroll } from '@/composables/useLinkedScroll'
 import ChartTooltip from './ChartTooltip.vue'
 
 const props = defineProps({
   series: { type: Array, required: true }, // [{ monday, hours }], oldest first
   targetHours: { type: Number, required: true },
+})
+
+const { isNarrowViewport } = useAppShell()
+
+// On mobile all 52 weeks stay in the DOM, but each bar/label gets a fixed
+// width instead of flex-filling the card - that naturally only fits roughly
+// half of them in view at once, with the rest reachable by scrolling. The
+// bars and the month-label row underneath are two separate scroll areas
+// (they're already two separate flex rows), kept in lockstep here.
+const { primaryEl: plotEl, secondaryEl: axisLabelsEl, onPrimaryScroll, onSecondaryScroll, scrollToEnd } =
+  useLinkedScroll()
+
+// Lands on the most recent weeks by default, same as the unscrolled desktop
+// view where the newest bar sits at the right edge - re-run whenever real
+// data arrives (the initial render's scrollWidth is meaningless before that).
+watch([() => props.series, isNarrowViewport], () => {
+  if (isNarrowViewport.value) scrollToEnd()
+})
+onMounted(() => {
+  if (isNarrowViewport.value) scrollToEnd()
 })
 
 // The axis "zooms" to the actual tracked range instead of always starting at
@@ -90,29 +112,31 @@ const tooltipRows = computed(() => {
 </script>
 
 <template>
-  <div class="chart">
+  <div class="chart" :class="{ 'mobile-scroll': isNarrowViewport }">
     <div class="plot-row">
       <div class="y-axis">
         <span class="y-label max">{{ formatHours(axisRange.max) }}</span>
         <span class="y-label target" :style="{ top: targetTopPercent + '%' }">{{ formatHours(targetHours) }}</span>
         <span class="y-label min">{{ formatHours(axisRange.min) }}</span>
       </div>
-      <div class="plot">
-        <div class="target-line" :style="{ bottom: targetPercent + '%' }"></div>
-        <div
-          v-for="bar in bars"
-          :key="bar.monday.getTime()"
-          class="bar"
-          :class="'status-' + bar.status"
-          :style="{ height: bar.heightPercent + '%', animationDelay: bar.index * 18 + 'ms' }"
-          @mouseenter="showTooltip($event, bar)"
-          @mouseleave="hideTooltip"
-        ></div>
+      <div class="plot" ref="plotEl" @scroll="onPrimaryScroll">
+        <div class="plot-content">
+          <div class="target-line" :style="{ bottom: targetPercent + '%' }"></div>
+          <div
+            v-for="bar in bars"
+            :key="bar.monday.getTime()"
+            class="bar"
+            :class="'status-' + bar.status"
+            :style="{ height: bar.heightPercent + '%', animationDelay: bar.index * 18 + 'ms' }"
+            @mouseenter="showTooltip($event, bar)"
+            @mouseleave="hideTooltip"
+          ></div>
+        </div>
       </div>
     </div>
     <div class="axis-row">
       <span class="axis-spacer"></span>
-      <div class="axis-labels">
+      <div class="axis-labels" ref="axisLabelsEl" @scroll="onSecondaryScroll">
         <span v-for="(label, i) in axisLabels" :key="i" class="axis-label">{{ label }}</span>
       </div>
     </div>
@@ -172,9 +196,24 @@ const tooltipRows = computed(() => {
 }
 
 .plot {
-  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+/* Separate from .plot itself so the target line's left:0/right:0 always
+   resolves against the full (possibly scrollable) content width, not just
+   whatever's currently visible in .plot's viewport - .plot only ever needs
+   to be the scroll clipping box, .plot-content is what's actually sized to
+   the bars and what the target line positions against.
+   height:100% (not just min-height) matters here: .plot gets a genuine,
+   definite height from being stretched by .plot-row's flex layout, but
+   .plot-content is just a plain block inside it now, not a flex item of
+   anything - without an explicit height it stays 'auto', and the bars'
+   percentage heights (which need a definite ancestor height to resolve
+   against) would silently collapse to 0. */
+.plot-content {
+  position: relative;
+  height: 100%;
   min-height: 150px;
   display: flex;
   align-items: flex-end;
@@ -248,5 +287,47 @@ const tooltipRows = computed(() => {
 
 .axis-label:last-child {
   text-align: right;
+}
+
+/* Mobile: bars/labels get a fixed pitch instead of flex-filling the card,
+   which naturally means only part of the full range fits without scrolling
+   - the rest is reached by scrolling the row horizontally. */
+.chart.mobile-scroll .plot {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.chart.mobile-scroll .plot::-webkit-scrollbar {
+  display: none;
+}
+
+.chart.mobile-scroll .plot-content {
+  /* Without this, .plot-content just fills .plot's visible width like a
+     normal block, and the fixed-width bars would visually overflow it
+     without .plot-content's own box (and therefore the target line) ever
+     actually growing to match - this is what makes .plot's scrollWidth
+     (and the target line's 0%-100% span) reflect the true content width. */
+  width: max-content;
+}
+
+.chart.mobile-scroll .bar {
+  flex: none;
+  width: 20px;
+}
+
+.chart.mobile-scroll .axis-labels {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chart.mobile-scroll .axis-labels::-webkit-scrollbar {
+  display: none;
+}
+
+.chart.mobile-scroll .axis-label {
+  flex: none;
+  width: 20px;
+  text-align: center;
 }
 </style>

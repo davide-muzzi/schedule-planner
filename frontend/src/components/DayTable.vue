@@ -6,6 +6,7 @@ import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 import { showToast } from '@/utils/toast'
+import { useAppShell } from '@/composables/useAppShell'
 
 const props = defineProps({
   date: { type: Date, required: true },
@@ -21,6 +22,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry', 'copy-day', 'paste-day'])
+
+const { isNarrowViewport } = useAppShell()
 
 // Briefly swaps the copy icon for a checkmark so the click has visible
 // confirmation - the copy itself is synchronous/local, so there's nothing
@@ -660,6 +663,20 @@ function blockTimeLabel(entry) {
   return `${duration} (${range})`
 }
 
+// Mobile-only single-line block label: "Entry Type (worked)" instead of the
+// two-line title/time-range split desktop uses - same drag-preview-aware
+// duration as blockTimeLabel, just without the start-end range alongside it.
+function blockMobileLabel(entry) {
+  if (entry.allDay) return `${blockTitleLabel(entry)} (All Day)`
+  const isDraggingThis =
+    dragEntry.value?.id === entry.id &&
+    (dragMode.value === 'move' || dragMode.value === 'resize-start' || dragMode.value === 'resize-end')
+  const hours = isDraggingThis
+    ? dragPreviewEnd.value - dragPreviewStart.value
+    : durationHours(entry.startTime, entry.endTime)
+  return `${blockTitleLabel(entry)} (${formatBlockDuration(hours)})`
+}
+
 // "OvertimeCompensation" -> "Overtime Compensation" - display only, doesn't
 // touch the stored enum value.
 function formatEntryTypeLabel(type) {
@@ -769,11 +786,16 @@ const tooltipTimeText = computed(() => {
             @mouseleave="hideEntryTooltip"
           >
             <div class="block-content">
-              <span class="block-title">
-                <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
-                {{ blockTitleLabel(entry) }}
+              <template v-if="!isNarrowViewport">
+                <span class="block-title">
+                  <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
+                  {{ blockTitleLabel(entry) }}
+                </span>
+                <span class="block-time">{{ blockTimeLabel(entry) }}</span>
+              </template>
+              <span v-else class="block-title">
+                {{ blockMobileLabel(entry) }}
               </span>
-              <span class="block-time">{{ blockTimeLabel(entry) }}</span>
             </div>
             <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
           </div>
@@ -797,11 +819,16 @@ const tooltipTimeText = computed(() => {
               @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
             ></div>
             <div class="block-content">
-              <span class="block-title">
-                <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
-                {{ blockTitleLabel(entry) }}
+              <template v-if="!isNarrowViewport">
+                <span class="block-title">
+                  <component :is="locationIcon(entry)" v-if="locationIcon(entry)" :size="11" class="inline-icon" />
+                  {{ blockTitleLabel(entry) }}
+                </span>
+                <span class="block-time">{{ blockTimeLabel(entry) }}</span>
+              </template>
+              <span v-else class="block-title">
+                {{ blockMobileLabel(entry) }}
               </span>
-              <span class="block-time">{{ blockTimeLabel(entry) }}</span>
             </div>
             <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
           </div>
@@ -861,6 +888,7 @@ const tooltipTimeText = computed(() => {
           @click="handleClearDayClick"
         >
           <Eraser :size="13" />
+          <span v-if="isNarrowViewport" class="action-label">Clear</span>
         </button>
         <button
           type="button"
@@ -871,6 +899,7 @@ const tooltipTimeText = computed(() => {
           @click="emit('add', date)"
         >
           <Plus :size="13" />
+          <span v-if="isNarrowViewport" class="action-label">Add</span>
         </button>
         <button
           type="button"
@@ -883,6 +912,7 @@ const tooltipTimeText = computed(() => {
         >
           <Check v-if="justCopied" :size="13" />
           <Copy v-else :size="13" />
+          <span v-if="isNarrowViewport" class="action-label">{{ justCopied ? 'Copied' : 'Copy' }}</span>
         </button>
         <button
           type="button"
@@ -895,6 +925,7 @@ const tooltipTimeText = computed(() => {
         >
           <Check v-if="justPasted" :size="13" />
           <ClipboardPaste v-else :size="13" />
+          <span v-if="isNarrowViewport" class="action-label">{{ justPasted ? 'Pasted' : 'Paste' }}</span>
         </button>
       </div>
     </div>
@@ -1456,5 +1487,99 @@ const tooltipTimeText = computed(() => {
 
 .goal-diff.status-red {
   color: var(--bad);
+}
+
+/* Phone-landscape tier: three stacked rows instead of three side-by-side
+   columns - top row has the day's identity and its numbers together
+   (weekday/date on the left, hours/goal/diff on the right), the middle row
+   is the timeline at full width, and the action buttons get their own row
+   along the bottom.
+   .day-stats keeps its two children (.stat-block, .day-actions) in the DOM
+   exactly as desktop has them - `display: contents` here just un-wraps that
+   box so the two children become direct grid items of .day-row, placeable
+   into their own areas, without touching the desktop-only flex styling
+   still defined on .day-stats above. */
+@media (max-width: 900px) {
+  .day-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'info stats'
+      'timeline timeline'
+      'actions actions';
+    row-gap: 10px;
+    column-gap: 14px;
+    padding: 16px 4px;
+  }
+
+  .day-info {
+    grid-area: info;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    margin-left: 2px;
+  }
+
+  .day-weekday-row {
+    gap: 4px;
+  }
+
+  .day-stats {
+    display: contents;
+  }
+
+  .stat-block {
+    grid-area: stats;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    margin-right: 2px;
+  }
+
+  .day-timeline {
+    grid-area: timeline;
+  }
+
+  .day-actions {
+    grid-area: actions;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    margin-right: 2px;
+  }
+
+  /* Equal-width, stretched across the full row instead of squared off in
+     the corner - labeled so a wide button doesn't just read as empty space
+     around a small icon. */
+  .icon-action {
+    flex: 1;
+    width: auto;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .action-label {
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .hour-track {
+    height: 48px;
+  }
+
+  .day-weekday {
+    font-size: 14px;
+  }
+
+  .day-date {
+    font-size: 11.5px;
+  }
+
+  .total-value {
+    font-size: 16px;
+  }
 }
 </style>

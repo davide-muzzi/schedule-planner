@@ -29,8 +29,8 @@ export const UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS = 2
 export const BUSINESS_DAYS_PER_WEEK = 5
 export const DAILY_RED_THRESHOLD_HOURS = 1
 
-// Timeline zoom - purely a display preference (like displayName), never
-// affects totals/goal-diff/break-law calculations. Full day by default.
+// Timeline zoom - purely a display preference, never affects
+// totals/goal-diff/break-law calculations. Full day by default.
 export const DEFAULT_VIEW_FROM_HOUR = 0
 export const DEFAULT_VIEW_TILL_HOUR = 24
 

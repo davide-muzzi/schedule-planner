@@ -43,7 +43,6 @@ const activeTab = ref('general')
 const FROM_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i) // 0-23
 const TILL_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i + 1) // 1-24
 
-const nameInput = ref(store.displayName)
 const viewFrom = ref(store.viewFromHour)
 const viewTill = ref(store.viewTillHour)
 const hours = ref(0)
@@ -53,8 +52,6 @@ const holidayYearInput = ref(new Date().getFullYear())
 const holidayAllotmentInput = ref(DEFAULT_HOLIDAY_ALLOTMENT_DAYS)
 let suppressHolidayAutoSave = false
 let holidaySaveTimer = null
-
-watch(nameInput, (name) => store.setDisplayName(name.trim()))
 
 // Fetch whichever year is currently selected in the holiday editor - the
 // store caches results, so re-selecting a year already seen is a no-op.
@@ -282,14 +279,6 @@ async function saveWeeklyGoal() {
     </div>
 
     <div v-if="activeTab === 'general'" :key="activeTab" class="form">
-      <div class="row">
-        <div class="row-label">
-          <div class="row-title">Your name</div>
-          <div class="row-desc">Used in the greeting and on exports.</div>
-        </div>
-        <input id="settings-name" v-model="nameInput" type="text" placeholder="(optional)" maxlength="60" class="text-input" />
-      </div>
-
       <div class="row">
         <div class="row-label">
           <div class="row-title">Timeline view range</div>
@@ -617,7 +606,6 @@ async function saveWeeklyGoal() {
   gap: 10px;
 }
 
-.text-input,
 .select-input {
   padding: 9px 11px;
   border-radius: var(--r2);
@@ -626,17 +614,9 @@ async function saveWeeklyGoal() {
   color: var(--fg);
   font-size: 13px;
   font-family: inherit;
-}
-
-.select-input {
   width: 6.5rem;
   padding-right: 16px;
   font-family: var(--font-mono);
-}
-
-.text-input {
-  width: 100%;
-  max-width: 320px;
 }
 
 .range-inputs {
@@ -887,5 +867,71 @@ async function saveWeeklyGoal() {
 .error-msg {
   color: var(--bad);
   font-size: 0.85rem;
+}
+
+@media (max-width: 700px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* Same breakpoint the rest of the app treats as "mobile" (sidebar hide,
+   carousels, etc.) - this page's text was left at its desktop sizes when
+   that pass happened, so it read noticeably smaller than everywhere else. */
+@media (max-width: 900px) {
+  .tab-btn {
+    font-size: 14px;
+  }
+
+  .row-title {
+    font-size: 15px;
+  }
+
+  .row-desc {
+    font-size: 13px;
+  }
+
+  .select-input {
+    font-size: 14px;
+  }
+
+  .weekday-toggle {
+    font-size: 12.5px;
+  }
+
+  .unit-field input {
+    font-size: 14px;
+  }
+
+  .unit-suffix {
+    font-size: 11px;
+  }
+
+  .save-status {
+    font-size: 13px;
+  }
+
+  .pill-btn {
+    font-size: 13.5px;
+  }
+
+  .color-type-label {
+    font-size: 14px;
+  }
+
+  .data-action p,
+  .danger-action p {
+    font-size: 13.5px;
+  }
+
+  .export-btn,
+  .danger-btn {
+    font-size: 13.5px;
+  }
+
+  .error-msg {
+    font-size: 0.9rem;
+  }
 }
 </style>

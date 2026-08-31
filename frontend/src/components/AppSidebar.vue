@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Clock,
@@ -16,17 +16,44 @@ import { useAppShell, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from '@/composables
 import { getISOWeekNumber } from '@/utils/date'
 
 const route = useRoute()
-const { theme, collapsed, toggleTheme, toggleCollapsed, sidebarWidth, setSidebarWidth } = useAppShell()
+const { theme, collapsed, toggleTheme, toggleCollapsed, sidebarWidth, setSidebarWidth, isNarrowViewport } =
+  useAppShell()
+
+// On a narrow (phone-landscape-ish) viewport the sidebar is a full overlay
+// drawer - closed by default, off-screen rather than squeezed to width 0,
+// so it never eats into the page's own width. A small floating button in
+// the corner opens it; it layers on top of the page (with a backdrop)
+// instead of pushing content over, same as any mobile nav drawer. This is
+// separate, session-only state (not persisted like the desktop `collapsed`
+// toggle), since it's meant to close again once you've navigated rather
+// than stick open.
+const mobileSidebarOpen = ref(false)
+
+// Whether the sidebar is showing its icon-only appearance right now - only
+// a desktop concept. On mobile the drawer is always the full nav (never
+// icon-only) since it's an overlay now, not something that costs page width.
+const effectiveCollapsed = computed(() => (isNarrowViewport.value ? false : collapsed.value))
 
 // Live width while actively dragging the resize handle - only committed to
 // the persisted sidebarWidth (and localStorage) on mouseup, so a drag
 // doesn't write on every mousemove tick.
 const resizing = ref(false)
 const dragPreviewWidth = ref(null)
-const currentWidth = () => (collapsed.value ? 68 : resizing.value ? dragPreviewWidth.value : sidebarWidth.value)
+function currentWidth() {
+  if (isNarrowViewport.value) return resizing.value ? dragPreviewWidth.value : sidebarWidth.value
+  return effectiveCollapsed.value ? 68 : resizing.value ? dragPreviewWidth.value : sidebarWidth.value
+}
+
+// On mobile the same footer button that collapses the desktop sidebar
+// instead closes the mobile drawer back down to just the floating button -
+// same physical control, same "put the sidebar away" intent.
+function handleCollapseClick() {
+  if (isNarrowViewport.value) mobileSidebarOpen.value = false
+  else toggleCollapsed()
+}
 
 function handleResizeMouseDown(event) {
-  if (collapsed.value) return
+  if (effectiveCollapsed.value) return
   event.preventDefault()
   resizing.value = true
   dragPreviewWidth.value = sidebarWidth.value
@@ -62,7 +89,17 @@ function isActive(to) {
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed, resizing }" :style="{ width: currentWidth() + 'px' }">
+  <div
+    v-if="isNarrowViewport && mobileSidebarOpen"
+    class="mobile-backdrop"
+    @click="mobileSidebarOpen = false"
+  ></div>
+
+  <aside
+    class="sidebar"
+    :class="{ collapsed: effectiveCollapsed, resizing, 'mobile-open': isNarrowViewport && mobileSidebarOpen }"
+    :style="{ width: currentWidth() + 'px' }"
+  >
     <div class="brand">
       <div class="brand-mark"><Clock :size="14" /></div>
       <div class="brand-text">
@@ -102,22 +139,33 @@ function isActive(to) {
       <button
         type="button"
         class="collapse-btn"
-        :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-        :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-        @click="toggleCollapsed"
+        :title="isNarrowViewport ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        :aria-label="isNarrowViewport ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        @click="handleCollapseClick"
       >
-        <component :is="collapsed ? PanelLeftOpen : PanelLeftClose" :size="16" class="collapse-icon" />
-        <span class="collapse-label">Collapse</span>
+        <component :is="!isNarrowViewport && collapsed ? PanelLeftOpen : PanelLeftClose" :size="16" class="collapse-icon" />
+        <span class="collapse-label">{{ isNarrowViewport ? 'Close' : 'Collapse' }}</span>
       </button>
     </div>
 
     <div
-      v-if="!collapsed"
+      v-if="!effectiveCollapsed"
       class="sidebar-resize-handle"
       title="Drag to resize"
       @mousedown="handleResizeMouseDown"
     ></div>
   </aside>
+
+  <button
+    v-if="isNarrowViewport && !mobileSidebarOpen"
+    type="button"
+    class="mobile-open-fab"
+    title="Open menu"
+    aria-label="Open menu"
+    @click="mobileSidebarOpen = true"
+  >
+    <PanelLeftOpen :size="18" />
+  </button>
 </template>
 
 <style scoped>
@@ -324,5 +372,61 @@ function isActive(to) {
 
 .collapse-icon {
   flex: none;
+}
+
+/* Only ever rendered on a narrow viewport (see the v-if above), so this
+   doesn't need its own media query - it's what stands in for the sidebar
+   entirely while the mobile drawer is closed. */
+.mobile-open-fab {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 60;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--sb);
+  color: var(--dim);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.mobile-open-fab:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+/* Mobile drawer: layers above the page instead of squeezing .shell-main -
+   position:fixed takes it out of the flex layout entirely (so .shell-main
+   is always full width here, regardless of open/closed), and visibility is
+   a transform slide rather than an animated width. */
+.mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 70;
+    transform: translateX(-100%);
+    transition: transform 0.22s var(--ease);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
 }
 </style>

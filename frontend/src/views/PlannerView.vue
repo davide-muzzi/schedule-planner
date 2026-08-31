@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
+import { useAppShell } from '@/composables/useAppShell'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
 import { showToast } from '@/utils/toast'
@@ -24,6 +25,7 @@ function formatEntryTypeLabel(type) {
 }
 
 const store = useScheduleStore()
+const { isNarrowViewport } = useAppShell()
 
 // "Sat", "Sun", or "Sat & Sun" - whichever weekend days are currently
 // hidden. Empty when neither is, so the info-hint line can drop the clause
@@ -360,7 +362,7 @@ async function handleDelete(id) {
 
     <div class="days-header">
       <span class="days-kicker">Days</span>
-      <div class="entry-legend">
+      <div v-if="!isNarrowViewport" class="entry-legend">
         <span v-for="l in entryTypeLegend" :key="l.type" class="legend-item">
           <span class="legend-swatch" :style="{ background: l.bg, borderColor: l.border }"></span>{{ l.label }}
         </span>
@@ -388,6 +390,15 @@ async function handleDelete(id) {
         @copy-day="handleCopyDay"
         @paste-day="handlePasteDay"
       />
+    </div>
+
+    <!-- Mobile-only: the same legend, relocated below the day cards instead
+         of above them - there's no room for it up top next to the week
+         controls at this width, and it reads fine down here. -->
+    <div v-if="isNarrowViewport" class="entry-legend entry-legend-bottom">
+      <span v-for="l in entryTypeLegend" :key="l.type" class="legend-item">
+        <span class="legend-swatch" :style="{ background: l.bg, borderColor: l.border }"></span>{{ l.label }}
+      </span>
     </div>
 
     <div class="info-hint">
@@ -466,6 +477,20 @@ async function handleDelete(id) {
   height: 9px;
   border-radius: var(--r);
   border: 1px solid;
+}
+
+.entry-legend-bottom {
+  padding: 4px 2px 18px;
+  gap: 10px 16px;
+}
+
+.entry-legend-bottom .legend-item {
+  font-size: 12.5px;
+}
+
+.entry-legend-bottom .legend-swatch {
+  width: 10px;
+  height: 10px;
 }
 
 .days-list {

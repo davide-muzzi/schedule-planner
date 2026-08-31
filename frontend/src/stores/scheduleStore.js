@@ -13,7 +13,6 @@ import {
 } from '@/utils/constants'
 import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 
-const DISPLAY_NAME_STORAGE_KEY = 'schedulePlanner.displayName'
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
 const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
 const VISIBLE_WEEKDAYS_STORAGE_KEY = 'schedulePlanner.visibleWeekdays'
@@ -75,10 +74,7 @@ export const useScheduleStore = defineStore('schedule', {
       error: null,
       manualAdjustmentMinutes: 0,
       weeklyTargetMinutes: DEFAULT_WEEKLY_TARGET_MINUTES,
-      // Purely cosmetic, never used in any calculation - kept in localStorage
-      // rather than the backend, unlike the goal/adjustment values.
-      displayName: localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) || '',
-      // Timeline zoom - also purely a display preference, same reasoning.
+      // Timeline zoom - purely a display preference, never used in any calculation.
       viewFromHour: viewRange.from,
       viewTillHour: viewRange.till,
       // Per-entry-type color, same reasoning again - purely cosmetic.
@@ -96,7 +92,6 @@ export const useScheduleStore = defineStore('schedule', {
   getters: {
     weeklyTargetHours: (state) => state.weeklyTargetMinutes / 60,
     dailyTargetHours: (state) => state.weeklyTargetMinutes / 60 / BUSINESS_DAYS_PER_WEEK,
-    greeting: (state) => (state.displayName ? `Good day, ${state.displayName}!` : 'Good day!'),
 
     // Running balance across every individual day that has a Working entry:
     // each such day contributes +dailyTargetHours to "expected", and its
@@ -226,7 +221,6 @@ export const useScheduleStore = defineStore('schedule', {
         weeklyTargetMinutes: state.weeklyTargetMinutes,
         manualAdjustmentMinutes: state.manualAdjustmentMinutes,
         holidayYearSettings: state.holidayYearSettings,
-        displayName: state.displayName,
         viewFromHour: state.viewFromHour,
         viewTillHour: state.viewTillHour,
         entryTypeColors: state.entryTypeColors,
@@ -334,11 +328,6 @@ export const useScheduleStore = defineStore('schedule', {
       this.viewFromHour = fromHour
       this.viewTillHour = tillHour
       localStorage.setItem(VIEW_RANGE_STORAGE_KEY, JSON.stringify({ from: fromHour, till: tillHour }))
-    },
-
-    setDisplayName(name) {
-      this.displayName = name
-      localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, name)
     },
 
     setEntryTypeColor(entryType, hex) {
@@ -483,7 +472,6 @@ export const useScheduleStore = defineStore('schedule', {
           }
         }
 
-        if (typeof data.displayName === 'string') this.setDisplayName(data.displayName)
         if (Number.isInteger(data.viewFromHour) && Number.isInteger(data.viewTillHour)) {
           this.setViewRange(data.viewFromHour, data.viewTillHour)
         }

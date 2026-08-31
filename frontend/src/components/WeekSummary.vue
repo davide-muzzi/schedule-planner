@@ -11,8 +11,10 @@ import {
   UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS,
   BUSINESS_DAYS_PER_WEEK,
 } from '@/utils/constants'
+import { useAppShell } from '@/composables/useAppShell'
 import WeeklyProgressBar from './WeeklyProgressBar.vue'
 import MiniCalendar from './MiniCalendar.vue'
+import MobileCardCarousel from './MobileCardCarousel.vue'
 
 const props = defineProps({
   monday: { type: Date, required: true },
@@ -34,6 +36,8 @@ const emit = defineEmits([
   'apply-holiday-adjustment',
   'view-next-appointment',
 ])
+
+const { isNarrowViewport } = useAppShell()
 
 const isCurrentWeek = computed(() => toISODate(props.monday) === toISODate(getMonday(new Date())))
 const weekKicker = computed(() => `Calendar week ${getISOWeekNumber(props.monday)}`)
@@ -225,14 +229,14 @@ onBeforeUnmount(() => {
         <button type="button" class="today-btn" :class="{ 'is-current': isCurrentWeek }" @click="emit('today')">Today</button>
         <div class="pick-week">
           <button ref="pickWeekBtnRef" type="button" class="pick-week-btn" @click.stop="toggleCalendar">
-            <CalendarDays :size="14" /> Pick week
+            <CalendarDays :size="14" /><span class="pick-week-label"> Pick week</span>
           </button>
           <MiniCalendar v-if="showCalendar" :monday="monday" :anchor="pickWeekBtnRef" @select="selectDate" />
         </div>
       </div>
     </div>
 
-    <div class="status-strip">
+    <div v-if="!isNarrowViewport" class="status-strip">
       <div class="strip-cell adjustable">
         <button ref="holidayBtnRef" type="button" class="cell-trigger" @click.stop="toggleHolidayPopup">
           <span class="cell-label">Vacation remaining</span>
@@ -320,6 +324,100 @@ onBeforeUnmount(() => {
         <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
       </div>
     </div>
+
+    <!-- Mobile-only: the same four cards, one at a time in a swipe-through
+         carousel instead of wrapped into a multi-row grid. Each branch below
+         reuses the exact same markup/refs/handlers as its desktop-strip
+         counterpart above - order is reversed from the desktop strip
+         (graph/worked first, then balance, appointments, vacation last). -->
+    <MobileCardCarousel v-else :count="4" class="status-carousel" v-slot="{ index }">
+      <div v-if="index === 0" class="strip-cell worked-cell carousel-cell">
+        <span class="cell-label">Worked this week</span>
+        <span class="cell-value-row">
+          <span class="cell-value" :class="'status-' + weeklyStatus">{{ formatHours(weeklyTotalHours) }}</span>
+          <span class="cell-value-target">/ {{ formatHours(weeklyTargetHours) }}</span>
+          <span class="cell-value-diff" :class="'status-' + weeklyStatus">{{ weeklyDiffLabel }}</span>
+        </span>
+        <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
+      </div>
+
+      <div v-else-if="index === 1" class="strip-cell adjustable carousel-cell">
+        <button ref="adjustBtnRef" type="button" class="cell-trigger" @click.stop="toggleAdjustPopup">
+          <span class="cell-label">Overall balance</span>
+          <span class="cell-value" :class="'status-' + status">{{ diffLabel }}</span>
+          <span class="cell-hint">Tap to adjust</span>
+        </button>
+
+        <Teleport to="body">
+          <div v-if="showAdjustPopup" class="adjust-popup" :style="adjustPopupStyle" @click.stop>
+            <p class="adjust-current">{{ currentAdjustmentLabel }}</p>
+            <div class="adjust-inputs">
+              <label>
+                h
+                <input v-model.number="adjustHours" type="number" min="0" />
+              </label>
+              <label>
+                min
+                <input v-model.number="adjustMinutes" type="number" min="0" max="59" />
+              </label>
+            </div>
+            <div class="adjust-actions">
+              <button type="button" class="adjust-btn subtract" @click="applyAdjustment(-1)">− Subtract</button>
+              <button type="button" class="adjust-btn add" @click="applyAdjustment(1)">+ Add</button>
+            </div>
+          </div>
+        </Teleport>
+      </div>
+
+      <div v-else-if="index === 2" class="strip-cell carousel-cell" :class="{ adjustable: nextAppointment }">
+        <button
+          v-if="nextAppointment"
+          type="button"
+          class="cell-trigger"
+          @click.stop="emit('view-next-appointment', nextAppointment)"
+        >
+          <span class="cell-label">Upcoming appointments</span>
+          <span class="cell-value" :class="'status-' + appointmentsStatus">{{ formatHours(futureAppointmentHours) }}</span>
+          <span class="cell-hint">Tap to view next appointment</span>
+        </button>
+        <template v-else>
+          <span class="cell-label">Upcoming appointments</span>
+          <span class="cell-value" :class="'status-' + appointmentsStatus">{{ formatHours(futureAppointmentHours) }}</span>
+        </template>
+      </div>
+
+      <div v-else class="strip-cell adjustable carousel-cell">
+        <button ref="holidayBtnRef" type="button" class="cell-trigger" @click.stop="toggleHolidayPopup">
+          <span class="cell-label">Vacation remaining</span>
+          <span class="cell-value">{{ formatDays(holidaysRemaining) }}</span>
+          <span class="cell-hint">Tap to adjust</span>
+        </button>
+
+        <Teleport to="body">
+          <div v-if="showHolidayPopup" class="adjust-popup holiday-popup" :style="holidayPopupStyle" @click.stop>
+            <p class="adjust-current">{{ currentHolidayAdjustmentLabel }}</p>
+            <div class="adjust-inputs">
+              <label>
+                days
+                <input v-model.number="holidayAdjustDays" type="number" min="0" />
+              </label>
+              <label>
+                h
+                <input v-model.number="holidayAdjustHours" type="number" min="0" />
+              </label>
+              <label>
+                min
+                <input v-model.number="holidayAdjustMinutes" type="number" min="0" max="59" />
+              </label>
+            </div>
+            <div class="adjust-actions">
+              <button type="button" class="adjust-btn subtract" @click="applyHolidayAdjustment(-1)">− Subtract</button>
+              <button type="button" class="adjust-btn add" @click="applyHolidayAdjustment(1)">+ Add</button>
+            </div>
+          </div>
+        </Teleport>
+      </div>
+    </MobileCardCarousel>
   </div>
 </template>
 
@@ -620,5 +718,81 @@ onBeforeUnmount(() => {
   background: var(--bad);
   border: 1px solid var(--bad);
   color: var(--bg);
+}
+
+@media (max-width: 900px) {
+  .date-range {
+    font-size: 26px;
+  }
+
+  .header-top {
+    gap: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .strip-cell {
+    padding: 12px 14px;
+    min-width: 8rem;
+  }
+
+  /* Once the strip wraps, let "Worked this week" (the widest cell, with its
+     own progress bar) always claim a full row rather than sharing one
+     awkwardly with whatever cell happens to fit next to it. */
+  .worked-cell {
+    min-width: 100%;
+  }
+
+  /* Icon-only, square like the prev/next buttons next to it - the text
+     label is redundant once it's sitting right beside a calendar icon in a
+     row of otherwise-square controls. */
+  .pick-week-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .pick-week-label {
+    display: none;
+  }
+
+  /* WeeklyProgressBar caps itself at 30rem (480px), which desktop cards
+     never get close to but a carousel card comfortably exceeds - without
+     this it visibly stops short of the card's right edge instead of
+     reaching all the way to where the diff number sits above it. */
+  .status-carousel .progress-bar {
+    max-width: none;
+    width: 100%;
+  }
+
+  /* Card-styled slideshow: each cell drops the shared-strip look (divider
+     borders, flex sizing) in favor of standing alone as its own card, sized
+     up a bit since only one is ever on screen at a time. */
+  .status-carousel .carousel-cell {
+    border-right: none;
+    min-width: 0;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r2);
+    padding: 20px 22px;
+  }
+
+  .status-carousel .cell-label {
+    font-size: 10px;
+  }
+
+  .status-carousel .cell-value {
+    font-size: 20px;
+  }
+
+  .status-carousel .cell-hint {
+    font-size: 11px;
+  }
+
+  .status-carousel .worked-cell.carousel-cell {
+    min-width: 0;
+  }
 }
 </style>

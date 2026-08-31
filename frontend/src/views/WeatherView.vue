@@ -395,5 +395,14 @@ const forecast = computed(() => {
   .top-row {
     grid-template-columns: 1fr;
   }
+
+  .hero-card {
+    padding: 22px 24px;
+    gap: 20px;
+  }
+
+  .temp-value {
+    font-size: 44px;
+  }
 }
 </style>

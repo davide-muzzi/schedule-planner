@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ChartColumn } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
+import { useAppShell } from '@/composables/useAppShell'
 import { formatHours } from '@/utils/date'
 import {
   hoursTrackedInYear,
@@ -20,12 +21,14 @@ import OverviewWeekdayAverages from '@/components/OverviewWeekdayAverages.vue'
 import OverviewBalanceTrend from '@/components/OverviewBalanceTrend.vue'
 import OverviewTimeBreakdown from '@/components/OverviewTimeBreakdown.vue'
 import OverviewTrackingStreak from '@/components/OverviewTrackingStreak.vue'
+import MobileCardCarousel from '@/components/MobileCardCarousel.vue'
 
 const WEEKLY_CHART_WEEKS = 52
 const BALANCE_TREND_WEEKS = 13
 const STREAK_WEEKS = 52
 
 const store = useScheduleStore()
+const { isNarrowViewport } = useAppShell()
 
 const currentYear = computed(() => new Date().getFullYear())
 const kicker = computed(() => `${currentYear.value} to date`)
@@ -92,12 +95,20 @@ const longestDayCaption = computed(() => {
         </button>
       </div>
 
-      <div class="stat-strip">
+      <div v-if="!isNarrowViewport" class="stat-strip">
         <div v-for="(stat, i) in stats" :key="stat.label" class="stat-cell" :style="{ animationDelay: i * 70 + 'ms' }">
           <span class="stat-value" :class="stat.status ? 'status-' + stat.status : ''">{{ stat.value }}</span>
           <span class="stat-label">{{ stat.label }}</span>
         </div>
       </div>
+
+      <!-- Mobile-only: same four stats, one at a time in a card carousel. -->
+      <MobileCardCarousel v-else :count="stats.length" class="stat-carousel" v-slot="{ index }">
+        <div class="stat-cell carousel-cell">
+          <span class="stat-value" :class="stats[index].status ? 'status-' + stats[index].status : ''">{{ stats[index].value }}</span>
+          <span class="stat-label">{{ stats[index].label }}</span>
+        </div>
+      </MobileCardCarousel>
     </div>
 
     <div class="body-grid">
@@ -281,12 +292,20 @@ const longestDayCaption = computed(() => {
 .large-card {
   display: flex;
   flex-direction: column;
+  /* Without this, a grid item's automatic minimum width is its content's
+     min-content size - normally a non-issue, but the weekly chart's mobile
+     bars are deliberately fixed-width and wider than the card (that's what
+     makes them scrollable), and without min-width:0 that demand propagates
+     all the way up and blows out the grid track itself instead of staying
+     contained behind the chart's own overflow-x:auto. */
+  min-width: 0;
 }
 
 .right-column {
   display: flex;
   flex-direction: column;
   gap: 28px;
+  min-width: 0; /* same fixed-width-content overflow fix, for the streak grid */
 }
 
 .card-heading {
@@ -352,6 +371,23 @@ const longestDayCaption = computed(() => {
 
   .sub-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stat-carousel .carousel-cell {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r2);
+    padding: 20px 22px;
+    border-right: none;
+  }
+
+  .stat-carousel .stat-value {
+    font-size: 28px;
+  }
+
+  .stat-carousel .stat-label {
+    font-size: 10px;
   }
 }
 </style>

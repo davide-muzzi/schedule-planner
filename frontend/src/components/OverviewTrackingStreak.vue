@@ -1,10 +1,27 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { formatHours } from '@/utils/date'
 import { STREAK_LEVEL_LABELS } from '@/utils/overviewStats'
+import { useAppShell } from '@/composables/useAppShell'
+import { useLinkedScroll } from '@/composables/useLinkedScroll'
 
 const props = defineProps({
   columns: { type: Array, required: true }, // trackingStreakGrid() output
+})
+
+const { isNarrowViewport } = useAppShell()
+
+// Same "fixed size + scroll, roughly half the range visible at once" idea
+// as the weekly-hours chart, and the same two-strips-in-lockstep mechanics
+// (the cell grid and the month-label row above it).
+const { primaryEl: columnsEl, secondaryEl: monthLabelsEl, onPrimaryScroll, onSecondaryScroll, scrollToEnd } =
+  useLinkedScroll()
+
+watch([() => props.columns, isNarrowViewport], () => {
+  if (isNarrowViewport.value) scrollToEnd()
+})
+onMounted(() => {
+  if (isNarrowViewport.value) scrollToEnd()
 })
 
 // Row 0 is Monday (trackingStreakGrid's days array is Mon-Sun, matching
@@ -32,16 +49,18 @@ function cellTitle(day) {
 </script>
 
 <template>
-  <div class="streak">
+  <div class="streak" :class="{ 'mobile-scroll': isNarrowViewport }">
     <div class="month-row">
       <span class="row-gutter"></span>
-      <span v-for="(label, i) in monthLabels" :key="i" class="month-label">{{ label }}</span>
+      <div class="month-labels" ref="monthLabelsEl" @scroll="onSecondaryScroll">
+        <span v-for="(label, i) in monthLabels" :key="i" class="month-label">{{ label }}</span>
+      </div>
     </div>
     <div class="grid-row">
       <div class="row-labels">
         <span v-for="(label, i) in ROW_LABELS" :key="i" class="row-label">{{ label }}</span>
       </div>
-      <div class="columns">
+      <div class="columns" ref="columnsEl" @scroll="onPrimaryScroll">
         <div v-for="(col, c) in columns" :key="col.monday.getTime()" class="column">
           <span
             v-for="day in col.days"
@@ -82,6 +101,13 @@ function cellTitle(day) {
 .row-gutter {
   width: 26px;
   flex-shrink: 0;
+}
+
+.month-labels {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
 }
 
 .month-label {
@@ -193,5 +219,37 @@ function cellTitle(day) {
 
 .scale-swatch.level-4 {
   background: var(--accent);
+}
+
+/* Mobile: fixed, bigger cells instead of auto-shrinking to fit all 52 weeks
+   in the available width - naturally only shows part of the range at once,
+   the rest reachable by scrolling (synced between the grid and the month
+   labels above it, same mechanism as the weekly-hours chart). */
+.streak.mobile-scroll .columns {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.streak.mobile-scroll .columns::-webkit-scrollbar {
+  display: none;
+}
+
+.streak.mobile-scroll .column {
+  flex: none;
+  width: 22px;
+}
+
+.streak.mobile-scroll .month-labels {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.streak.mobile-scroll .month-labels::-webkit-scrollbar {
+  display: none;
+}
+
+.streak.mobile-scroll .month-label {
+  flex: none;
+  width: 22px;
 }
 </style>

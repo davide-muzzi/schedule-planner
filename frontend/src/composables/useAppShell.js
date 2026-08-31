@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 // Shared app-shell chrome state (sidebar theme + collapsed width + motion
 // preference) - a plain module-level singleton rather than a Pinia store,
 // since this is pure UI preference with no server round-trip, same pattern
-// as the existing displayName localStorage handling in scheduleStore.
+// as the other localStorage-backed display preferences in scheduleStore.
 const THEME_KEY = 'schedulePlanner.theme'
 const COLLAPSED_KEY = 'schedulePlanner.sidebarCollapsed'
 const RESPECT_REDUCED_MOTION_KEY = 'schedulePlanner.respectReducedMotion'
@@ -43,6 +43,18 @@ const reducedMotionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)
 const osReducedMotion = ref(reducedMotionQuery?.matches ?? false)
 reducedMotionQuery?.addEventListener('change', (e) => {
   osReducedMotion.value = e.matches
+})
+
+// Below this width (phone-landscape and narrower) there isn't room for both
+// a full sidebar and a usable timeline, so the sidebar is forced into its
+// icon-only collapsed appearance regardless of the user's manual toggle -
+// same breakpoint the Overview/Weather grids already use to stack down to a
+// single column, kept consistent app-wide rather than picked per component.
+const NARROW_VIEWPORT_QUERY = '(max-width: 900px)'
+const narrowViewportQuery = window.matchMedia?.(NARROW_VIEWPORT_QUERY)
+const isNarrowViewport = ref(narrowViewportQuery?.matches ?? false)
+narrowViewportQuery?.addEventListener('change', (e) => {
+  isNarrowViewport.value = e.matches
 })
 
 function applyTheme(value) {
@@ -111,5 +123,6 @@ export function useAppShell() {
     setRespectReducedMotion,
     sidebarWidth,
     setSidebarWidth,
+    isNarrowViewport,
   }
 }
