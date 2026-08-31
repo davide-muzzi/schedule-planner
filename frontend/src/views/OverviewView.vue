@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ChartColumn } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
+import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
 import { formatHours } from '@/utils/date'
 import {
@@ -15,6 +16,8 @@ import {
   timeBreakdownByType,
   trackingStreakGrid,
 } from '@/utils/overviewStats'
+import { taskCountsByStatus, taskEstimateAccuracy } from '@/utils/taskOverviewStats'
+import { taskAccuracyStatus } from '@/utils/status'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 import OverviewWeeklyHoursChart from '@/components/OverviewWeeklyHoursChart.vue'
 import OverviewWeekdayAverages from '@/components/OverviewWeekdayAverages.vue'
@@ -28,6 +31,7 @@ const BALANCE_TREND_WEEKS = 13
 const STREAK_WEEKS = 52
 
 const store = useScheduleStore()
+const tasksStore = useTasksStore()
 const { isNarrowViewport } = useAppShell()
 
 const currentYear = computed(() => new Date().getFullYear())
@@ -48,21 +52,45 @@ function signedHours(hours) {
   return hours > 0 ? `+${formatHours(hours)}` : formatHours(hours)
 }
 
+// "+22%" / "-8%" / "on target" - same signed-value idea as signedHours
+// above, for the task-accuracy stat.
+function formatAccuracy(diffPercent) {
+  if (Math.abs(diffPercent) < 1) return 'on target'
+  const sign = diffPercent > 0 ? '+' : '-'
+  return `${sign}${Math.round(Math.abs(diffPercent))}%`
+}
+
 const hoursTracked = computed(() => hoursTrackedInYear(store.entries, currentYear.value))
 const avgPerTrackedWeek = computed(() => averagePerTrackedWeek(store.weeklyBalances, currentYear.value))
 const daysWithEntries = computed(() => daysWithEntriesInYear(store.entries, currentYear.value))
 const carriedOver = computed(() => store.overallBalance.manualAdjustmentHours)
+const taskCounts = computed(() => taskCountsByStatus(tasksStore.tasks))
+const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries))
 
-const stats = computed(() => [
-  { value: formatHours(hoursTracked.value), label: `tracked in ${currentYear.value}` },
-  { value: formatHours(avgPerTrackedWeek.value), label: 'avg per tracked week' },
-  { value: String(daysWithEntries.value), label: 'days with entries' },
-  {
-    value: signedHours(carriedOver.value),
-    label: 'carried over',
-    status: Math.abs(carriedOver.value) < 0.01 ? null : carriedOver.value > 0 ? 'ok' : 'bad',
-  },
-])
+const stats = computed(() => {
+  const cells = [
+    { value: formatHours(hoursTracked.value), label: `tracked in ${currentYear.value}` },
+    { value: formatHours(avgPerTrackedWeek.value), label: 'avg per tracked week' },
+    { value: String(daysWithEntries.value), label: 'days with entries' },
+    {
+      value: signedHours(carriedOver.value),
+      label: 'carried over',
+      status: Math.abs(carriedOver.value) < 0.01 ? null : carriedOver.value > 0 ? 'ok' : 'bad',
+    },
+    { value: String(taskCounts.value.open + taskCounts.value.inProgress), label: 'active tasks' },
+    { value: String(taskCounts.value.done), label: 'completed tasks' },
+  ]
+  // Omitted rather than shown as "on target" until at least one task has
+  // real time logged against it - there's nothing to be accurate about yet.
+  if (taskAccuracy.value) {
+    cells.push({
+      value: formatAccuracy(taskAccuracy.value.diffPercent),
+      label: 'task estimate accuracy',
+      status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
+    })
+  }
+  return cells
+})
 
 const weeklyHoursSeries = computed(() => lastNWeeksSeries(store.weeklyBalances, WEEKLY_CHART_WEEKS))
 const balanceTrendSeries = computed(() => lastNWeeksDiffSeries(store.weeklyBalances, BALANCE_TREND_WEEKS))
@@ -265,6 +293,10 @@ const longestDayCaption = computed(() => {
 
 .stat-value.status-bad {
   color: var(--bad);
+}
+
+.stat-value.status-warn {
+  color: var(--warn);
 }
 
 .stat-label {

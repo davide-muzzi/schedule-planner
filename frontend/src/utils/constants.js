@@ -34,6 +34,13 @@ export const DAILY_RED_THRESHOLD_HOURS = 1
 export const TASK_DIFF_YELLOW_THRESHOLD_MINUTES = 60
 export const TASK_DIFF_RED_THRESHOLD_MINUTES = 180
 
+// Overview's aggregate "task estimate accuracy" stat: green up to 10% over
+// on average, yellow 10-30% over, red beyond that. A percentage rather than
+// the fixed-minutes thresholds above, since this sums across every worked
+// task regardless of how many there are or how big each one's estimate was.
+export const TASK_ACCURACY_YELLOW_MAX_OVER_PERCENT = 10
+export const TASK_ACCURACY_RED_THRESHOLD_PERCENT = 30
+
 // Timeline zoom - purely a display preference, never affects
 // totals/goal-diff/break-law calculations. Full day by default.
 export const DEFAULT_VIEW_FROM_HOUR = 0

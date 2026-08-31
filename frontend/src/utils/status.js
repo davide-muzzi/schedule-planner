@@ -12,6 +12,8 @@ import {
   WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
   TASK_DIFF_YELLOW_THRESHOLD_MINUTES,
   TASK_DIFF_RED_THRESHOLD_MINUTES,
+  TASK_ACCURACY_YELLOW_MAX_OVER_PERCENT,
+  TASK_ACCURACY_RED_THRESHOLD_PERCENT,
 } from './constants'
 
 // Same thresholds as WeekSummary's "Overall balance" cell.
@@ -40,4 +42,14 @@ export function weeklyWorkedStatus(workedHours, targetHours) {
 export function taskDiffStatus(diffMinutes) {
   if (diffMinutes < TASK_DIFF_YELLOW_THRESHOLD_MINUTES) return 'green'
   return diffMinutes < TASK_DIFF_RED_THRESHOLD_MINUTES ? 'yellow' : 'red'
+}
+
+// Overview's aggregate accuracy stat - same shape as the two 'ok'/'bad'
+// stat-strip cells above, with a 'warn' middle bucket added (mapped to
+// var(--warn) alongside the existing var(--ok)/var(--bad) stat-value
+// classes) since an aggregate spanning many tasks benefits from a
+// cautionary middle ground the single carried-over/balance cells don't need.
+export function taskAccuracyStatus(diffPercent) {
+  if (diffPercent <= TASK_ACCURACY_YELLOW_MAX_OVER_PERCENT) return 'ok'
+  return diffPercent <= TASK_ACCURACY_RED_THRESHOLD_PERCENT ? 'warn' : 'bad'
 }
