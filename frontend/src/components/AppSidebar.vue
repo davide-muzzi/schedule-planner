@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   Clock,
   LayoutList,
+  ListChecks,
   ChartBar,
   CloudSun,
   SlidersHorizontal,
@@ -75,6 +76,7 @@ function handleResizeMouseUp() {
 
 const NAV_ITEMS = [
   { to: '/planner', label: 'Planner', icon: LayoutList },
+  { to: '/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/overview', label: 'Overview', icon: ChartBar },
   { to: '/weather', label: 'Weather', icon: CloudSun },
   { to: '/settings', label: 'Settings', icon: SlidersHorizontal },

@@ -2,16 +2,27 @@
 import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useScheduleStore } from '@/stores/scheduleStore'
+import { useTasksStore } from '@/stores/tasksStore'
 import AppSidebar from '@/components/AppSidebar.vue'
 import Toast from '@/components/Toast.vue'
 
 const store = useScheduleStore()
+const tasksStore = useTasksStore()
 
-onMounted(() => {
-  store.fetchAll()
+onMounted(async () => {
   store.fetchAdjustment()
   store.fetchWorkGoal()
   store.fetchHolidayYearSetting(store.currentHolidayYear)
+
+  // Entries and tasks both need to be in before an Open task's earliest
+  // linked entry can be checked against "now" - the Tasks page re-runs this
+  // same check on its own mount too, to catch entries whose start time
+  // passes later in the session rather than only right at app load.
+  const [entries] = await Promise.all([
+    store.fetchAll().then(() => store.entries),
+    tasksStore.fetchAll(),
+  ])
+  await tasksStore.syncAutoStatuses(entries)
 })
 </script>
 

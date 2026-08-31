@@ -19,6 +19,7 @@ const props = defineProps({
   entryTypeColors: { type: Object, required: true },
   hasCopiedDay: { type: Boolean, default: false },
   pasteSuccess: { type: Object, default: null }, // { date, id } - set by the parent right after a successful paste
+  tasks: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry', 'copy-day', 'paste-day'])
@@ -617,10 +618,19 @@ function locationIcon(entry) {
   return LOCATION_ICONS[entry.workLocation] || null
 }
 
-// Left side: Title (or Entry Type if no title) - Notes. Notes are omitted
+const taskById = computed(() => Object.fromEntries(props.tasks.map((t) => [t.id, t])))
+
+// A linked task's name outranks both Title and Entry Type - once an entry
+// is tied to a task, that's the more useful label everywhere this entry
+// shows up.
+function entryDisplayLabel(entry) {
+  return taskById.value[entry.taskItemId]?.name ?? entry.title ?? entry.entryType
+}
+
+// Left side: label (see entryDisplayLabel) - Notes. Notes are omitted
 // entirely when there's none.
 function entryLeftLabel(entry) {
-  const label = entry.title || entry.entryType
+  const label = entryDisplayLabel(entry)
   return entry.notes ? `${label} - ${entry.notes}` : label
 }
 
@@ -628,7 +638,7 @@ function entryLeftLabel(entry) {
 // text, since notes get their own icon instead (there's rarely room for
 // both on a block this narrow).
 function blockTitleLabel(entry) {
-  return entry.title || entry.entryType
+  return entryDisplayLabel(entry)
 }
 
 // Same shape as formatHours, but the leading "0h" is redundant clutter on a
@@ -707,6 +717,8 @@ function showEntryTooltip(event, entry) {
 function hideEntryTooltip() {
   hoveredEntry.value = null
 }
+
+const hoveredTask = computed(() => taskById.value[hoveredEntry.value?.taskItemId] ?? null)
 
 const tooltipTimeText = computed(() => {
   const entry = hoveredEntry.value
@@ -851,9 +863,12 @@ const tooltipTimeText = computed(() => {
       >
         <div class="tooltip-title">
           <component :is="locationIcon(hoveredEntry)" v-if="locationIcon(hoveredEntry)" :size="12" class="inline-icon" />
-          {{ hoveredEntry.title || formatEntryTypeLabel(hoveredEntry.entryType) }}
+          {{ hoveredTask?.name ?? hoveredEntry.title ?? formatEntryTypeLabel(hoveredEntry.entryType) }}
         </div>
-        <div v-if="hoveredEntry.title" class="tooltip-row">
+        <div v-if="hoveredTask && hoveredEntry.title" class="tooltip-row">
+          <span class="tooltip-label">Title</span><span>{{ hoveredEntry.title }}</span>
+        </div>
+        <div v-if="hoveredTask || hoveredEntry.title" class="tooltip-row">
           <span class="tooltip-label">Type</span><span>{{ formatEntryTypeLabel(hoveredEntry.entryType) }}</span>
         </div>
         <div class="tooltip-row">

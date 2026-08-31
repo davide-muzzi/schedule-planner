@@ -11,6 +11,11 @@ const router = createRouter({
       component: PlannerView,
     },
     {
+      path: '/tasks',
+      name: 'tasks',
+      component: () => import('../views/TasksView.vue'),
+    },
+    {
       path: '/overview',
       name: 'overview',
       component: () => import('../views/OverviewView.vue'),

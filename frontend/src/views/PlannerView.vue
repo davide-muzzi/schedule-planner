@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
+import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
@@ -25,6 +26,7 @@ function formatEntryTypeLabel(type) {
 }
 
 const store = useScheduleStore()
+const tasksStore = useTasksStore()
 const { isNarrowViewport } = useAppShell()
 
 // "Sat", "Sun", or "Sat & Sun" - whichever weekend days are currently
@@ -281,6 +283,7 @@ async function handleResizeEntry(id, startTime, endTime) {
       endTime: `${endTime}:00`,
       entryType: entry.entryType,
       workLocation: entry.workLocation,
+      taskItemId: entry.taskItemId,
       notes: entry.notes,
     })
     showUpdateUndoToast(id, previousPayload)
@@ -383,6 +386,7 @@ async function handleDelete(id) {
         :entry-type-colors="store.entryTypeColors"
         :has-copied-day="!!copiedDayEntries"
         :paste-success="pasteSuccess"
+        :tasks="tasksStore.tasks"
         @add="openAdd"
         @edit="openEdit"
         @clear-day="handleClearDay"
@@ -416,6 +420,7 @@ async function handleDelete(id) {
       :default-date="modalDefaultDate"
       :default-start-time="modalPrefillTimes?.startTime"
       :default-end-time="modalPrefillTimes?.endTime"
+      :tasks="tasksStore.tasks"
       :server-error="modalError"
       :saving="saving"
       @close="closeModal"

@@ -16,6 +16,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<ScheduleContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IScheduleEntryService, ScheduleEntryService>();
+builder.Services.AddScoped<ITaskItemService, TaskItemService>();
 builder.Services.AddScoped<BalanceAdjustmentService>();
 builder.Services.AddScoped<WorkGoalSettingsService>();
 builder.Services.AddScoped<HolidayYearSettingService>();

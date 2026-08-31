@@ -12,6 +12,8 @@ import {
   DEFAULT_HOLIDAY_ALLOTMENT_DAYS,
 } from '@/utils/constants'
 import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
+import { extractErrorMessage } from '@/utils/apiError'
+import { useTasksStore } from './tasksStore'
 
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
 const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
@@ -55,14 +57,6 @@ function loadVisibleWeekdays() {
     // fall through to default
   }
   return [...DEFAULT_VISIBLE_WEEKDAYS]
-}
-
-function extractErrorMessage(err) {
-  const data = err?.response?.data
-  if (typeof data === 'string' && data.trim()) return data
-  if (data?.message) return data.message
-  if (data?.title) return data.title
-  return err?.message || 'Something went wrong talking to the server.'
 }
 
 export const useScheduleStore = defineStore('schedule', {
@@ -215,9 +209,10 @@ export const useScheduleStore = defineStore('schedule', {
     // a restore doesn't come back looking like a stranger's fresh install.
     exportSnapshot(state) {
       return {
-        version: 1,
+        version: 2, // v2 adds `tasks` - importSnapshot never gates on this, just informational
         exportedAt: new Date().toISOString(),
         entries: state.entries,
+        tasks: useTasksStore().tasks,
         weeklyTargetMinutes: state.weeklyTargetMinutes,
         manualAdjustmentMinutes: state.manualAdjustmentMinutes,
         holidayYearSettings: state.holidayYearSettings,
@@ -414,6 +409,9 @@ export const useScheduleStore = defineStore('schedule', {
       try {
         await api.deleteBulk(null)
         this.entries = []
+        // Tasks are user data like entries, not a preference like the
+        // weekly goal below - a full wipe takes them too.
+        await useTasksStore().deleteAllTasks()
         // A correction referencing now-deleted history doesn't mean anything
         // anymore - reset it too. The weekly goal setting is a preference,
         // not schedule data, so it's left untouched.
@@ -437,8 +435,27 @@ export const useScheduleStore = defineStore('schedule', {
       }
 
       try {
+        const tasksStore = useTasksStore()
         await api.deleteBulk(null)
         this.entries = []
+        await tasksStore.deleteAllTasks()
+
+        // Tasks must exist before entries can reference them - each
+        // recreated task gets a fresh backend id, so old ids from the
+        // backup have to be mapped onto the new ones before entries are
+        // recreated below.
+        const taskIdMap = {}
+        if (Array.isArray(data.tasks)) {
+          for (const task of data.tasks) {
+            if (typeof task?.name !== 'string' || typeof task?.estimatedMinutes !== 'number') continue
+            const createdTask = await tasksStore.createTask({
+              name: task.name,
+              estimatedMinutes: task.estimatedMinutes,
+              status: task.status ?? 'Open',
+            })
+            taskIdMap[task.id] = createdTask.id
+          }
+        }
 
         const created = []
         for (const entry of data.entries) {
@@ -450,6 +467,7 @@ export const useScheduleStore = defineStore('schedule', {
             endTime: entry.allDay ? null : entry.endTime,
             entryType: entry.entryType,
             workLocation: entry.workLocation ?? null,
+            taskItemId: entry.taskItemId != null ? (taskIdMap[entry.taskItemId] ?? null) : null,
             notes: entry.notes ?? null,
           })
           created.push(res.data)

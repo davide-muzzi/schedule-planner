@@ -51,6 +51,7 @@ public class ScheduleEntriesController : ControllerBase
             EndTime = dto.EndTime,
             EntryType = dto.EntryType,
             WorkLocation = dto.WorkLocation,
+            TaskItemId = dto.TaskItemId,
             Notes = dto.Notes
         };
 
@@ -80,6 +81,7 @@ public class ScheduleEntriesController : ControllerBase
             EndTime = dto.EndTime,
             EntryType = dto.EntryType,
             WorkLocation = dto.WorkLocation,
+            TaskItemId = dto.TaskItemId,
             Notes = dto.Notes
         };
 

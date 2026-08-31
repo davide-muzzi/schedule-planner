@@ -23,6 +23,7 @@ const props = defineProps({
   defaultDate: { type: Date, required: true },
   defaultStartTime: { type: String, default: null }, // "HH:MM", from a timeline drag-to-create
   defaultEndTime: { type: String, default: null },
+  tasks: { type: Array, default: () => [] },
   serverError: { type: String, default: null },
   saving: { type: Boolean, default: false },
 })
@@ -40,6 +41,7 @@ function blankForm() {
     endTime: props.defaultEndTime || '12:00',
     entryType: 'Working',
     workLocation: 'Office',
+    taskItemId: null,
     notes: '',
   }
 }
@@ -61,6 +63,7 @@ watch(
         endTime: entry.endTime ? entry.endTime.slice(0, 5) : '12:00',
         entryType: entry.entryType,
         workLocation: entry.workLocation || '',
+        taskItemId: entry.taskItemId ?? null,
         notes: entry.notes || '',
       }
     } else {
@@ -118,6 +121,7 @@ function handleEntryTypeChange() {
     form.value.allDay = false
   }
   form.value.workLocation = form.value.entryType === 'Working' ? 'Office' : ''
+  if (form.value.entryType !== 'Working') form.value.taskItemId = null
 }
 
 function handleSubmit() {
@@ -140,6 +144,7 @@ function handleSubmit() {
     endTime: form.value.allDay ? null : `${form.value.endTime}:00`,
     entryType: form.value.entryType,
     workLocation: form.value.workLocation || null,
+    taskItemId: form.value.entryType === 'Working' ? form.value.taskItemId || null : null,
     notes: form.value.notes.trim() || null,
   }
 
@@ -258,6 +263,19 @@ function handleOverlayClick(event) {
               <option v-for="l in WORK_LOCATIONS" :key="l" :value="l">{{ l }}</option>
             </select>
           </div>
+        </div>
+
+        <div class="field">
+          <label>Linked task</label>
+          <select
+            v-model="form.taskItemId"
+            :disabled="form.entryType !== 'Working'"
+            :title="form.entryType !== 'Working' ? 'Only Working entries can be linked to a task' : ''"
+            @keydown.escape.stop
+          >
+            <option :value="null">(none)</option>
+            <option v-for="t in tasks" :key="t.id" :value="t.id">#{{ t.id }} - {{ t.name }}</option>
+          </select>
         </div>
 
         <div class="field">

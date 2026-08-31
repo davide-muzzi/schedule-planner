@@ -29,6 +29,12 @@ export const UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS = 2
 export const BUSINESS_DAYS_PER_WEEK = 5
 export const DAILY_RED_THRESHOLD_HOURS = 1
 
+// Task planned-vs-real coloring: green at/under estimate, red once you're
+// this far over, yellow between - same three-bucket shape as
+// DAILY_RED_THRESHOLD_HOURS above, just in minutes since task estimates are
+// entered in h/min rather than whole hours.
+export const TASK_DIFF_RED_THRESHOLD_MINUTES = 60
+
 // Timeline zoom - purely a display preference, never affects
 // totals/goal-diff/break-law calculations. Full day by default.
 export const DEFAULT_VIEW_FROM_HOUR = 0

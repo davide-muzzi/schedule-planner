@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SchedulePlanner.Models;
 
 public class ScheduleEntry
@@ -10,6 +12,9 @@ public class ScheduleEntry
     public TimeOnly? EndTime { get; set; }
     public EntryType EntryType { get; set; } = EntryType.Working;
     public WorkLocation?  WorkLocation { get; set; }
+    public int? TaskItemId { get; set; }
+    [JsonIgnore]
+    public TaskItem? TaskItem { get; set; }
     public string? Notes { get; set; }
 }
 

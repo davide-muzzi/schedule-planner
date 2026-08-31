@@ -26,6 +26,7 @@ public class ScheduleEntryService : IScheduleEntryService
     {
         ValidateAllDay(entry);
         await CheckForOverlapAsync(entry);
+        await ValidateTaskLinkAsync(entry);
 
         _context.ScheduleEntries.Add(entry);
         await _context.SaveChangesAsync();
@@ -42,6 +43,7 @@ public class ScheduleEntryService : IScheduleEntryService
 
         ValidateAllDay(entry);
         await CheckForOverlapAsync(entry, excludeId: id);
+        await ValidateTaskLinkAsync(entry);
 
         existing.Title = entry.Title;
         existing.Date = entry.Date;
@@ -50,6 +52,7 @@ public class ScheduleEntryService : IScheduleEntryService
         existing.EndTime = entry.EndTime;
         existing.EntryType = entry.EntryType;
         existing.WorkLocation = entry.WorkLocation;
+        existing.TaskItemId = entry.TaskItemId;
         existing.Notes = entry.Notes;
 
         await _context.SaveChangesAsync();
@@ -113,6 +116,27 @@ public class ScheduleEntryService : IScheduleEntryService
         else if (entry.EndTime <= entry.StartTime)
         {
             throw new ArgumentException("EndTime must be after StartTime.");
+        }
+    }
+
+    // A task can only be linked to a Working entry - kept in sync with the
+    // disabled-unless-Working Linked Task field in EntryFormModal.vue.
+    private async Task ValidateTaskLinkAsync(ScheduleEntry entry)
+    {
+        if (entry.TaskItemId is null)
+        {
+            return;
+        }
+
+        if (entry.EntryType != EntryType.Working)
+        {
+            throw new ArgumentException("Only Working entries can be linked to a task.");
+        }
+
+        var taskExists = await _context.Tasks.AnyAsync(t => t.Id == entry.TaskItemId);
+        if (!taskExists)
+        {
+            throw new ArgumentException($"Task {entry.TaskItemId} does not exist.");
         }
     }
 
