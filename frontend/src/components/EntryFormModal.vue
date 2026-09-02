@@ -108,6 +108,14 @@ const endMinute = makeTimePart('endTime', 1)
 // for types where a whole day actually makes sense.
 const canToggleAllDay = computed(() => ALL_DAY_ALLOWED_TYPES.includes(form.value.entryType))
 
+// Done tasks are finished work, not something a new entry should still get
+// linked to - but if this entry is already linked to one (marked Done after
+// the link was made), it stays in the list so opening this entry doesn't
+// silently show a blank/missing selection.
+const selectableTasks = computed(() =>
+  props.tasks.filter((t) => t.status !== 'Done' || t.id === form.value.taskItemId),
+)
+
 // Deliberately a @change handler, not a watcher: it must only react to the
 // user actually picking a new type in the dropdown, not to the form being
 // repopulated when switching which entry is being edited (a watcher on
@@ -274,7 +282,7 @@ function handleOverlayClick(event) {
             @keydown.escape.stop
           >
             <option :value="null">(none)</option>
-            <option v-for="t in tasks" :key="t.id" :value="t.id">#{{ t.id }} - {{ t.name }}</option>
+            <option v-for="t in selectableTasks" :key="t.id" :value="t.id">#{{ t.id }} - {{ t.name }}</option>
           </select>
         </div>
 
