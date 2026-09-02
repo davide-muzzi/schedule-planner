@@ -45,6 +45,7 @@ public class TaskItemService : ITaskItemService
         existing.Name = task.Name;
         existing.EstimatedMinutes = task.EstimatedMinutes;
         existing.Status = task.Status;
+        existing.IsImportant = task.IsImportant;
         existing.Color = task.Color;
         existing.Notes = task.Notes;
         existing.DueDate = task.DueDate;

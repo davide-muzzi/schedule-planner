@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Plus, X, CalendarDays, Check } from '@lucide/vue'
+import { Plus, X, CalendarDays, Check, SlidersHorizontal, Star } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
@@ -9,6 +9,7 @@ import { realMinutesForTask } from '@/utils/taskStats'
 import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
+import TaskFilterModal from '@/components/TaskFilterModal.vue'
 
 const STATUS_LABELS = { Open: 'Not started', InProgress: 'In Progress', Done: 'Done' }
 
@@ -24,22 +25,58 @@ const SORT_OPTIONS = [
 ]
 const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
 
-const STATUS_FILTER_OPTIONS = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'Open', label: STATUS_LABELS.Open },
-  { value: 'InProgress', label: STATUS_LABELS.InProgress },
-  { value: 'Done', label: STATUS_LABELS.Done },
+// Each category is single-select with an "all" option meaning that category
+// imposes no restriction - a task only has to clear every category to show.
+// Adding a new filterable attribute later (e.g. Important) is just another
+// entry here, not a rework of the filter UI itself.
+const FILTER_CATEGORIES = [
+  {
+    key: 'status',
+    label: 'Status',
+    options: [
+      { value: 'all', label: 'All' },
+      { value: 'Open', label: STATUS_LABELS.Open },
+      { value: 'InProgress', label: STATUS_LABELS.InProgress },
+      { value: 'Done', label: STATUS_LABELS.Done },
+    ],
+  },
+  {
+    key: 'important',
+    label: 'Important',
+    options: [
+      { value: 'all', label: 'All' },
+      { value: 'true', label: 'Important' },
+      { value: 'false', label: 'Not important' },
+    ],
+  },
 ]
-const STATUS_FILTER_STORAGE_KEY = 'schedulePlanner.taskStatusFilter'
+const FILTERS_STORAGE_KEY = 'schedulePlanner.taskFilters'
+
+function defaultFilters() {
+  return Object.fromEntries(FILTER_CATEGORIES.map((c) => [c.key, 'all']))
+}
+
+function loadFilters() {
+  const filters = defaultFilters()
+  let stored
+  try {
+    stored = JSON.parse(localStorage.getItem(FILTERS_STORAGE_KEY))
+  } catch {
+    stored = null
+  }
+  if (stored && typeof stored === 'object') {
+    for (const category of FILTER_CATEGORIES) {
+      if (category.options.some((o) => o.value === stored[category.key])) {
+        filters[category.key] = stored[category.key]
+      }
+    }
+  }
+  return filters
+}
 
 function loadSortBy() {
   const stored = localStorage.getItem(SORT_STORAGE_KEY)
   return SORT_OPTIONS.some((o) => o.value === stored) ? stored : 'id'
-}
-
-function loadStatusFilter() {
-  const stored = localStorage.getItem(STATUS_FILTER_STORAGE_KEY)
-  return STATUS_FILTER_OPTIONS.some((o) => o.value === stored) ? stored : 'all'
 }
 
 const scheduleStore = useScheduleStore()
@@ -49,8 +86,10 @@ const { isNarrowViewport } = useAppShell()
 const sortBy = ref(loadSortBy())
 watch(sortBy, (value) => localStorage.setItem(SORT_STORAGE_KEY, value))
 
-const statusFilter = ref(loadStatusFilter())
-watch(statusFilter, (value) => localStorage.setItem(STATUS_FILTER_STORAGE_KEY, value))
+const filters = ref(loadFilters())
+watch(filters, (value) => localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(value)), { deep: true })
+const showFilterModal = ref(false)
+const activeFilterCount = computed(() => FILTER_CATEGORIES.filter((c) => filters.value[c.key] !== 'all').length)
 
 // Entries/tasks are already loaded app-wide (see App.vue) - this just
 // re-checks the auto Open -> In Progress transition in case an entry's
@@ -86,7 +125,7 @@ function compareTasks(a, b) {
   // Only groups by status when no single status is already filtered down to
   // - with one status showing, every card shares the same group, so this
   // would just be a no-op ahead of the real sort field.
-  if (statusFilter.value === 'all') {
+  if (filters.value.status === 'all') {
     const groupDiff = STATUS_GROUP_ORDER[a.status] - STATUS_GROUP_ORDER[b.status]
     if (groupDiff !== 0) return groupDiff
   }
@@ -100,9 +139,15 @@ function compareTasks(a, b) {
   return a.id - b.id
 }
 
+function matchesFilters(task) {
+  if (filters.value.status !== 'all' && task.status !== filters.value.status) return false
+  if (filters.value.important !== 'all' && String(!!task.isImportant) !== filters.value.important) return false
+  return true
+}
+
 const taskCards = computed(() =>
   tasksStore.tasks
-    .filter((t) => statusFilter.value === 'all' || t.status === statusFilter.value)
+    .filter(matchesFilters)
     .map(taskCard)
     .sort(compareTasks),
 )
@@ -179,6 +224,7 @@ async function handleDelete(id) {
               name: task.name,
               estimatedMinutes: task.estimatedMinutes,
               status: task.status,
+              isImportant: task.isImportant ?? false,
               color: task.color ?? null,
               dueDate: task.dueDate ?? null,
               notes: task.notes ?? null,
@@ -209,6 +255,7 @@ async function handleQuickComplete(task, event) {
       name: task.name,
       estimatedMinutes: task.estimatedMinutes,
       status: 'Done',
+      isImportant: task.isImportant ?? false,
       color: task.color ?? null,
       dueDate: task.dueDate ?? null,
       notes: task.notes ?? null,
@@ -229,12 +276,9 @@ async function handleQuickComplete(task, event) {
         <h1 class="title">Tasks</h1>
       </div>
       <div class="header-actions">
-        <label class="sort-control">
-          Filter
-          <select v-model="statusFilter">
-            <option v-for="o in STATUS_FILTER_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
+        <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
+          <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
+        </button>
         <label class="sort-control">
           Sort by
           <select v-model="sortBy">
@@ -252,7 +296,7 @@ async function handleQuickComplete(task, event) {
 
     <p v-if="tasksStore.loading" class="loading">Loading…</p>
 
-    <p v-else-if="taskCards.length === 0 && statusFilter !== 'all'" class="empty-state">
+    <p v-else-if="taskCards.length === 0 && activeFilterCount > 0" class="empty-state">
       No tasks match this filter.
     </p>
 
@@ -269,7 +313,10 @@ async function handleQuickComplete(task, event) {
         @click="openEdit(task)"
       >
         <div class="task-card-top">
-          <span class="task-id">#{{ task.id }}</span>
+          <span class="task-id-group">
+            <Star v-if="task.isImportant" :size="12" class="important-star" fill="currentColor" />
+            <span class="task-id">#{{ task.id }}</span>
+          </span>
           <span v-if="task.status !== 'Open'" class="status-badge" :class="'badge-' + task.status">{{ STATUS_LABELS[task.status] }}</span>
         </div>
 
@@ -332,6 +379,14 @@ async function handleQuickComplete(task, event) {
       @submit="handleSubmit"
       @delete="handleDelete"
     />
+
+    <TaskFilterModal
+      v-if="showFilterModal"
+      :categories="FILTER_CATEGORIES"
+      :model-value="filters"
+      @update:model-value="(v) => (filters = v)"
+      @close="showFilterModal = false"
+    />
   </section>
 </template>
 
@@ -372,6 +427,34 @@ async function handleQuickComplete(task, event) {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.filter-btn:hover {
+  border-color: var(--accent);
+}
+
+.filter-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 
 .sort-control {
@@ -473,10 +556,21 @@ async function handleQuickComplete(task, event) {
   justify-content: space-between;
 }
 
+.task-id-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .task-id {
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--mute);
+}
+
+.important-star {
+  flex: none;
+  color: var(--warn);
 }
 
 .status-badge {

@@ -22,6 +22,7 @@ function blankForm() {
     estimatedHours: 0,
     estimatedMinutes: 0,
     status: 'Open',
+    important: false,
     hasColor: false,
     color: DEFAULT_COLOR,
     dueDate: '',
@@ -43,6 +44,7 @@ watch(
         estimatedHours: Math.floor(task.estimatedMinutes / 60),
         estimatedMinutes: task.estimatedMinutes % 60,
         status: task.status,
+        important: !!task.isImportant,
         hasColor: !!task.color,
         color: task.color || DEFAULT_COLOR,
         dueDate: task.dueDate || '',
@@ -76,6 +78,7 @@ function handleSubmit() {
     name: form.value.name.trim(),
     estimatedMinutes: totalMinutes,
     status: form.value.status,
+    isImportant: form.value.important,
     color: form.value.hasColor ? form.value.color : null,
     dueDate: form.value.dueDate || null,
     notes: form.value.notes.trim() || null,
@@ -156,6 +159,13 @@ function handleOverlayClick(event) {
             <label>Due date <span class="label-hint">(optional)</span></label>
             <input v-model="form.dueDate" type="date" @keydown.escape.stop />
           </div>
+        </div>
+
+        <div class="field">
+          <label class="checkbox-box">
+            <input v-model="form.important" type="checkbox" />
+            Mark as important
+          </label>
         </div>
 
         <div class="field">

@@ -8,6 +8,7 @@ public class TaskItem
     public string Name { get; set; } = string.Empty;
     public int EstimatedMinutes { get; set; }
     public TaskItemStatus Status { get; set; } = TaskItemStatus.Open;
+    public bool IsImportant { get; set; }
 
     // "#rrggbb", or null when the task has no assigned color. Shown as
     // diagonal stripes over this task's linked entries in the Planner.
