@@ -3,7 +3,10 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from '@lucide/vue'
 import { toISODate } from '@/utils/date'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
+import { useAppShell } from '@/composables/useAppShell'
 import TimePartInput from './TimePartInput.vue'
+
+const { isNarrowViewport } = useAppShell()
 
 const WORK_LOCATIONS = ['Office', 'Remote']
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
@@ -181,7 +184,11 @@ function handleKeydown(event) {
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
-  titleInputEl.value?.focus()
+  // Auto-focusing Title pops the on-screen keyboard immediately on mobile,
+  // shoving the whole modal around before the user's even looked at it -
+  // desktop has no such cost, so it keeps the convenience of opening
+  // straight into typing.
+  if (!isNarrowViewport.value) titleInputEl.value?.focus()
 })
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
