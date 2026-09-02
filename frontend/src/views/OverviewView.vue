@@ -53,16 +53,8 @@ function signedHours(hours) {
   return hours > 0 ? `+${formatHours(hours)}` : formatHours(hours)
 }
 
-// "+22%" / "-8%" / "on target" - same signed-value idea as signedHours
-// above, for the task-accuracy stat.
-function formatAccuracy(diffPercent) {
-  if (Math.abs(diffPercent) < 1) return 'on target'
-  const sign = diffPercent > 0 ? '+' : '-'
-  return `${sign}${Math.round(Math.abs(diffPercent))}%`
-}
-
-// "+3h 20m" / "-45m" / "on target" - same signed-value idea as formatAccuracy
-// above, just in absolute time instead of a percentage. Same convention
+// "+3h 20m" / "-45m" / "on target" - same signed-value idea as signedHours
+// above, just in absolute time instead of hours. Same convention
 // WeekSummary's per-task/per-week diff cells already use.
 function formatMinutesDiff(minutes) {
   if (Math.abs(minutes) < 1) return 'on target'
@@ -100,23 +92,14 @@ const stats = computed(() => {
     { value: String(taskCounts.value.open + taskCounts.value.inProgress), label: 'active tasks' },
     { value: String(taskCounts.value.done), label: 'completed tasks' },
   ]
-  // Diff and accuracy are two views of the same underlying number, so they're
-  // added as a pair - both omitted rather than shown as "on target" until at
-  // least one task has real time logged against it, since there's nothing to
-  // be accurate about yet.
+  // Omitted rather than shown as "on target" until at least one task has
+  // real time logged against it - there's nothing to diff yet.
   if (taskAccuracy.value) {
-    cells.push(
-      {
-        value: formatMinutesDiff(taskDiffMinutes.value),
-        label: 'overall task time diff',
-        status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
-      },
-      {
-        value: formatAccuracy(taskAccuracy.value.diffPercent),
-        label: 'overall task time accuracy',
-        status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
-      },
-    )
+    cells.push({
+      value: formatMinutesDiff(taskDiffMinutes.value),
+      label: 'overall task time diff',
+      status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
+    })
   }
   return cells
 })
