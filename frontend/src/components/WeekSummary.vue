@@ -726,8 +726,14 @@ onBeforeUnmount(() => {
   }
 
   .header-top {
+    flex-direction: column;
+    align-items: stretch;
     gap: 1rem;
     padding-bottom: 1rem;
+  }
+
+  .header-nav {
+    justify-content: flex-end;
   }
 
   .strip-cell {
