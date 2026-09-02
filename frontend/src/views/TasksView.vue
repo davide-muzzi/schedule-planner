@@ -10,7 +10,12 @@ import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 
-const STATUS_LABELS = { Open: 'Open', InProgress: 'In Progress', Done: 'Done' }
+const STATUS_LABELS = { Open: 'Not started', InProgress: 'In Progress', Done: 'Done' }
+
+// Grouping order applied when no status filter is active - In Progress work
+// surfaces first, then what's still queued up, with Done sinking to the
+// bottom regardless of the current sort field.
+const STATUS_GROUP_ORDER = { InProgress: 0, Open: 1, Done: 2 }
 
 const SORT_OPTIONS = [
   { value: 'id', label: 'ID' },
@@ -19,9 +24,22 @@ const SORT_OPTIONS = [
 ]
 const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
 
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'Open', label: STATUS_LABELS.Open },
+  { value: 'InProgress', label: STATUS_LABELS.InProgress },
+  { value: 'Done', label: STATUS_LABELS.Done },
+]
+const STATUS_FILTER_STORAGE_KEY = 'schedulePlanner.taskStatusFilter'
+
 function loadSortBy() {
   const stored = localStorage.getItem(SORT_STORAGE_KEY)
   return SORT_OPTIONS.some((o) => o.value === stored) ? stored : 'id'
+}
+
+function loadStatusFilter() {
+  const stored = localStorage.getItem(STATUS_FILTER_STORAGE_KEY)
+  return STATUS_FILTER_OPTIONS.some((o) => o.value === stored) ? stored : 'all'
 }
 
 const scheduleStore = useScheduleStore()
@@ -30,6 +48,9 @@ const { isNarrowViewport } = useAppShell()
 
 const sortBy = ref(loadSortBy())
 watch(sortBy, (value) => localStorage.setItem(SORT_STORAGE_KEY, value))
+
+const statusFilter = ref(loadStatusFilter())
+watch(statusFilter, (value) => localStorage.setItem(STATUS_FILTER_STORAGE_KEY, value))
 
 // Entries/tasks are already loaded app-wide (see App.vue) - this just
 // re-checks the auto Open -> In Progress transition in case an entry's
@@ -62,6 +83,13 @@ function taskCard(task) {
 // already sorts it chronologically; tasks with no due date always sort
 // after every dated one, regardless of which field is active.
 function compareTasks(a, b) {
+  // Only groups by status when no single status is already filtered down to
+  // - with one status showing, every card shares the same group, so this
+  // would just be a no-op ahead of the real sort field.
+  if (statusFilter.value === 'all') {
+    const groupDiff = STATUS_GROUP_ORDER[a.status] - STATUS_GROUP_ORDER[b.status]
+    if (groupDiff !== 0) return groupDiff
+  }
   if (sortBy.value === 'name') return a.name.localeCompare(b.name) || a.id - b.id
   if (sortBy.value === 'dueDate') {
     if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate) || a.id - b.id
@@ -72,7 +100,12 @@ function compareTasks(a, b) {
   return a.id - b.id
 }
 
-const taskCards = computed(() => tasksStore.tasks.map(taskCard).sort(compareTasks))
+const taskCards = computed(() =>
+  tasksStore.tasks
+    .filter((t) => statusFilter.value === 'all' || t.status === statusFilter.value)
+    .map(taskCard)
+    .sort(compareTasks),
+)
 
 function formatDiff(task) {
   if (task.realMinutes === 0) return 'not started'
@@ -197,6 +230,12 @@ async function handleQuickComplete(task, event) {
       </div>
       <div class="header-actions">
         <label class="sort-control">
+          Filter
+          <select v-model="statusFilter">
+            <option v-for="o in STATUS_FILTER_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
+        <label class="sort-control">
           Sort by
           <select v-model="sortBy">
             <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
@@ -212,6 +251,10 @@ async function handleQuickComplete(task, event) {
     </div>
 
     <p v-if="tasksStore.loading" class="loading">Loading…</p>
+
+    <p v-else-if="taskCards.length === 0 && statusFilter !== 'all'" class="empty-state">
+      No tasks match this filter.
+    </p>
 
     <p v-else-if="taskCards.length === 0" class="empty-state">
       No tasks yet. Add one to start tracking estimated vs. real time.

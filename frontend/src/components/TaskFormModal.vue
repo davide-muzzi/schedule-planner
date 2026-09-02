@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from '@lucide/vue'
 
 const STATUSES = ['Open', 'InProgress', 'Done']
-const STATUS_LABELS = { Open: 'Open', InProgress: 'In Progress', Done: 'Done' }
+const STATUS_LABELS = { Open: 'Not started', InProgress: 'In Progress', Done: 'Done' }
 const DEFAULT_COLOR = '#3b82f6'
 
 const props = defineProps({
