@@ -477,5 +477,9 @@ const longestDayCaption = computed(() => {
   .stat-carousel .stat-label {
     font-size: 10px;
   }
+
+  .tasks-chart-card {
+    max-width: none;
+  }
 }
 </style>
