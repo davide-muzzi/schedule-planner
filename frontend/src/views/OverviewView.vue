@@ -24,6 +24,7 @@ import OverviewWeekdayAverages from '@/components/OverviewWeekdayAverages.vue'
 import OverviewBalanceTrend from '@/components/OverviewBalanceTrend.vue'
 import OverviewTimeBreakdown from '@/components/OverviewTimeBreakdown.vue'
 import OverviewTrackingStreak from '@/components/OverviewTrackingStreak.vue'
+import OverviewTaskStatusBreakdown from '@/components/OverviewTaskStatusBreakdown.vue'
 import MobileCardCarousel from '@/components/MobileCardCarousel.vue'
 
 const WEEKLY_CHART_WEEKS = 52
@@ -60,12 +61,30 @@ function formatAccuracy(diffPercent) {
   return `${sign}${Math.round(Math.abs(diffPercent))}%`
 }
 
+// "+3h 20m" / "-45m" / "on target" - same signed-value idea as formatAccuracy
+// above, just in absolute time instead of a percentage. Same convention
+// WeekSummary's per-task/per-week diff cells already use.
+function formatMinutesDiff(minutes) {
+  if (Math.abs(minutes) < 1) return 'on target'
+  const sign = minutes > 0 ? '+' : '-'
+  const abs = Math.round(Math.abs(minutes))
+  const h = Math.floor(abs / 60)
+  const m = abs % 60
+  if (h === 0) return `${sign}${m}m`
+  if (m === 0) return `${sign}${h}h`
+  return `${sign}${h}h ${m}m`
+}
+
 const hoursTracked = computed(() => hoursTrackedInYear(store.entries, currentYear.value))
 const avgPerTrackedWeek = computed(() => averagePerTrackedWeek(store.weeklyBalances, currentYear.value))
 const daysWithEntries = computed(() => daysWithEntriesInYear(store.entries, currentYear.value))
 const carriedOver = computed(() => store.overallBalance.manualAdjustmentHours)
 const taskCounts = computed(() => taskCountsByStatus(tasksStore.tasks))
+const totalTasks = computed(() => taskCounts.value.open + taskCounts.value.inProgress + taskCounts.value.done)
 const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries))
+const taskDiffMinutes = computed(() =>
+  taskAccuracy.value ? taskAccuracy.value.realMinutes - taskAccuracy.value.estimatedMinutes : null,
+)
 
 const stats = computed(() => {
   const cells = [
@@ -77,17 +96,27 @@ const stats = computed(() => {
       label: 'carried over',
       status: Math.abs(carriedOver.value) < 0.01 ? null : carriedOver.value > 0 ? 'ok' : 'bad',
     },
+    { value: String(totalTasks.value), label: 'total tasks' },
     { value: String(taskCounts.value.open + taskCounts.value.inProgress), label: 'active tasks' },
     { value: String(taskCounts.value.done), label: 'completed tasks' },
   ]
-  // Omitted rather than shown as "on target" until at least one task has
-  // real time logged against it - there's nothing to be accurate about yet.
+  // Diff and accuracy are two views of the same underlying number, so they're
+  // added as a pair - both omitted rather than shown as "on target" until at
+  // least one task has real time logged against it, since there's nothing to
+  // be accurate about yet.
   if (taskAccuracy.value) {
-    cells.push({
-      value: formatAccuracy(taskAccuracy.value.diffPercent),
-      label: 'task estimate accuracy',
-      status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
-    })
+    cells.push(
+      {
+        value: formatMinutesDiff(taskDiffMinutes.value),
+        label: 'overall task time diff',
+        status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
+      },
+      {
+        value: formatAccuracy(taskAccuracy.value.diffPercent),
+        label: 'overall task time accuracy',
+        status: taskAccuracyStatus(taskAccuracy.value.diffPercent),
+      },
+    )
   }
   return cells
 })
@@ -168,6 +197,11 @@ const longestDayCaption = computed(() => {
         <div class="card">
           <div class="card-heading"><h2>Where the time goes</h2></div>
           <OverviewTimeBreakdown :breakdown="timeBreakdown" />
+        </div>
+
+        <div class="card">
+          <div class="card-heading"><h2>Task status breakdown</h2></div>
+          <OverviewTaskStatusBreakdown :counts="taskCounts" />
         </div>
 
         <div class="card">
