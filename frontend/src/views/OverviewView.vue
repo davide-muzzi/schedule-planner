@@ -78,16 +78,19 @@ const taskDiffMinutes = computed(() =>
   taskAccuracy.value ? taskAccuracy.value.realMinutes - taskAccuracy.value.estimatedMinutes : null,
 )
 
-const stats = computed(() => {
+const plannerStats = computed(() => [
+  { value: formatHours(hoursTracked.value), label: `tracked in ${currentYear.value}` },
+  { value: formatHours(avgPerTrackedWeek.value), label: 'avg per tracked week' },
+  { value: String(daysWithEntries.value), label: 'days with entries' },
+  {
+    value: signedHours(carriedOver.value),
+    label: 'carried over',
+    status: Math.abs(carriedOver.value) < 0.01 ? null : carriedOver.value > 0 ? 'ok' : 'bad',
+  },
+])
+
+const taskStats = computed(() => {
   const cells = [
-    { value: formatHours(hoursTracked.value), label: `tracked in ${currentYear.value}` },
-    { value: formatHours(avgPerTrackedWeek.value), label: 'avg per tracked week' },
-    { value: String(daysWithEntries.value), label: 'days with entries' },
-    {
-      value: signedHours(carriedOver.value),
-      label: 'carried over',
-      status: Math.abs(carriedOver.value) < 0.01 ? null : carriedOver.value > 0 ? 'ok' : 'bad',
-    },
     { value: String(totalTasks.value), label: 'total tasks' },
     { value: String(taskCounts.value.open + taskCounts.value.inProgress), label: 'active tasks' },
     { value: String(taskCounts.value.done), label: 'completed tasks' },
@@ -136,17 +139,17 @@ const longestDayCaption = computed(() => {
       </div>
 
       <div v-if="!isNarrowViewport" class="stat-strip">
-        <div v-for="(stat, i) in stats" :key="stat.label" class="stat-cell" :style="{ animationDelay: i * 70 + 'ms' }">
+        <div v-for="(stat, i) in plannerStats" :key="stat.label" class="stat-cell" :style="{ animationDelay: i * 70 + 'ms' }">
           <span class="stat-value" :class="stat.status ? 'status-' + stat.status : ''">{{ stat.value }}</span>
           <span class="stat-label">{{ stat.label }}</span>
         </div>
       </div>
 
-      <!-- Mobile-only: same four stats, one at a time in a card carousel. -->
-      <MobileCardCarousel v-else :count="stats.length" class="stat-carousel" v-slot="{ index }">
+      <!-- Mobile-only: same stats, one at a time in a card carousel. -->
+      <MobileCardCarousel v-else :count="plannerStats.length" class="stat-carousel" v-slot="{ index }">
         <div class="stat-cell carousel-cell">
-          <span class="stat-value" :class="stats[index].status ? 'status-' + stats[index].status : ''">{{ stats[index].value }}</span>
-          <span class="stat-label">{{ stats[index].label }}</span>
+          <span class="stat-value" :class="plannerStats[index].status ? 'status-' + plannerStats[index].status : ''">{{ plannerStats[index].value }}</span>
+          <span class="stat-label">{{ plannerStats[index].label }}</span>
         </div>
       </MobileCardCarousel>
     </div>
@@ -183,11 +186,6 @@ const longestDayCaption = computed(() => {
         </div>
 
         <div class="card">
-          <div class="card-heading"><h2>Task status breakdown</h2></div>
-          <OverviewTaskStatusBreakdown :counts="taskCounts" />
-        </div>
-
-        <div class="card">
           <div class="card-heading">
             <h2>Tracking streak</h2>
             <span class="meta">{{ STREAK_WEEKS }} WEEKS</span>
@@ -203,6 +201,32 @@ const longestDayCaption = computed(() => {
           </template>
           <p v-else class="empty-state">No Working entries yet.</p>
         </div>
+      </div>
+    </div>
+
+    <div class="tasks-section">
+      <div class="section-heading">
+        <p class="kicker">Tasks</p>
+      </div>
+
+      <div v-if="!isNarrowViewport" class="stat-strip">
+        <div v-for="(stat, i) in taskStats" :key="stat.label" class="stat-cell" :style="{ animationDelay: i * 70 + 'ms' }">
+          <span class="stat-value" :class="stat.status ? 'status-' + stat.status : ''">{{ stat.value }}</span>
+          <span class="stat-label">{{ stat.label }}</span>
+        </div>
+      </div>
+
+      <!-- Mobile-only: same stats, one at a time in a card carousel. -->
+      <MobileCardCarousel v-else :count="taskStats.length" class="stat-carousel" v-slot="{ index }">
+        <div class="stat-cell carousel-cell">
+          <span class="stat-value" :class="taskStats[index].status ? 'status-' + taskStats[index].status : ''">{{ taskStats[index].value }}</span>
+          <span class="stat-label">{{ taskStats[index].label }}</span>
+        </div>
+      </MobileCardCarousel>
+
+      <div class="card tasks-chart-card">
+        <div class="card-heading"><h2>Task status breakdown</h2></div>
+        <OverviewTaskStatusBreakdown :counts="taskCounts" />
       </div>
     </div>
 
@@ -411,6 +435,21 @@ const longestDayCaption = computed(() => {
 .empty-state {
   font-size: 11.5px;
   color: var(--mute);
+}
+
+.tasks-section {
+  margin-top: 40px;
+}
+
+.section-heading {
+  padding-top: 1.4rem;
+  margin-bottom: 1rem;
+  border-top: 1px solid var(--line-2);
+}
+
+.tasks-chart-card {
+  max-width: 460px;
+  margin-top: 28px;
 }
 
 @media (max-width: 900px) {
