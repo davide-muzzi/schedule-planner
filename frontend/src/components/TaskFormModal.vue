@@ -136,11 +136,11 @@ function handleOverlayClick(event) {
 
         <div class="field-row">
           <div class="field">
-            <label>Estimated hours</label>
+            <label>Est. h</label>
             <input v-model.number="form.estimatedHours" type="number" min="0" step="1" @keydown.escape.stop />
           </div>
           <div class="field">
-            <label>Estimated minutes</label>
+            <label>Est. min</label>
             <input v-model.number="form.estimatedMinutes" type="number" min="0" max="59" step="1" @keydown.escape.stop />
           </div>
         </div>
