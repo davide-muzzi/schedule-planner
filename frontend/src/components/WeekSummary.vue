@@ -330,7 +330,7 @@ onBeforeUnmount(() => {
          reuses the exact same markup/refs/handlers as its desktop-strip
          counterpart above - order is reversed from the desktop strip
          (graph/worked first, then balance, appointments, vacation last). -->
-    <MobileCardCarousel v-else :count="4" class="status-carousel" v-slot="{ index }">
+    <MobileCardCarousel v-else :count="4" class="status-carousel" @change="closePopups" v-slot="{ index }">
       <div v-if="index === 0" class="strip-cell worked-cell carousel-cell">
         <span class="cell-label">Worked this week</span>
         <span class="cell-value-row">
