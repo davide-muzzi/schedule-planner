@@ -37,7 +37,7 @@ function formatDueDate(dueDate) {
         <Star v-if="task.isImportant" :size="12" class="important-star" fill="currentColor" />
         <span class="task-id">#{{ task.id }}</span>
       </span>
-      <span v-if="task.status !== 'Open'" class="status-badge" :class="'badge-' + task.status">{{ statusLabel }}</span>
+      <span class="status-badge" :class="'badge-' + task.status">{{ statusLabel }}</span>
     </div>
 
     <h3 class="task-name">
