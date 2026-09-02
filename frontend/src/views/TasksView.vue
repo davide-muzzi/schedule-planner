@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Plus, X, CalendarDays } from '@lucide/vue'
+import { Plus, X, CalendarDays, Check } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
@@ -167,6 +167,25 @@ async function handleQuickDelete(task, event) {
   event.stopPropagation()
   await handleDelete(task.id)
 }
+
+async function handleQuickComplete(task, event) {
+  event.stopPropagation()
+  saving.value = true
+  try {
+    await tasksStore.updateTask(task.id, {
+      name: task.name,
+      estimatedMinutes: task.estimatedMinutes,
+      status: 'Done',
+      color: task.color ?? null,
+      dueDate: task.dueDate ?? null,
+      notes: task.notes ?? null,
+    })
+  } catch {
+    modalError.value = tasksStore.error
+  } finally {
+    saving.value = false
+  }
+}
 </script>
 
 <template>
@@ -236,6 +255,17 @@ async function handleQuickDelete(task, event) {
             </span>
           </div>
         </div>
+
+        <button
+          v-if="!isNarrowViewport && task.status !== 'Done'"
+          type="button"
+          class="quick-complete"
+          title="Mark task complete"
+          aria-label="Mark task complete"
+          @click="handleQuickComplete(task, $event)"
+        >
+          <Check :size="12" />
+        </button>
 
         <button
           v-if="!isNarrowViewport"
@@ -517,10 +547,10 @@ async function handleQuickDelete(task, event) {
   color: var(--bad);
 }
 
-.quick-delete {
+.quick-delete,
+.quick-complete {
   position: absolute;
   top: -8px;
-  right: -8px;
   width: 20px;
   height: 20px;
   display: grid;
@@ -539,7 +569,16 @@ async function handleQuickDelete(task, event) {
     background-color 0.16s;
 }
 
-.task-card:hover .quick-delete {
+.quick-delete {
+  right: -8px;
+}
+
+.quick-complete {
+  right: 18px;
+}
+
+.task-card:hover .quick-delete,
+.task-card:hover .quick-complete {
   opacity: 1;
 }
 
@@ -547,6 +586,12 @@ async function handleQuickDelete(task, event) {
   color: #fff;
   background: var(--bad);
   border-color: var(--bad);
+}
+
+.quick-complete:hover {
+  color: #fff;
+  background: var(--ok);
+  border-color: var(--ok);
 }
 
 @media (max-width: 900px) {
