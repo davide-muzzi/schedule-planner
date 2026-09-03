@@ -1,33 +1,49 @@
 <script setup>
-import { onMounted } from 'vue'
-import { RouterView } from 'vue-router'
+import { watch } from 'vue'
+import { useRoute, RouterView } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import AppSidebar from '@/components/AppSidebar.vue'
 import Toast from '@/components/Toast.vue'
 
+const route = useRoute()
+const authStore = useAuthStore()
 const store = useScheduleStore()
 const tasksStore = useTasksStore()
 
-onMounted(async () => {
-  store.fetchAdjustment()
-  store.fetchWorkGoal()
-  store.fetchHolidayYearSetting(store.currentHolidayYear)
+// Watches (rather than onMounted) because the router guard's session check
+// resolves asynchronously - by the time it settles, App.vue may already have
+// mounted while logged out. This fires both on an already-authenticated
+// mount and right after a login completes.
+watch(
+  () => authStore.isAuthenticated,
+  async (isAuthenticated) => {
+    if (!isAuthenticated) return
 
-  // Entries and tasks both need to be in before an Open task's earliest
-  // linked entry can be checked against "now" - the Tasks page re-runs this
-  // same check on its own mount too, to catch entries whose start time
-  // passes later in the session rather than only right at app load.
-  const [entries] = await Promise.all([
-    store.fetchAll().then(() => store.entries),
-    tasksStore.fetchAll(),
-  ])
-  await tasksStore.syncAutoStatuses(entries)
-})
+    store.fetchAdjustment()
+    store.fetchWorkGoal()
+    store.fetchHolidayYearSetting(store.currentHolidayYear)
+
+    // Entries and tasks both need to be in before an Open task's earliest
+    // linked entry can be checked against "now" - the Tasks page re-runs this
+    // same check on its own mount too, to catch entries whose start time
+    // passes later in the session rather than only right at app load.
+    const [entries] = await Promise.all([
+      store.fetchAll().then(() => store.entries),
+      tasksStore.fetchAll(),
+    ])
+    await tasksStore.syncAutoStatuses(entries)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <div class="shell">
+  <template v-if="route.name === 'login'">
+    <RouterView />
+  </template>
+  <div v-else class="shell">
     <AppSidebar />
     <main class="shell-main">
       <RouterView />

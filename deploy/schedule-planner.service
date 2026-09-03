@@ -24,5 +24,13 @@ Environment=ASPNETCORE_ENVIRONMENT=Production
 # Tailscale admin console (login.tailscale.com/admin/machines).
 Environment=ASPNETCORE_URLS=http://<PI_TAILSCALE_IP>:5000
 
+# Seeds the one account this app will ever have, the first time it starts
+# with an empty AspNetUsers table. No-op on every startup after that - there
+# is no registration page, so this is the only way to create the account.
+# Pick your own username/password here; don't reuse a password from
+# elsewhere.
+Environment=ADMIN_USERNAME=<CHOOSE_A_USERNAME>
+Environment=ADMIN_PASSWORD=<CHOOSE_A_PASSWORD>
+
 [Install]
 WantedBy=multi-user.target

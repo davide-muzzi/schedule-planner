@@ -12,11 +12,21 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  LogOut,
 } from '@lucide/vue'
 import { useAppShell, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from '@/composables/useAppShell'
 import { getISOWeekNumber } from '@/utils/date'
+import { useAuthStore } from '@/stores/authStore'
+import { useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+
+async function handleLogout() {
+  await authStore.logout()
+  router.push({ name: 'login' })
+}
 const { theme, collapsed, toggleTheme, toggleCollapsed, sidebarWidth, setSidebarWidth, isNarrowViewport } =
   useAppShell()
 
@@ -128,6 +138,16 @@ function isActive(to) {
     </nav>
 
     <div class="footer">
+      <button
+        type="button"
+        class="theme-btn"
+        title="Sign out"
+        aria-label="Sign out"
+        @click="handleLogout"
+      >
+        <LogOut :size="16" class="theme-icon" />
+        <span class="theme-label">Sign out</span>
+      </button>
       <button
         type="button"
         class="theme-btn"

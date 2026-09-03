@@ -1,11 +1,6 @@
-import axios from 'axios'
+import { createApiClient } from './httpClient'
 
-const apiClient = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL ?? ''}/api/workgoalsettings`,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
+const apiClient = createApiClient('/api/workgoalsettings')
 
 export default {
   get() {

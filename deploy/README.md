@@ -16,8 +16,12 @@ on the Pi (over SSH), not on your dev PC - see the main conversation for why.
 2. Clone the repo: `git clone <repo-url> ~/schedule-planner`
 3. Copy `deploy/schedule-planner.service` to `/etc/systemd/system/schedule-planner.service`,
    then edit that copy (the one in `/etc/systemd/system`, not the one in the
-   repo) to replace every `<PLACEHOLDER>` with your actual username and the
-   Pi's Tailscale IP - this keeps those real values out of the public repo.
+   repo) to replace every `<PLACEHOLDER>` with your actual username, the
+   Pi's Tailscale IP, and the login credentials you want for the app itself
+   (`ADMIN_USERNAME`/`ADMIN_PASSWORD`) - this keeps those real values out of
+   the public repo. The app creates that one account from those two values
+   the first time it starts with an empty user table, and never again after
+   that - there's no registration page, so this is the only way in.
 4. `sudo systemctl daemon-reload`
 5. `sudo systemctl enable schedule-planner` (starts automatically on boot)
 

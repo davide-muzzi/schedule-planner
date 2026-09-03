@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace SchedulePlanner.Models;
 
-public class ScheduleContext : DbContext
+public class ScheduleContext : IdentityDbContext<ApplicationUser>
 {
     public ScheduleContext(DbContextOptions<ScheduleContext> options)
         : base(options)
@@ -17,6 +18,8 @@ public class ScheduleContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         // Optional link: deleting a task unlinks its entries rather than
         // taking them down with it.
         modelBuilder.Entity<ScheduleEntry>()
