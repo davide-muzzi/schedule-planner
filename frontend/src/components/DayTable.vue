@@ -261,9 +261,9 @@ function hoursFromClientX(clientX) {
   return props.viewFromHour + fraction * rangeSpan.value
 }
 
-// Ctrl = 5min grid, otherwise exact to 1min.
+// Ctrl = 15min grid, otherwise 5min.
 function snapHours(hours, ctrlKey) {
-  const grid = ctrlKey ? 5 / 60 : 1 / 60
+  const grid = ctrlKey ? 15 / 60 : 5 / 60
   return Math.round(hours / grid) * grid
 }
 
@@ -424,7 +424,7 @@ function handleTrackMouseDown(event) {
 }
 
 // A live "what time is under my cursor" line for empty track space - same
-// snapping (1min, or 5min with Ctrl held) as the drag-to-create handlers
+// snapping (5min, or 15min with Ctrl held) as the drag-to-create handlers
 // above, so the line always previews exactly where a click-drag would
 // start. Hidden once a drag is underway (the ghost/preview takes over) and
 // over any already-occupied time (nothing to create there).
