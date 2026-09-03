@@ -991,8 +991,13 @@ const tooltipTimeText = computed(() => {
   border-bottom: none;
 }
 
-.day-row:hover {
-  background: var(--accent-tint);
+/* hover:hover excludes touch - without it, tapping a day row on mobile
+   leaves this highlight stuck on until something else is tapped, since a
+   touchscreen never fires the mouseleave that would normally clear it. */
+@media (hover: hover) {
+  .day-row:hover {
+    background: var(--accent-tint);
+  }
 }
 
 .day-row.is-today {
