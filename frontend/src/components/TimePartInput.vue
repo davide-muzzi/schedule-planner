@@ -1,5 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
+import { Pencil } from '@lucide/vue'
+import { useAppShell } from '@/composables/useAppShell'
 
 const props = defineProps({
   modelValue: { type: String, required: true },
@@ -9,13 +11,33 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+const { isNarrowViewport } = useAppShell()
+
 const inputEl = ref(null)
 const showDropdown = ref(false)
+// On mobile the field is normally readonly (see the template) so tapping it
+// opens the dropdown without popping the OS keyboard - this flips it
+// editable for one round-trip after picking "Custom", then reverts on blur.
+const customEditing = ref(false)
 let skipBlurFormat = false
 
 function openDropdown(event) {
   showDropdown.value = true
-  event.target.select() // typing immediately overwrites, no manual clearing needed
+  if (isNarrowViewport.value) {
+    // Selecting-all pops the mobile keyboard straight into "replace" mode,
+    // which reads as the field being mysteriously pre-highlighted - just
+    // park the caret at the end instead, same as a normal tap would. Has to
+    // wait a tick: the tap that triggers this focus also carries its own
+    // native "place caret where I tapped" behavior, which runs after focus
+    // and would otherwise immediately override this.
+    const target = event.target
+    setTimeout(() => {
+      const length = target.value.length
+      target.setSelectionRange(length, length)
+    }, 0)
+  } else {
+    event.target.select() // typing immediately overwrites, no manual clearing needed
+  }
 }
 
 function handleInput(event) {
@@ -24,6 +46,7 @@ function handleInput(event) {
 
 function handleBlur(event) {
   showDropdown.value = false
+  customEditing.value = false
   if (skipBlurFormat) {
     // value was just set via selectOption and is already valid — the DOM's
     // event.target.value hasn't caught up to it yet, so re-parsing it here
@@ -42,6 +65,15 @@ function selectOption(option) {
   skipBlurFormat = true
   inputEl.value?.blur()
 }
+
+function enableCustomEdit() {
+  showDropdown.value = false
+  customEditing.value = true
+  nextTick(() => {
+    inputEl.value?.focus()
+    inputEl.value?.select()
+  })
+}
 </script>
 
 <template>
@@ -51,6 +83,7 @@ function selectOption(option) {
       :value="modelValue"
       inputmode="numeric"
       maxlength="2"
+      :readonly="isNarrowViewport && !customEditing"
       @focus="openDropdown"
       @input="handleInput"
       @blur="handleBlur"
@@ -65,6 +98,16 @@ function selectOption(option) {
         @mousedown.prevent="selectOption(option)"
       >
         {{ option }}
+      </button>
+      <button
+        v-if="isNarrowViewport"
+        type="button"
+        class="time-part-option time-part-option-custom"
+        aria-label="Enter a custom value"
+        title="Enter a custom value"
+        @mousedown.prevent="enableCustomEdit"
+      >
+        <Pencil :size="13" />
       </button>
     </div>
   </div>
@@ -116,5 +159,13 @@ function selectOption(option) {
 
 .time-part-option:hover {
   background: var(--color-background-soft);
+}
+
+.time-part-option-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-heading);
 }
 </style>
