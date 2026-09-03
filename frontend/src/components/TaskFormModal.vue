@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from '@lucide/vue'
+import { useAppShell } from '@/composables/useAppShell'
+
+const { isNarrowViewport } = useAppShell()
 
 const STATUSES = ['Open', 'InProgress', 'Done']
 const STATUS_LABELS = { Open: 'Not started', InProgress: 'In Progress', Done: 'Done' }
@@ -105,7 +108,10 @@ function handleKeydown(event) {
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
-  nameInputEl.value?.focus()
+  // Auto-focusing pops the on-screen keyboard immediately on mobile, shoving
+  // the whole modal around before the user's even looked at it - desktop has
+  // no such cost, so it keeps the convenience of opening straight into typing.
+  if (!isNarrowViewport.value) nameInputEl.value?.focus()
 })
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
