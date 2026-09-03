@@ -22,3 +22,6 @@ backend/SchedulePlanner/wwwroot/*
 
 # Local dev server logs
 *_run.log
+
+# Local design/reference diagrams (not part of the shipped project)
+/diagrams/

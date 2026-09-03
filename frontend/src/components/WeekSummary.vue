@@ -39,6 +39,33 @@ const emit = defineEmits([
 
 const { isNarrowViewport } = useAppShell()
 
+// Lets the header's week-range text be swiped left/right on mobile as a
+// shortcut for the prev/next buttons - touch-only (mouse is left alone so
+// desktop can still drag-select the date text), and deliberately just fires
+// the same prev/next emit a button click would rather than animating
+// anything itself.
+const SWIPE_COMMIT_PX = 50
+let headerSwipeStartX = 0
+let headerSwipeActive = false
+
+function handleHeaderPointerDown(event) {
+  if (event.pointerType !== 'touch') return
+  headerSwipeActive = true
+  headerSwipeStartX = event.clientX
+}
+
+function handleHeaderPointerUp(event) {
+  if (!headerSwipeActive || event.pointerType !== 'touch') return
+  headerSwipeActive = false
+  const delta = event.clientX - headerSwipeStartX
+  if (delta <= -SWIPE_COMMIT_PX) emit('next')
+  else if (delta >= SWIPE_COMMIT_PX) emit('prev')
+}
+
+function handleHeaderPointerCancel() {
+  headerSwipeActive = false
+}
+
 const isCurrentWeek = computed(() => toISODate(props.monday) === toISODate(getMonday(new Date())))
 const weekKicker = computed(() => `Calendar week ${getISOWeekNumber(props.monday)}`)
 
@@ -218,7 +245,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="planner-header">
     <div class="header-top">
-      <div class="header-title">
+      <div
+        class="header-title"
+        @pointerdown="handleHeaderPointerDown"
+        @pointerup="handleHeaderPointerUp"
+        @pointercancel="handleHeaderPointerCancel"
+      >
         <p class="kicker">{{ weekKicker }}</p>
         <h1 class="date-range">{{ formatWeekRange(monday) }}</h1>
       </div>
@@ -434,6 +466,12 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 2rem;
   padding-bottom: 1.4rem;
+}
+
+.header-title {
+  /* Let the browser keep handling vertical scroll natively over the swipe
+     gesture area - only horizontal drags are read as prev/next. */
+  touch-action: pan-y;
 }
 
 .kicker {
