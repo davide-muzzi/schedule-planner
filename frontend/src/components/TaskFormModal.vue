@@ -11,6 +11,10 @@ const DEFAULT_COLOR = '#3b82f6'
 
 const props = defineProps({
   task: { type: Object, default: null }, // null => create mode
+  // Seeds the estimate in create mode only (e.g. the Planner's "Create new
+  // Task" shortcut passes the entry's own length) - ignored once task is set,
+  // since an edit's estimate comes from the task itself.
+  initialEstimatedMinutes: { type: Number, default: null },
   serverError: { type: String, default: null },
   saving: { type: Boolean, default: false },
 })
@@ -20,10 +24,11 @@ const emit = defineEmits(['close', 'submit', 'delete'])
 const isEdit = computed(() => !!props.task)
 
 function blankForm() {
+  const minutes = props.initialEstimatedMinutes ?? 0
   return {
     name: '',
-    estimatedHours: 0,
-    estimatedMinutes: 0,
+    estimatedHours: Math.floor(minutes / 60),
+    estimatedMinutes: minutes % 60,
     status: 'Open',
     important: false,
     hasColor: false,

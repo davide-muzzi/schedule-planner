@@ -1,12 +1,15 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X } from '@lucide/vue'
+import { X, ChevronDown, Plus } from '@lucide/vue'
 import { toISODate } from '@/utils/date'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { useAppShell } from '@/composables/useAppShell'
+import { useTasksStore } from '@/stores/tasksStore'
 import TimePartInput from './TimePartInput.vue'
+import TaskFormModal from './TaskFormModal.vue'
 
 const { isNarrowViewport } = useAppShell()
+const tasksStore = useTasksStore()
 
 const WORK_LOCATIONS = ['Office', 'Remote']
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
@@ -119,6 +122,67 @@ const selectableTasks = computed(() =>
   props.tasks.filter((t) => t.status !== 'Done' || t.id === form.value.taskItemId),
 )
 
+// Custom dropdown instead of a native <select> - Android renders <select> as
+// its own full-screen OS picker rather than an inline list, which looks and
+// behaves nothing like the rest of this form (or its desktop counterpart).
+const showTaskDropdown = ref(false)
+
+const selectedTaskLabel = computed(() => {
+  const match = selectableTasks.value.find((t) => t.id === form.value.taskItemId)
+  return match ? `#${match.id} - ${match.name}` : '(none)'
+})
+
+function toggleTaskDropdown() {
+  showTaskDropdown.value = !showTaskDropdown.value
+}
+
+function selectTask(id) {
+  form.value.taskItemId = id
+  showTaskDropdown.value = false
+}
+
+function closeTaskDropdown() {
+  showTaskDropdown.value = false
+}
+
+onMounted(() => document.addEventListener('click', closeTaskDropdown))
+onBeforeUnmount(() => document.removeEventListener('click', closeTaskDropdown))
+
+// "Create new Task" - opens TaskFormModal stacked on top of this one,
+// prefilled with this entry's own length as the estimate. Saving it creates
+// the task for real (same store call TasksView uses) and immediately links
+// it to this entry, instead of the user having to back out, go create the
+// task on the Tasks page, then come back and find it in the list.
+const showCreateTaskModal = ref(false)
+const createTaskError = ref(null)
+const creatingTask = ref(false)
+
+const newTaskEstimatedMinutes = computed(() => {
+  const [startH, startM] = form.value.startTime.split(':').map(Number)
+  const [endH, endM] = form.value.endTime.split(':').map(Number)
+  return Math.max(0, endH * 60 + endM - (startH * 60 + startM))
+})
+
+function openCreateTask() {
+  showTaskDropdown.value = false
+  createTaskError.value = null
+  showCreateTaskModal.value = true
+}
+
+async function handleCreateTaskSubmit(payload) {
+  creatingTask.value = true
+  createTaskError.value = null
+  try {
+    const created = await tasksStore.createTask(payload)
+    form.value.taskItemId = created.id
+    showCreateTaskModal.value = false
+  } catch {
+    createTaskError.value = tasksStore.error
+  } finally {
+    creatingTask.value = false
+  }
+}
+
 // Deliberately a @change handler, not a watcher: it must only react to the
 // user actually picking a new type in the dropdown, not to the form being
 // repopulated when switching which entry is being edited (a watcher on
@@ -167,6 +231,11 @@ function handleDeleteClick() {
 }
 
 function handleKeydown(event) {
+  // The nested "Create new Task" modal has its own document-level Escape/Enter
+  // handling - without this, both would fire for the same keypress, closing
+  // or submitting this entry form out from under the task modal the user is
+  // actually looking at.
+  if (showCreateTaskModal.value) return
   if (event.key === 'Escape') {
     emit('close')
     return
@@ -282,15 +351,37 @@ function handleOverlayClick(event) {
 
         <div class="field">
           <label>Linked task</label>
-          <select
-            v-model="form.taskItemId"
-            :disabled="form.entryType !== 'Working'"
-            :title="form.entryType !== 'Working' ? 'Only Working entries can be linked to a task' : ''"
-            @keydown.escape.stop
-          >
-            <option :value="null">(none)</option>
-            <option v-for="t in selectableTasks" :key="t.id" :value="t.id">#{{ t.id }} - {{ t.name }}</option>
-          </select>
+          <div class="task-select">
+            <button
+              type="button"
+              class="task-select-trigger"
+              :disabled="form.entryType !== 'Working'"
+              :title="form.entryType !== 'Working' ? 'Only Working entries can be linked to a task' : ''"
+              @click.stop="toggleTaskDropdown"
+              @keydown.escape.stop="showTaskDropdown = false"
+            >
+              <span class="task-select-value">{{ selectedTaskLabel }}</span>
+              <ChevronDown :size="14" />
+            </button>
+            <div v-if="showTaskDropdown" class="task-select-dropdown" @click.stop>
+              <button type="button" class="task-select-option" :class="{ active: form.taskItemId === null }" @click="selectTask(null)">
+                (none)
+              </button>
+              <button
+                v-for="t in selectableTasks"
+                :key="t.id"
+                type="button"
+                class="task-select-option"
+                :class="{ active: t.id === form.taskItemId }"
+                @click="selectTask(t.id)"
+              >
+                #{{ t.id }} - {{ t.name }}
+              </button>
+              <button type="button" class="task-select-option task-select-create" @click="openCreateTask">
+                <Plus :size="13" /> Create new Task
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="field">
@@ -309,6 +400,16 @@ function handleOverlayClick(event) {
       </form>
     </div>
   </div>
+
+  <TaskFormModal
+    v-if="showCreateTaskModal"
+    :task="null"
+    :initial-estimated-minutes="newTaskEstimatedMinutes"
+    :server-error="createTaskError"
+    :saving="creatingTask"
+    @close="showCreateTaskModal = false"
+    @submit="handleCreateTaskSubmit"
+  />
   </Teleport>
 </template>
 
@@ -436,6 +537,88 @@ input[type='date'] {
   /* Tells the browser this field sits on a dark background, so its native
      calendar icon renders light instead of the default dark-on-dark. */
   color-scheme: dark;
+}
+
+.task-select {
+  position: relative;
+}
+
+.task-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-select-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.task-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-select-dropdown {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 12rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.task-select-option {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.task-select-option:hover {
+  background: var(--color-background-soft);
+}
+
+.task-select-option.active {
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+.task-select-create {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-heading);
+  font-weight: 600;
 }
 
 .time-select {
