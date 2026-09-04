@@ -19,10 +19,14 @@ Restart=on-failure
 RestartSec=5
 
 Environment=ASPNETCORE_ENVIRONMENT=Production
-# Binds only to the Pi's Tailscale address - not reachable from your home
-# WiFi, only from devices authorized on your tailnet. Find this in the
-# Tailscale admin console (login.tailscale.com/admin/machines).
-Environment=ASPNETCORE_URLS=http://<PI_TAILSCALE_IP>:5000
+# Binds to two addresses: the Pi's Tailscale address (not reachable from
+# your home WiFi, only from devices authorized on your tailnet - find this
+# in the Tailscale admin console at login.tailscale.com/admin/machines) and
+# 127.0.0.1, which is not reachable from anywhere except this Pi itself.
+# The loopback binding is required for Tailscale Funnel - it only ever
+# proxies to http://127.0.0.1, never to another local address, so without
+# it Funnel cannot reach the app at all.
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000;http://<PI_TAILSCALE_IP>:5000
 
 # Seeds the one account this app will ever have, the first time it starts
 # with an empty AspNetUsers table. No-op on every startup after that - there
