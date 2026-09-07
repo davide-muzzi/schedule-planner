@@ -19,6 +19,7 @@ const props = defineProps({
   entryTypeColors: { type: Object, required: true },
   hasCopiedDay: { type: Boolean, default: false },
   isRightDragTarget: { type: Boolean, default: false }, // true while a right-click entry drag is hovering this day
+  suppressContextMenu: { type: Boolean, default: false }, // true for a brief window right after a right-drag ends
   pasteSuccess: { type: Object, default: null }, // { date, id } - set by the parent right after a successful paste
   tasks: { type: Array, default: () => [] },
 })
@@ -231,6 +232,7 @@ const contextMenuStyle = ref({})
 const contextMenuEntry = ref(null)
 
 function openContextMenu(event, entry) {
+  if (props.suppressContextMenu) return // a right-drag just ended - this is that stray trailing contextmenu event, not a real click
   closePopups()
   contextMenuEntry.value = entry
   // Clamp so the menu never renders partly off-screen near a viewport edge.

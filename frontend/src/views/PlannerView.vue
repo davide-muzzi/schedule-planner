@@ -263,12 +263,17 @@ async function handlePasteEntries(date) {
 // Right-click-drag an entry onto another day to copy it there at the exact
 // same time - a mouse-driven shortcut for the same copy the right-click menu
 // already offers. RIGHT_DRAG_THRESHOLD_PX is what tells a real drag apart
-// from a plain right click that's just opening that menu instead - below it
-// the browser's own contextmenu event still fires normally (browsers
-// suppress it once a real drag has happened), and DayTable's own handler
-// takes over from there.
+// from a plain right click that's just opening that menu instead.
 const RIGHT_DRAG_THRESHOLD_PX = 6
 const rightDragHoverIso = ref(null)
+
+// Unlike a native context menu, the browser doesn't suppress its own
+// `contextmenu` event just because a real drag happened - it still fires on
+// release, right over wherever the pointer ends up (often the freshly-pasted
+// entry's day, before that entry has even rendered). This flag, passed down
+// to every DayTable, tells them to swallow that one stray event rather than
+// pop the copy/paste menu on top of a drag that already did its own thing.
+const suppressNextContextMenu = ref(false)
 
 function dayIsoUnderPoint(x, y) {
   return document.elementFromPoint(x, y)?.closest('[data-date]')?.dataset.date ?? null
@@ -292,6 +297,10 @@ function handleEntryRightDragStart(entry, startX, startY) {
     document.body.style.cursor = ''
     rightDragHoverIso.value = null
     if (!dragging) return
+    suppressNextContextMenu.value = true
+    setTimeout(() => {
+      suppressNextContextMenu.value = false
+    }, 300)
     const targetIso = dayIsoUnderPoint(event.clientX, event.clientY)
     if (!targetIso) return
     const targetDate = new Date(`${targetIso}T00:00:00`)
@@ -478,6 +487,7 @@ async function handleDelete(id) {
         :entry-type-colors="store.entryTypeColors"
         :has-copied-day="!!copiedDayEntries"
         :is-right-drag-target="rightDragHoverIso === toISODate(date)"
+        :suppress-context-menu="suppressNextContextMenu"
         :paste-success="pasteSuccess"
         :tasks="tasksStore.tasks"
         @add="openAdd"
