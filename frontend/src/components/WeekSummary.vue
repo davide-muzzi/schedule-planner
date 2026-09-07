@@ -252,7 +252,7 @@ onBeforeUnmount(() => {
         @pointercancel="handleHeaderPointerCancel"
       >
         <p class="kicker">{{ weekKicker }}</p>
-        <h1 class="date-range">{{ formatWeekRange(monday) }}</h1>
+        <h1 class="date-range" :class="{ 'is-current': isCurrentWeek }">{{ formatWeekRange(monday) }}</h1>
       </div>
 
       <div class="header-nav">
@@ -488,6 +488,10 @@ onBeforeUnmount(() => {
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--fg);
+}
+
+.date-range.is-current {
+  color: var(--ok);
 }
 
 .header-nav {
