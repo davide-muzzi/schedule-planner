@@ -110,9 +110,13 @@ const startMinute = makeTimePart('startTime', 1)
 const endHour = makeTimePart('endTime', 0)
 const endMinute = makeTimePart('endTime', 1)
 
-// Drives the All Day checkbox's disabled state - it's only ever checkable
-// for types where a whole day actually makes sense.
-const canToggleAllDay = computed(() => ALL_DAY_ALLOWED_TYPES.includes(form.value.entryType))
+// Drives the All Day checkbox's disabled state - only "Other" leaves it up
+// to the user. Every other type is locked one way or the other: Vacation
+// and Public Holiday are always All Day (auto-forced on below), everything
+// else can never be.
+const canToggleAllDay = computed(
+  () => ALL_DAY_ALLOWED_TYPES.includes(form.value.entryType) && !AUTO_ALL_DAY_TYPES.includes(form.value.entryType),
+)
 
 // Done tasks are finished work, not something a new entry should still get
 // linked to - but if this entry is already linked to one (marked Done after
