@@ -289,6 +289,25 @@ async function handleColumnChange(status, event) {
   }
 }
 
+// Mobile shows one column at a time (picked via a <select>) instead of a
+// horizontally-scrolled 4-column row - remembered across visits the same
+// way sort/filters are. Cross-column drag doesn't make sense when only one
+// column is ever visible, so mobile only supports within-column reordering;
+// changing status is still just a matter of editing the task.
+const MOBILE_STATUS_STORAGE_KEY = 'schedulePlanner.taskKanbanMobileStatus'
+
+function loadMobileStatus() {
+  const stored = localStorage.getItem(MOBILE_STATUS_STORAGE_KEY)
+  return COLUMN_STATUSES.includes(stored) ? stored : 'Backlog'
+}
+
+const mobileActiveStatus = ref(loadMobileStatus())
+watch(mobileActiveStatus, (value) => localStorage.setItem(MOBILE_STATUS_STORAGE_KEY, value))
+
+const visibleColumnStatuses = computed(() =>
+  isNarrowViewport.value ? [mobileActiveStatus.value] : COLUMN_STATUSES,
+)
+
 const showModal = ref(false)
 const editingTask = ref(null)
 const modalError = ref(null)
@@ -451,8 +470,18 @@ async function handleQuickComplete(task, event) {
 
     <p v-if="tasksStore.loading" class="loading">Loading…</p>
 
-    <div v-else class="kanban-board">
-      <div v-for="status in COLUMN_STATUSES" :key="status" class="kanban-column">
+    <template v-else>
+      <label v-if="isNarrowViewport" class="kanban-mobile-switcher">
+        View
+        <select v-model="mobileActiveStatus">
+          <option v-for="status in COLUMN_STATUSES" :key="status" :value="status">
+            {{ STATUS_LABELS[status] }} ({{ columnLists[status].length }})
+          </option>
+        </select>
+      </label>
+
+      <div class="kanban-board">
+        <div v-for="status in visibleColumnStatuses" :key="status" class="kanban-column">
         <header class="kanban-column-header">
           <span class="kanban-dot" :class="'dot-' + status"></span>
           <h2 class="kanban-column-title">{{ STATUS_LABELS[status] }}</h2>
@@ -493,7 +522,8 @@ async function handleQuickComplete(task, event) {
           <Plus :size="13" /> Add task
         </button>
       </div>
-    </div>
+      </div>
+    </template>
 
     <TaskFormModal
       v-if="showModal"
@@ -614,6 +644,26 @@ async function handleQuickComplete(task, event) {
   color: var(--fg);
   font-family: inherit;
   font-size: 12px;
+}
+
+.kanban-mobile-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--mute);
+  margin-bottom: 16px;
+}
+
+.kanban-mobile-switcher select {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
 }
 
 .add-btn {
