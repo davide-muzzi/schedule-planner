@@ -1,18 +1,31 @@
 <script setup>
-import { CalendarDays, Check, Star, X } from '@lucide/vue'
+import { ref } from 'vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 
 const props = defineProps({
   task: { type: Object, required: true },
   statusLabel: { type: String, required: true },
   isNarrowViewport: { type: Boolean, required: true },
+  // Only populated (by TasksView) for a Group task - its subtasks, for the
+  // inline expandable preview below.
+  subtasks: { type: Array, default: () => [] },
 })
 
 defineEmits(['edit', 'quick-complete', 'quick-delete'])
 
+const expanded = ref(false)
+
+function toggleExpanded(event) {
+  event.stopPropagation()
+  expanded.value = !expanded.value
+}
+
 function hoursFor(minutes) {
   return formatHours(minutes / 60)
 }
+
+const doneSubtaskCount = (subtasks) => subtasks.filter((t) => t.status === 'Done').length
 
 function formatDiff(task) {
   if (task.realMinutes === 0) return 'not started'
@@ -34,7 +47,7 @@ function formatDueDate(dueDate) {
   <button type="button" class="task-card" @click="$emit('edit')">
     <div class="task-card-top">
       <span class="task-id-group">
-        <Star v-if="task.isImportant" :size="12" class="important-star" fill="currentColor" />
+        <span v-if="task.priority !== 'None'" class="priority-dot" :class="'priority-' + task.priority" :title="task.priority + ' priority'"></span>
         <span class="task-id">#{{ task.id }}</span>
       </span>
       <span class="status-badge" :class="'badge-' + task.status">{{ statusLabel }}</span>
@@ -64,6 +77,21 @@ function formatDueDate(dueDate) {
           {{ formatDiff(task) }}
         </span>
       </div>
+    </div>
+
+    <div v-if="task.taskType === 'Group'" class="subtask-preview">
+      <button type="button" class="subtask-toggle" @click="toggleExpanded">
+        <component :is="expanded ? ChevronUp : ChevronDown" :size="12" />
+        {{ subtasks.length }} subtask{{ subtasks.length === 1 ? '' : 's' }}
+        <span v-if="subtasks.length > 0" class="subtask-done-count">· {{ doneSubtaskCount(subtasks) }} done</span>
+      </button>
+      <ul v-if="expanded && subtasks.length > 0" class="subtask-preview-list">
+        <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row">
+          <span class="subtask-preview-status" :class="'badge-' + t.status"></span>
+          <span class="subtask-preview-name">{{ t.name }}</span>
+          <span class="subtask-preview-minutes">{{ hoursFor(t.estimatedMinutes) }}</span>
+        </li>
+      </ul>
     </div>
 
     <button
@@ -129,9 +157,23 @@ function formatDueDate(dueDate) {
   color: var(--mute);
 }
 
-.important-star {
+.priority-dot {
   flex: none;
-  color: var(--warn);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.priority-dot.priority-Low {
+  background: var(--accent);
+}
+
+.priority-dot.priority-Medium {
+  background: var(--warn);
+}
+
+.priority-dot.priority-High {
+  background: var(--bad);
 }
 
 .status-badge {
@@ -146,9 +188,14 @@ function formatDueDate(dueDate) {
   color: var(--mute);
 }
 
-.status-badge.badge-Open {
+.status-badge.badge-Backlog {
   color: var(--mute);
   border-color: var(--line-2);
+}
+
+.status-badge.badge-Planned {
+  color: var(--warn);
+  border-color: var(--warn);
 }
 
 .status-badge.badge-InProgress {
@@ -243,6 +290,89 @@ function formatDueDate(dueDate) {
 
 .task-stat-value.status-red {
   color: var(--bad);
+}
+
+.subtask-preview {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.subtask-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.subtask-toggle:hover {
+  color: var(--fg);
+}
+
+.subtask-done-count {
+  color: var(--mute);
+}
+
+.subtask-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.subtask-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 4px;
+}
+
+.subtask-preview-status {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+
+.subtask-preview-status.badge-Backlog {
+  background: var(--mute);
+}
+
+.subtask-preview-status.badge-Planned {
+  background: var(--warn);
+}
+
+.subtask-preview-status.badge-InProgress {
+  background: var(--accent);
+}
+
+.subtask-preview-status.badge-Done {
+  background: var(--ok);
+}
+
+.subtask-preview-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.subtask-preview-minutes {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--mute);
 }
 
 .quick-delete,

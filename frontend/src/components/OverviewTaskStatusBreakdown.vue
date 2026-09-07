@@ -2,23 +2,30 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  counts: { type: Object, required: true }, // { open, inProgress, done }
+  counts: { type: Object, required: true }, // { backlog, planned, inProgress, done }
 })
 
 // Same reading order TasksView groups status sections in - work in progress
 // first, then what's queued, with Done last.
-const STATUS_ORDER = ['inProgress', 'open', 'done']
-const STATUS_LABELS = { inProgress: 'In Progress', open: 'Not started', done: 'Done' }
+const STATUS_ORDER = ['inProgress', 'planned', 'backlog', 'done']
+const STATUS_LABELS = { inProgress: 'In Progress', planned: 'Planned', backlog: 'Backlog', done: 'Done' }
 // Reuses the exact colors TasksView's status badges already use for these
-// three states, so a status means the same color everywhere in the app
-// instead of the chart inventing its own categorical palette.
-const STATUS_COLORS = { inProgress: 'var(--accent)', open: 'var(--mute)', done: 'var(--ok)' }
+// states, so a status means the same color everywhere in the app instead of
+// the chart inventing its own categorical palette.
+const STATUS_COLORS = {
+  inProgress: 'var(--accent)',
+  planned: 'var(--warn)',
+  backlog: 'var(--mute)',
+  done: 'var(--ok)',
+}
 
 // The "r ~= 15.915" trick: circumference = 2*pi*r = 100, so a percentage
 // maps directly onto stroke-dasharray/stroke-dashoffset with no trig.
 const RADIUS = 15.91549430919
 
-const total = computed(() => props.counts.open + props.counts.inProgress + props.counts.done)
+const total = computed(
+  () => props.counts.backlog + props.counts.planned + props.counts.inProgress + props.counts.done,
+)
 
 const segments = computed(() => {
   let cumulativePercent = 0

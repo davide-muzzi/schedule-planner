@@ -12,12 +12,23 @@ export function realMinutesForTask(entries, taskId) {
 }
 
 // The earliest start date/time among a task's linked Working entries, or
-// null if it has none - used to decide when an Open task should flip to
-// In Progress.
+// null if it has none - used to decide when a Backlog/Planned task should
+// flip to In Progress.
 export function earliestLinkedEntryDateTime(entries, taskId) {
   const linked = linkedWorkingEntries(entries, taskId)
   if (linked.length === 0) return null
   return linked
     .map((e) => new Date(`${e.date}T${e.startTime}`))
     .reduce((earliest, d) => (d < earliest ? d : earliest))
+}
+
+export function subtasksOf(tasks, groupId) {
+  return tasks.filter((t) => t.parentTaskId === groupId)
+}
+
+// A Group's planned time isn't set directly - it's always the sum of its
+// subtasks' own estimatedMinutes, kept live rather than stored/duplicated
+// server-side.
+export function plannedMinutesForGroup(tasks, groupId) {
+  return subtasksOf(tasks, groupId).reduce((sum, t) => sum + t.estimatedMinutes, 0)
 }

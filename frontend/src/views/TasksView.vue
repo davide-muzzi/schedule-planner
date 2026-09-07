@@ -4,19 +4,20 @@ import { Plus, X, SlidersHorizontal } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
-import { realMinutesForTask } from '@/utils/taskStats'
+import { realMinutesForTask, plannedMinutesForGroup, subtasksOf } from '@/utils/taskStats'
 import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import TaskFilterModal from '@/components/TaskFilterModal.vue'
 import TaskCard from '@/components/TaskCard.vue'
+import ChoiceDialog from '@/components/ChoiceDialog.vue'
 
-const STATUS_LABELS = { Open: 'Not started', InProgress: 'In Progress', Done: 'Done' }
+const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In Progress', Done: 'Done' }
 
 // Grouping order applied when no status filter is active - In Progress work
 // surfaces first, then what's still queued up, with Done sinking to the
 // bottom regardless of the current sort field.
-const STATUS_GROUP_ORDER = { InProgress: 0, Open: 1, Done: 2 }
+const STATUS_GROUP_ORDER = { InProgress: 0, Planned: 1, Backlog: 2, Done: 3 }
 
 const SORT_OPTIONS = [
   { value: 'id', label: 'ID' },
@@ -35,18 +36,21 @@ const FILTER_CATEGORIES = [
     label: 'Status',
     options: [
       { value: 'all', label: 'All' },
-      { value: 'Open', label: STATUS_LABELS.Open },
+      { value: 'Backlog', label: STATUS_LABELS.Backlog },
+      { value: 'Planned', label: STATUS_LABELS.Planned },
       { value: 'InProgress', label: STATUS_LABELS.InProgress },
       { value: 'Done', label: STATUS_LABELS.Done },
     ],
   },
   {
-    key: 'important',
-    label: 'Important',
+    key: 'priority',
+    label: 'Priority',
     options: [
       { value: 'all', label: 'All' },
-      { value: 'true', label: 'Important' },
-      { value: 'false', label: 'Not important' },
+      { value: 'None', label: 'None' },
+      { value: 'Low', label: 'Low' },
+      { value: 'Medium', label: 'Medium' },
+      { value: 'High', label: 'High' },
     ],
   },
 ]
@@ -99,10 +103,15 @@ onMounted(() => {
 })
 
 function taskCard(task) {
+  const isGroup = task.taskType === 'Group'
+  // A Group's own estimatedMinutes is never meaningful (always 0 in the
+  // backend) - its "Planned" is always the live sum of its subtasks instead.
+  const estimatedMinutes = isGroup ? plannedMinutesForGroup(tasksStore.tasks, task.id) : task.estimatedMinutes
   const realMinutes = Math.round(realMinutesForTask(scheduleStore.entries, task.id))
-  const diffMinutes = realMinutes - task.estimatedMinutes
+  const diffMinutes = realMinutes - estimatedMinutes
   return {
     ...task,
+    estimatedMinutes,
     realMinutes,
     diffMinutes,
     // No diff color (or diff claim at all - see formatDiff) until some real
@@ -110,6 +119,7 @@ function taskCard(task) {
     // a misleading "-2h, on target" derived purely from the negative of its
     // own estimate.
     diffStatus: realMinutes === 0 ? null : taskDiffStatus(diffMinutes),
+    subtasks: isGroup ? subtasksOf(tasksStore.tasks, task.id) : [],
   }
 }
 
@@ -137,12 +147,15 @@ function compareTasks(a, b) {
 
 function matchesFilters(task) {
   if (filters.value.status !== 'all' && task.status !== filters.value.status) return false
-  if (filters.value.important !== 'all' && String(!!task.isImportant) !== filters.value.important) return false
+  if (filters.value.priority !== 'all' && task.priority !== filters.value.priority) return false
   return true
 }
 
+// Subtasks never appear as their own top-level cards - they render nested
+// inside their Group's card instead (see TaskCard's subtask-preview).
 const taskCards = computed(() =>
   tasksStore.tasks
+    .filter((t) => t.parentTaskId == null)
     .filter(matchesFilters)
     .map(taskCard)
     .sort(compareTasks),
@@ -191,6 +204,23 @@ function closeModal() {
   modalError.value = null
 }
 
+function taskUpdatePayload(task, overrides) {
+  return {
+    name: task.name,
+    // A Group's estimatedMinutes is never set directly - see taskCard().
+    estimatedMinutes: task.taskType === 'Group' ? 0 : task.estimatedMinutes,
+    status: task.status,
+    priority: task.priority ?? 'None',
+    taskType: task.taskType,
+    parentTaskId: task.parentTaskId ?? null,
+    tagIds: (task.tags || []).map((t) => t.id),
+    color: task.color ?? null,
+    dueDate: task.dueDate ?? null,
+    notes: task.notes ?? null,
+    ...overrides,
+  }
+}
+
 async function handleSubmit(payload) {
   saving.value = true
   modalError.value = null
@@ -208,33 +238,51 @@ async function handleSubmit(payload) {
   }
 }
 
-async function handleDelete(id) {
+const pendingGroupDelete = ref(null)
+
+// Groups with subtasks need a cascade-or-unlink choice before deleting -
+// everything else (plain tasks, or an empty Group) deletes immediately with
+// the usual undo toast.
+function requestDelete(id) {
+  const task = tasksStore.tasks.find((t) => t.id === id)
+  const hasSubtasks = task?.taskType === 'Group' && tasksStore.tasks.some((t) => t.parentTaskId === id)
+  if (hasSubtasks) {
+    pendingGroupDelete.value = task
+    return
+  }
+  handleDelete(id)
+}
+
+function handleGroupDeleteChoice(choice) {
+  const task = pendingGroupDelete.value
+  pendingGroupDelete.value = null
+  handleDelete(task.id, choice === 'cascade')
+}
+
+async function handleDelete(id, cascadeSubtasks = false) {
   saving.value = true
   const task = tasksStore.tasks.find((t) => t.id === id)
+  const hadSubtasks = task?.taskType === 'Group' && tasksStore.tasks.some((t) => t.parentTaskId === id)
   try {
-    await tasksStore.deleteTask(id)
+    await tasksStore.deleteTask(id, cascadeSubtasks)
     closeModal()
-    if (task) {
+    if (task && !hadSubtasks) {
       showToast('Task deleted.', {
         variant: 'error',
         duration: 6000,
         actionLabel: 'Undo',
         onAction: async () => {
           try {
-            await tasksStore.createTask({
-              name: task.name,
-              estimatedMinutes: task.estimatedMinutes,
-              status: task.status,
-              isImportant: task.isImportant ?? false,
-              color: task.color ?? null,
-              dueDate: task.dueDate ?? null,
-              notes: task.notes ?? null,
-            })
+            await tasksStore.createTask(taskUpdatePayload(task))
           } catch {
             showToast("Couldn't restore that task.")
           }
         },
       })
+    } else if (task) {
+      showToast(
+        cascadeSubtasks ? 'Group and its subtasks deleted.' : 'Group deleted - subtasks kept as standalone tasks.',
+      )
     }
   } catch {
     modalError.value = tasksStore.error
@@ -243,24 +291,16 @@ async function handleDelete(id) {
   }
 }
 
-async function handleQuickDelete(task, event) {
+function handleQuickDelete(task, event) {
   event.stopPropagation()
-  await handleDelete(task.id)
+  requestDelete(task.id)
 }
 
 async function handleQuickComplete(task, event) {
   event.stopPropagation()
   saving.value = true
   try {
-    await tasksStore.updateTask(task.id, {
-      name: task.name,
-      estimatedMinutes: task.estimatedMinutes,
-      status: 'Done',
-      isImportant: task.isImportant ?? false,
-      color: task.color ?? null,
-      dueDate: task.dueDate ?? null,
-      notes: task.notes ?? null,
-    })
+    await tasksStore.updateTask(task.id, taskUpdatePayload(task, { status: 'Done' }))
   } catch {
     modalError.value = tasksStore.error
   } finally {
@@ -316,6 +356,7 @@ async function handleQuickComplete(task, event) {
             v-for="task in section.tasks"
             :key="task.id"
             :task="task"
+            :subtasks="task.subtasks"
             :status-label="STATUS_LABELS[task.status]"
             :is-narrow-viewport="isNarrowViewport"
             @edit="openEdit(task)"
@@ -333,7 +374,7 @@ async function handleQuickComplete(task, event) {
       :saving="saving"
       @close="closeModal"
       @submit="handleSubmit"
-      @delete="handleDelete"
+      @delete="requestDelete"
     />
 
     <TaskFilterModal
@@ -342,6 +383,18 @@ async function handleQuickComplete(task, event) {
       :model-value="filters"
       @update:model-value="(v) => (filters = v)"
       @close="showFilterModal = false"
+    />
+
+    <ChoiceDialog
+      v-if="pendingGroupDelete"
+      title="Delete group"
+      :message="`'${pendingGroupDelete.name}' has subtasks. Delete them too, or keep them as standalone tasks?`"
+      :actions="[
+        { value: 'unlink', label: 'Keep subtasks', variant: 'default' },
+        { value: 'cascade', label: 'Delete subtasks too', variant: 'danger' },
+      ]"
+      @choose="handleGroupDeleteChoice"
+      @close="pendingGroupDelete = null"
     />
   </section>
 </template>

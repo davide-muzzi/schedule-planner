@@ -15,8 +15,8 @@ export default {
   update(id, task) {
     return apiClient.put(`/${id}`, task)
   },
-  delete(id) {
-    return apiClient.delete(`/${id}`)
+  delete(id, cascadeSubtasks = false) {
+    return apiClient.delete(`/${id}`, { params: { cascadeSubtasks } })
   },
   deleteAll() {
     return apiClient.delete('/')

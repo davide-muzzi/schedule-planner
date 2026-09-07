@@ -451,7 +451,8 @@ export const useScheduleStore = defineStore('schedule', {
             const createdTask = await tasksStore.createTask({
               name: task.name,
               estimatedMinutes: task.estimatedMinutes,
-              status: task.status ?? 'Open',
+              status: task.status ?? 'Backlog',
+              priority: task.priority ?? 'None',
               color: task.color ?? null,
               dueDate: task.dueDate ?? null,
               notes: task.notes ?? null,

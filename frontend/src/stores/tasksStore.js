@@ -50,11 +50,20 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    async deleteTask(id) {
+    // cascadeSubtasks only matters when id is a Group with subtasks: true
+    // deletes them along with it, false (default) unlinks them back to
+    // standalone tasks instead - mirrors the backend's own default.
+    async deleteTask(id, cascadeSubtasks = false) {
       this.error = null
       try {
-        await tasksApi.delete(id)
-        this.tasks = this.tasks.filter((t) => t.id !== id)
+        await tasksApi.delete(id, cascadeSubtasks)
+        if (cascadeSubtasks) {
+          this.tasks = this.tasks.filter((t) => t.id !== id && t.parentTaskId !== id)
+        } else {
+          this.tasks = this.tasks
+            .filter((t) => t.id !== id)
+            .map((t) => (t.parentTaskId === id ? { ...t, parentTaskId: null } : t))
+        }
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err
@@ -72,13 +81,13 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    // For every Open task whose earliest linked Working entry has already
-    // started, flips it to In Progress - a one-shot check run on load
-    // rather than a live ticker, since this is a personal app you check in
-    // on rather than leave open and watch.
+    // For every Backlog/Planned task whose earliest linked Working entry has
+    // already started, flips it to In Progress - a one-shot check run on
+    // load rather than a live ticker, since this is a personal app you check
+    // in on rather than leave open and watch.
     async syncAutoStatuses(entries) {
       const dueTasks = this.tasks.filter((t) => {
-        if (t.status !== 'Open') return false
+        if (t.status !== 'Backlog' && t.status !== 'Planned') return false
         const earliest = earliestLinkedEntryDateTime(entries, t.id)
         return earliest !== null && earliest <= new Date()
       })

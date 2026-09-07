@@ -117,9 +117,10 @@ const canToggleAllDay = computed(() => ALL_DAY_ALLOWED_TYPES.includes(form.value
 // Done tasks are finished work, not something a new entry should still get
 // linked to - but if this entry is already linked to one (marked Done after
 // the link was made), it stays in the list so opening this entry doesn't
-// silently show a blank/missing selection.
+// silently show a blank/missing selection. Subtasks are never linkable
+// directly - only their Group is (the group is what tracks real time).
 const selectableTasks = computed(() =>
-  props.tasks.filter((t) => t.status !== 'Done' || t.id === form.value.taskItemId),
+  props.tasks.filter((t) => t.parentTaskId == null && (t.status !== 'Done' || t.id === form.value.taskItemId)),
 )
 
 // Custom dropdown instead of a native <select> - Android renders <select> as
@@ -462,6 +463,7 @@ function handleOverlayClick(event) {
     v-if="showCreateTaskModal"
     :task="null"
     :initial-estimated-minutes="newTaskEstimatedMinutes"
+    :disable-group-type="true"
     :server-error="createTaskError"
     :saving="creatingTask"
     @close="showCreateTaskModal = false"
