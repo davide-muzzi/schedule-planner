@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onBeforeUnmount } from 'vue'
 import { Pencil } from '@lucide/vue'
 import { useAppShell } from '@/composables/useAppShell'
 
@@ -21,8 +21,48 @@ const showDropdown = ref(false)
 const customEditing = ref(false)
 let skipBlurFormat = false
 
+// The dropdown is teleported to <body> and positioned fixed, rather than
+// living in normal flow under the input. In-flow, it used to physically
+// overlap whatever field sat below it in the form (its 12rem max-height
+// reaches well past a single input) - close enough that mousing down
+// through the option list could graze a sibling control underneath and
+// flash its :hover state, since the browser hands hover to whatever's
+// topmost at the cursor once it strays outside the dropdown's own box.
+const dropdownPosition = ref({ top: 0, left: 0, width: 0, maxHeight: 192 })
+
+function updateDropdownPosition() {
+  const el = inputEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const gap = 4
+  const margin = 8
+  const preferredMax = 192 // 12rem, same cap the dropdown always had
+  const spaceBelow = window.innerHeight - rect.bottom - gap - margin
+  const spaceAbove = rect.top - gap - margin
+  const openUp = spaceBelow < 120 && spaceAbove > spaceBelow
+  const maxHeight = Math.round(Math.max(80, Math.min(preferredMax, openUp ? spaceAbove : spaceBelow)))
+  dropdownPosition.value = {
+    left: Math.round(rect.left),
+    width: Math.round(rect.width),
+    top: Math.round(openUp ? rect.top - gap - maxHeight : rect.bottom + gap),
+    maxHeight,
+  }
+}
+
+function handleViewportChange() {
+  if (showDropdown.value) updateDropdownPosition()
+}
+
+window.addEventListener('resize', handleViewportChange)
+window.addEventListener('scroll', handleViewportChange, true)
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleViewportChange)
+  window.removeEventListener('scroll', handleViewportChange, true)
+})
+
 function openDropdown(event) {
   showDropdown.value = true
+  updateDropdownPosition()
   if (isNarrowViewport.value) {
     // Selecting-all pops the mobile keyboard straight into "replace" mode,
     // which reads as the field being mysteriously pre-highlighted - just
@@ -89,7 +129,19 @@ function enableCustomEdit() {
       @blur="handleBlur"
       @keydown.escape.stop="showDropdown = false"
     />
-    <div v-if="showDropdown" class="time-part-dropdown">
+  </div>
+
+  <Teleport to="body">
+    <div
+      v-if="showDropdown"
+      class="time-part-dropdown"
+      :style="{
+        top: dropdownPosition.top + 'px',
+        left: dropdownPosition.left + 'px',
+        width: dropdownPosition.width + 'px',
+        maxHeight: dropdownPosition.maxHeight + 'px',
+      }"
+    >
       <button
         v-for="option in options"
         :key="option"
@@ -110,7 +162,7 @@ function enableCustomEdit() {
         <Pencil :size="13" />
       </button>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -131,22 +183,34 @@ function enableCustomEdit() {
 }
 
 .time-part-dropdown {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  z-index: 20;
-  max-height: 12rem;
+  position: fixed;
+  z-index: 60;
   overflow-y: auto;
-  min-width: 3.5rem;
   display: flex;
   flex-direction: column;
   background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.time-part-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.time-part-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.time-part-dropdown::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 .time-part-option {
+  flex-shrink: 0;
   padding: 0.3rem 0.6rem;
   background: transparent;
   border: none;
