@@ -4,7 +4,7 @@ import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
-import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend } from '@/utils/date'
+import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend, timeToDecimalHours } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
 import { showToast } from '@/utils/toast'
 import DayTable from '@/components/DayTable.vue'
@@ -74,6 +74,22 @@ async function handleApplyHolidayAdjustment(deltaDays) {
 function entriesForDate(date) {
   const iso = toISODate(date)
   return store.entries.filter((e) => e.date === iso)
+}
+
+// Same overlap rule DayTable's own drag-create uses, just checking against
+// an arbitrary target day instead of the day the drag started on - an
+// All Day entry (existing or incoming) claims the whole day, otherwise it's
+// a plain time-range intersection.
+function entryOverlapsDate(entry, date) {
+  const existing = entriesForDate(date)
+  if (entry.allDay) return existing.length > 0
+  if (existing.some((e) => e.allDay)) return true
+  const start = timeToDecimalHours(entry.startTime)
+  const end = timeToDecimalHours(entry.endTime)
+  return existing.some((e) => {
+    if (e.allDay) return true
+    return start < timeToDecimalHours(e.endTime) && end > timeToDecimalHours(e.startTime)
+  })
 }
 
 // Same "does this calendar week have any entry at all" check the running
@@ -232,12 +248,68 @@ function handleCopyEntry(entry) {
 // without clearing whatever's already there first.
 async function handlePasteEntries(date) {
   if (!copiedDayEntries.value) return
+  if (copiedDayEntries.value.some((entry) => entryOverlapsDate(entry, date))) {
+    showToast('This time range overlaps with an existing entry.')
+    return
+  }
   try {
     await pasteCopiedEntriesOnto(date)
     markPasteSuccess(date)
   } catch {
     // store.error is already set; the global error banner picks it up
   }
+}
+
+// Right-click-drag an entry onto another day to copy it there at the exact
+// same time - a mouse-driven shortcut for the same copy the right-click menu
+// already offers. RIGHT_DRAG_THRESHOLD_PX is what tells a real drag apart
+// from a plain right click that's just opening that menu instead - below it
+// the browser's own contextmenu event still fires normally (browsers
+// suppress it once a real drag has happened), and DayTable's own handler
+// takes over from there.
+const RIGHT_DRAG_THRESHOLD_PX = 6
+const rightDragHoverIso = ref(null)
+
+function dayIsoUnderPoint(x, y) {
+  return document.elementFromPoint(x, y)?.closest('[data-date]')?.dataset.date ?? null
+}
+
+function handleEntryRightDragStart(entry, startX, startY) {
+  let dragging = false
+
+  function onMove(event) {
+    if (!dragging) {
+      if (Math.hypot(event.clientX - startX, event.clientY - startY) < RIGHT_DRAG_THRESHOLD_PX) return
+      dragging = true
+      document.body.style.cursor = 'copy'
+    }
+    rightDragHoverIso.value = dayIsoUnderPoint(event.clientX, event.clientY)
+  }
+
+  async function onUp(event) {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    rightDragHoverIso.value = null
+    if (!dragging) return
+    const targetIso = dayIsoUnderPoint(event.clientX, event.clientY)
+    if (!targetIso) return
+    const targetDate = new Date(`${targetIso}T00:00:00`)
+    const { id: _id, date: _date, ...payload } = entry
+    if (entryOverlapsDate(payload, targetDate)) {
+      showToast('This time range overlaps with an existing entry.')
+      return
+    }
+    try {
+      await store.createEntry({ ...payload, date: targetIso })
+      markPasteSuccess(targetDate)
+    } catch {
+      // store.error is already set; the global error banner picks it up
+    }
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
 }
 
 async function handlePasteDay(date) {
@@ -405,6 +477,7 @@ async function handleDelete(id) {
         :view-till-hour="store.viewTillHour"
         :entry-type-colors="store.entryTypeColors"
         :has-copied-day="!!copiedDayEntries"
+        :is-right-drag-target="rightDragHoverIso === toISODate(date)"
         :paste-success="pasteSuccess"
         :tasks="tasksStore.tasks"
         @add="openAdd"
@@ -415,6 +488,7 @@ async function handleDelete(id) {
         @paste-day="handlePasteDay"
         @copy-entry="handleCopyEntry"
         @paste-entries="handlePasteEntries"
+        @entry-right-drag-start="handleEntryRightDragStart"
       />
     </div>
 

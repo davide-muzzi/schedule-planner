@@ -18,6 +18,7 @@ const props = defineProps({
   viewTillHour: { type: Number, required: true },
   entryTypeColors: { type: Object, required: true },
   hasCopiedDay: { type: Boolean, default: false },
+  isRightDragTarget: { type: Boolean, default: false }, // true while a right-click entry drag is hovering this day
   pasteSuccess: { type: Object, default: null }, // { date, id } - set by the parent right after a successful paste
   tasks: { type: Array, default: () => [] },
 })
@@ -31,6 +32,7 @@ const emit = defineEmits([
   'paste-day',
   'copy-entry',
   'paste-entries',
+  'entry-right-drag-start',
 ])
 
 const { isNarrowViewport } = useAppShell()
@@ -507,7 +509,11 @@ const hoverLinePosition = computed(() => {
 const hoverTimeLabel = computed(() => (hoverHours.value === null ? '' : hoursToTimeString(hoverHours.value)))
 
 function handleBlockMouseDown(event, entry) {
-  if (event.button !== 0) return // right/middle click - leave it to the context menu, don't start a move-drag
+  if (event.button === 2) {
+    emit('entry-right-drag-start', entry, event.clientX, event.clientY)
+    return
+  }
+  if (event.button !== 0) return
   event.preventDefault()
   const { start, end } = entryRange(entry)
   dragMode.value = 'move'
@@ -518,6 +524,10 @@ function handleBlockMouseDown(event, entry) {
   dragMoved.value = false
   hoveredEntry.value = null
   startDragListeners()
+}
+
+function handleAllDayBlockMouseDown(event, entry) {
+  if (event.button === 2) emit('entry-right-drag-start', entry, event.clientX, event.clientY)
 }
 
 function handleEdgeMouseDown(event, entry, edge) {
@@ -807,7 +817,12 @@ const tooltipTimeText = computed(() => {
 </script>
 
 <template>
-  <section class="day-row" :class="{ 'is-today': isToday }" :style="{ animationDelay: rowIndex * 55 + 'ms' }">
+  <section
+    class="day-row"
+    :class="{ 'is-today': isToday, 'drop-target': isRightDragTarget }"
+    :data-date="toISODate(date)"
+    :style="{ animationDelay: rowIndex * 55 + 'ms' }"
+  >
     <div class="day-info">
       <div class="day-weekday-row">
         <span class="day-weekday">{{ weekdayAbbrev }}</span>
@@ -873,6 +888,7 @@ const tooltipTimeText = computed(() => {
             class="block all-day-block"
             :style="[allDayBlockStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
             @click="emit('edit', entry)"
+            @mousedown.stop="handleAllDayBlockMouseDown($event, entry)"
             @contextmenu.prevent.stop="handleEntryContextMenu($event, entry)"
             @mouseenter="showEntryTooltip($event, entry)"
             @mouseleave="hideEntryTooltip"
@@ -1073,6 +1089,11 @@ const tooltipTimeText = computed(() => {
 
 .day-row.is-today {
   background: var(--accent-tint);
+}
+
+.day-row.drop-target {
+  background: var(--accent-tint);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .day-info {
