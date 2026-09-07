@@ -1,8 +1,9 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Plus, X, SlidersHorizontal } from '@lucide/vue'
+import { Plus, X, SlidersHorizontal, Tags } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
+import { useTagsStore } from '@/stores/tagsStore'
 import { useAppShell } from '@/composables/useAppShell'
 import { realMinutesForTask, plannedMinutesForGroup, subtasksOf } from '@/utils/taskStats'
 import { taskDiffStatus } from '@/utils/status'
@@ -11,6 +12,7 @@ import TaskFormModal from '@/components/TaskFormModal.vue'
 import TaskFilterModal from '@/components/TaskFilterModal.vue'
 import TaskCard from '@/components/TaskCard.vue'
 import ChoiceDialog from '@/components/ChoiceDialog.vue'
+import TagManageModal from '@/components/TagManageModal.vue'
 
 const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In Progress', Done: 'Done' }
 
@@ -28,9 +30,11 @@ const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
 
 // Each category is single-select with an "all" option meaning that category
 // imposes no restriction - a task only has to clear every category to show.
-// Adding a new filterable attribute later (e.g. Important) is just another
-// entry here, not a rework of the filter UI itself.
-const FILTER_CATEGORIES = [
+// Adding a new filterable attribute later is just another entry here, not a
+// rework of the filter UI itself. Status/Priority are fixed; Tags is
+// data-driven (see FILTER_CATEGORIES below), since the tag catalog changes
+// at runtime.
+const BASE_FILTER_CATEGORIES = [
   {
     key: 'status',
     label: 'Status',
@@ -56,28 +60,6 @@ const FILTER_CATEGORIES = [
 ]
 const FILTERS_STORAGE_KEY = 'schedulePlanner.taskFilters'
 
-function defaultFilters() {
-  return Object.fromEntries(FILTER_CATEGORIES.map((c) => [c.key, 'all']))
-}
-
-function loadFilters() {
-  const filters = defaultFilters()
-  let stored
-  try {
-    stored = JSON.parse(localStorage.getItem(FILTERS_STORAGE_KEY))
-  } catch {
-    stored = null
-  }
-  if (stored && typeof stored === 'object') {
-    for (const category of FILTER_CATEGORIES) {
-      if (category.options.some((o) => o.value === stored[category.key])) {
-        filters[category.key] = stored[category.key]
-      }
-    }
-  }
-  return filters
-}
-
 function loadSortBy() {
   const stored = localStorage.getItem(SORT_STORAGE_KEY)
   return SORT_OPTIONS.some((o) => o.value === stored) ? stored : 'id'
@@ -85,15 +67,59 @@ function loadSortBy() {
 
 const scheduleStore = useScheduleStore()
 const tasksStore = useTasksStore()
+const tagsStore = useTagsStore()
 const { isNarrowViewport } = useAppShell()
+
+const FILTER_CATEGORIES = computed(() => [
+  ...BASE_FILTER_CATEGORIES,
+  {
+    key: 'tags',
+    label: 'Tags',
+    options: [
+      { value: 'all', label: 'All' },
+      ...tagsStore.tags.map((t) => ({ value: String(t.id), label: t.name })),
+    ],
+  },
+])
+
+function loadFiltersFrom(categories, existing = {}) {
+  let stored
+  try {
+    stored = JSON.parse(localStorage.getItem(FILTERS_STORAGE_KEY))
+  } catch {
+    stored = null
+  }
+  const result = { ...existing }
+  for (const category of categories) {
+    if (category.key in result) continue
+    if (stored && typeof stored === 'object' && category.options.some((o) => o.value === stored[category.key])) {
+      result[category.key] = stored[category.key]
+    } else {
+      result[category.key] = 'all'
+    }
+  }
+  return result
+}
 
 const sortBy = ref(loadSortBy())
 watch(sortBy, (value) => localStorage.setItem(SORT_STORAGE_KEY, value))
 
-const filters = ref(loadFilters())
+const filters = ref(loadFiltersFrom(FILTER_CATEGORIES.value))
 watch(filters, (value) => localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(value)), { deep: true })
+
+// The Tags category's options only exist once tagsStore.tags has loaded -
+// this backfills a default (or a validated restored value) for any
+// category not yet present in `filters` once it shows up, without
+// disturbing categories already set.
+watch(FILTER_CATEGORIES, (categories) => {
+  filters.value = loadFiltersFrom(categories, filters.value)
+})
+
 const showFilterModal = ref(false)
-const activeFilterCount = computed(() => FILTER_CATEGORIES.filter((c) => filters.value[c.key] !== 'all').length)
+const showTagManageModal = ref(false)
+const activeFilterCount = computed(
+  () => FILTER_CATEGORIES.value.filter((c) => (filters.value[c.key] ?? 'all') !== 'all').length,
+)
 
 // Entries/tasks are already loaded app-wide (see App.vue) - this just
 // re-checks the auto Open -> In Progress transition in case an entry's
@@ -146,8 +172,10 @@ function compareTasks(a, b) {
 }
 
 function matchesFilters(task) {
-  if (filters.value.status !== 'all' && task.status !== filters.value.status) return false
-  if (filters.value.priority !== 'all' && task.priority !== filters.value.priority) return false
+  const f = filters.value
+  if ((f.status ?? 'all') !== 'all' && task.status !== f.status) return false
+  if ((f.priority ?? 'all') !== 'all' && task.priority !== f.priority) return false
+  if ((f.tags ?? 'all') !== 'all' && !(task.tags || []).some((t) => String(t.id) === f.tags)) return false
   return true
 }
 
@@ -320,6 +348,9 @@ async function handleQuickComplete(task, event) {
         <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
           <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
         </button>
+        <button type="button" class="filter-btn" @click="showTagManageModal = true">
+          <Tags :size="14" /> Manage tags
+        </button>
         <label class="sort-control">
           Sort by
           <select v-model="sortBy">
@@ -396,6 +427,8 @@ async function handleQuickComplete(task, event) {
       @choose="handleGroupDeleteChoice"
       @close="pendingGroupDelete = null"
     />
+
+    <TagManageModal v-if="showTagManageModal" @close="showTagManageModal = false" />
   </section>
 </template>
 

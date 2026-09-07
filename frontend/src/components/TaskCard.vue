@@ -60,6 +60,13 @@ function formatDueDate(dueDate) {
 
     <span v-if="task.dueDate" class="task-due-date"><CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }}</span>
 
+    <div v-if="task.tags && task.tags.length > 0" class="task-tags">
+      <span v-for="tag in task.tags" :key="tag.id" class="task-tag-chip">
+        <span class="task-tag-swatch" :style="{ background: tag.color || 'var(--line-2)' }"></span>
+        {{ tag.name }}
+      </span>
+    </div>
+
     <p v-if="task.notes" class="task-notes" :title="task.notes">{{ task.notes }}</p>
 
     <div class="task-stats">
@@ -239,6 +246,30 @@ function formatDueDate(dueDate) {
   gap: 5px;
   font-size: 11px;
   color: var(--mute);
+}
+
+.task-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.task-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: 10px;
+  color: var(--mute);
+}
+
+.task-tag-swatch {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
 }
 
 .task-notes {

@@ -4,6 +4,7 @@ import { useRoute, RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
+import { useTagsStore } from '@/stores/tagsStore'
 import AppSidebar from '@/components/AppSidebar.vue'
 import Toast from '@/components/Toast.vue'
 
@@ -11,6 +12,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const store = useScheduleStore()
 const tasksStore = useTasksStore()
+const tagsStore = useTagsStore()
 
 // Watches (rather than onMounted) because the router guard's session check
 // resolves asynchronously - by the time it settles, App.vue may already have
@@ -32,6 +34,7 @@ watch(
     const [entries] = await Promise.all([
       store.fetchAll().then(() => store.entries),
       tasksStore.fetchAll(),
+      tagsStore.fetchAll(),
     ])
     await tasksStore.syncAutoStatuses(entries)
   },

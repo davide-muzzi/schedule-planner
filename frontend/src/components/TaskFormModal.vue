@@ -4,12 +4,14 @@ import { X, Plus, ChevronDown, ChevronUp } from '@lucide/vue'
 import { useAppShell } from '@/composables/useAppShell'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
+import { useTagsStore } from '@/stores/tagsStore'
 import { formatHours } from '@/utils/date'
 import ChoiceDialog from './ChoiceDialog.vue'
 
 const { isNarrowViewport } = useAppShell()
 const tasksStore = useTasksStore()
 const scheduleStore = useScheduleStore()
+const tagsStore = useTagsStore()
 
 const STATUSES = ['Backlog', 'Planned', 'InProgress', 'Done']
 const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In Progress', Done: 'Done' }
@@ -45,6 +47,7 @@ function blankForm() {
     estimatedMinutes: minutes % 60,
     status: 'Backlog',
     priority: 'None',
+    tagIds: [],
     hasColor: false,
     color: DEFAULT_COLOR,
     dueDate: '',
@@ -57,6 +60,12 @@ const localError = ref(null)
 const originalFormSnapshot = ref(null)
 const nameInputEl = ref(null)
 
+// Adding/removing/creating a subtask commits immediately (its own API
+// call), not through this form's own Save - but the button should still
+// enable so the user can close out or save any other pending field edits
+// without touching a field first.
+const subtasksChanged = ref(false)
+
 watch(
   () => props.task,
   (task) => {
@@ -68,6 +77,7 @@ watch(
         estimatedMinutes: task.estimatedMinutes % 60,
         status: task.status,
         priority: task.priority || 'None',
+        tagIds: (task.tags || []).map((t) => t.id),
         hasColor: !!task.color,
         color: task.color || DEFAULT_COLOR,
         dueDate: task.dueDate || '',
@@ -77,12 +87,17 @@ watch(
       form.value = blankForm()
     }
     originalFormSnapshot.value = JSON.stringify(form.value)
+    // Reset for the task now being edited (or create mode) - a subtask
+    // change made before switching away shouldn't linger as "dirty" here.
+    subtasksChanged.value = false
   },
   { immediate: true },
 )
 
 // Create mode has no "original" to diff against, so it's always considered dirty.
-const isDirty = computed(() => !isEdit.value || JSON.stringify(form.value) !== originalFormSnapshot.value)
+const isDirty = computed(
+  () => !isEdit.value || subtasksChanged.value || JSON.stringify(form.value) !== originalFormSnapshot.value,
+)
 
 const isGroup = computed(() => form.value.taskType === 'Group')
 
@@ -95,6 +110,55 @@ const groupPlannedMinutes = computed(() => subtasks.value.reduce((sum, t) => sum
 
 function tagIdsOf(task) {
   return (task.tags || []).map((t) => t.id)
+}
+
+// --- Tag picker ---
+
+const showTagPicker = ref(false)
+const tagSearch = ref('')
+const creatingTag = ref(false)
+const tagCreateError = ref(null)
+
+const selectedTags = computed(() =>
+  form.value.tagIds.map((id) => tagsStore.tags.find((t) => t.id === id)).filter(Boolean),
+)
+
+const eligibleTags = computed(() => {
+  const q = tagSearch.value.trim().toLowerCase()
+  return tagsStore.tags.filter(
+    (t) => !form.value.tagIds.includes(t.id) && (!q || t.name.toLowerCase().includes(q)),
+  )
+})
+
+const tagExactMatchExists = computed(() =>
+  tagsStore.tags.some((t) => t.name.toLowerCase() === tagSearch.value.trim().toLowerCase()),
+)
+
+function addTagId(id) {
+  if (!form.value.tagIds.includes(id)) form.value.tagIds.push(id)
+  tagSearch.value = ''
+}
+
+function removeTagId(id) {
+  form.value.tagIds = form.value.tagIds.filter((tid) => tid !== id)
+}
+
+// Creating a brand new tag commits immediately (it needs a real id before
+// it can be assigned) - but assigning it to this task is still just a
+// pending form field, submitted with everything else on Save.
+async function createAndAddTag() {
+  const name = tagSearch.value.trim()
+  if (!name) return
+  creatingTag.value = true
+  tagCreateError.value = null
+  try {
+    const created = await tagsStore.createTag({ name, color: null })
+    addTagId(created.id)
+  } catch {
+    tagCreateError.value = tagsStore.error
+  } finally {
+    creatingTag.value = false
+  }
 }
 
 function handleSubmit() {
@@ -117,7 +181,7 @@ function handleSubmit() {
     priority: form.value.priority,
     taskType: form.value.taskType,
     parentTaskId: props.task?.parentTaskId ?? null,
-    tagIds: props.task ? tagIdsOf(props.task) : [],
+    tagIds: form.value.tagIds,
     color: form.value.hasColor ? form.value.color : null,
     dueDate: form.value.dueDate || null,
     notes: form.value.notes.trim() || null,
@@ -180,6 +244,7 @@ async function commitAddSubtask(task) {
   subtaskActionBusy.value = true
   try {
     await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: props.task.id }))
+    subtasksChanged.value = true
     showAddExisting.value = false
     addExistingSearch.value = ''
   } catch {
@@ -197,6 +262,7 @@ async function confirmRelink() {
       await scheduleStore.updateEntry(entry.id, { ...entry, taskItemId: props.task.id })
     }
     await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: props.task.id }))
+    subtasksChanged.value = true
     pendingRelink.value = null
     showAddExisting.value = false
     addExistingSearch.value = ''
@@ -216,6 +282,7 @@ async function removeSubtask(task) {
   subtaskActionBusy.value = true
   try {
     await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: null }))
+    subtasksChanged.value = true
   } catch {
     subtaskActionError.value = tasksStore.error
   } finally {
@@ -228,6 +295,7 @@ async function handleCreateSubtaskSubmit(payload) {
   subtaskActionError.value = null
   try {
     await tasksStore.createTask({ ...payload, taskType: 'Task', parentTaskId: props.task.id })
+    subtasksChanged.value = true
     showCreateSubtask.value = false
   } catch {
     subtaskActionError.value = tasksStore.error
@@ -368,6 +436,46 @@ function handleOverlayClick(event) {
               <span class="priority-dot" :class="'priority-' + p"></span>
               {{ PRIORITY_LABELS[p] }}
             </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Tags</label>
+          <div class="tag-chips">
+            <span v-for="tag in selectedTags" :key="tag.id" class="tag-chip">
+              <span class="tag-chip-swatch" :style="{ background: tag.color || 'var(--color-border)' }"></span>
+              {{ tag.name }}
+              <button type="button" class="tag-chip-remove" aria-label="Remove tag" @click="removeTagId(tag.id)">
+                <X :size="10" />
+              </button>
+            </span>
+            <button type="button" class="tag-add-btn" @click="showTagPicker = !showTagPicker">
+              <Plus :size="12" /> Add tag
+            </button>
+          </div>
+          <div v-if="showTagPicker" class="tag-picker-panel">
+            <input
+              v-model="tagSearch"
+              type="text"
+              placeholder="Search or create tag..."
+              class="tag-search"
+              @keydown.escape.stop="showTagPicker = false"
+            />
+            <ul class="tag-picker-list">
+              <li v-for="t in eligibleTags" :key="t.id">
+                <button type="button" class="tag-picker-option" @click="addTagId(t.id)">
+                  <span class="tag-chip-swatch" :style="{ background: t.color || 'var(--color-border)' }"></span>
+                  {{ t.name }}
+                </button>
+              </li>
+              <li v-if="tagSearch.trim() && !tagExactMatchExists">
+                <button type="button" class="tag-picker-option tag-picker-create" :disabled="creatingTag" @click="createAndAddTag">
+                  <Plus :size="12" /> Create "{{ tagSearch.trim() }}"
+                </button>
+              </li>
+              <li v-if="eligibleTags.length === 0 && !tagSearch.trim()" class="tag-picker-empty">No more tags to add.</li>
+            </ul>
+            <p v-if="tagCreateError" class="error-msg">{{ tagCreateError }}</p>
           </div>
         </div>
 
@@ -833,6 +941,129 @@ input[type='date'] {
 
 .add-existing-option:hover {
   background: var(--color-background);
+}
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.78rem;
+}
+
+.tag-chip-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tag-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tag-chip-remove:hover {
+  opacity: 1;
+  color: #dc2626;
+}
+
+.tag-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.tag-add-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.tag-picker-panel {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+}
+
+.tag-search {
+  width: 100%;
+  margin-bottom: 0.4rem;
+}
+
+.tag-picker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 9rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tag-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.83rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tag-picker-option:hover {
+  background: var(--color-background);
+}
+
+.tag-picker-option.tag-picker-create {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.tag-picker-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tag-picker-empty {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  padding: 0.3rem;
 }
 
 .error-msg {
