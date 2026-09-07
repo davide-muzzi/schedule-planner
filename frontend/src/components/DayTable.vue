@@ -22,7 +22,16 @@ const props = defineProps({
   tasks: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['add', 'edit', 'clear-day', 'resize-entry', 'copy-day', 'paste-day'])
+const emit = defineEmits([
+  'add',
+  'edit',
+  'clear-day',
+  'resize-entry',
+  'copy-day',
+  'paste-day',
+  'copy-entry',
+  'paste-entries',
+])
 
 const { isNarrowViewport } = useAppShell()
 
@@ -210,9 +219,48 @@ function toggleHiddenPopup(event) {
   showHiddenPopup.value = !showHiddenPopup.value
 }
 
+// Right-click menu: replaces the browser's native context menu with a
+// Copy/Paste of our own - Copy on an entry block, Paste on empty timeline
+// space. `contextMenuEntry` doubles as the mode switch: set means the menu
+// is anchored on that entry (Copy), null means it's anchored on empty
+// space (Paste).
+const showContextMenu = ref(false)
+const contextMenuStyle = ref({})
+const contextMenuEntry = ref(null)
+
+function openContextMenu(event, entry) {
+  closePopups()
+  contextMenuEntry.value = entry
+  // Clamp so the menu never renders partly off-screen near a viewport edge.
+  const x = Math.min(event.clientX, window.innerWidth - 160)
+  const y = Math.min(event.clientY, window.innerHeight - 90)
+  contextMenuStyle.value = { left: `${x}px`, top: `${y}px` }
+  showContextMenu.value = true
+}
+
+function handleEntryContextMenu(event, entry) {
+  openContextMenu(event, entry)
+}
+
+function handleTrackContextMenu(event) {
+  openContextMenu(event, null)
+}
+
+function handleContextCopy() {
+  emit('copy-entry', contextMenuEntry.value)
+  showContextMenu.value = false
+}
+
+function handleContextPaste() {
+  if (!props.hasCopiedDay) return
+  emit('paste-entries', props.date)
+  showContextMenu.value = false
+}
+
 function closePopups() {
   showBreakPopup.value = false
   showHiddenPopup.value = false
+  showContextMenu.value = false
 }
 
 function handleHiddenEntryClick(entry) {
@@ -411,6 +459,7 @@ function handleDragKeydown(event) {
 onBeforeUnmount(stopDragListeners)
 
 function handleTrackMouseDown(event) {
+  if (event.button !== 0) return // right/middle click - leave it to the context menu, don't start a create-drag
   if (allDayEntries.value.length > 0) return // the whole day is already spoken for
   event.preventDefault() // stops the browser's native text-selection drag from kicking in
   const start = snapHours(hoursFromClientX(event.clientX), event.ctrlKey)
@@ -458,6 +507,7 @@ const hoverLinePosition = computed(() => {
 const hoverTimeLabel = computed(() => (hoverHours.value === null ? '' : hoursToTimeString(hoverHours.value)))
 
 function handleBlockMouseDown(event, entry) {
+  if (event.button !== 0) return // right/middle click - leave it to the context menu, don't start a move-drag
   event.preventDefault()
   const { start, end } = entryRange(entry)
   dragMode.value = 'move'
@@ -471,6 +521,7 @@ function handleBlockMouseDown(event, entry) {
 }
 
 function handleEdgeMouseDown(event, entry, edge) {
+  if (event.button !== 0) return // right/middle click - leave it to the context menu, don't start a resize-drag
   event.preventDefault()
   const { start, end } = entryRange(entry)
   dragMode.value = edge === 'start' ? 'resize-start' : 'resize-end'
@@ -810,6 +861,7 @@ const tooltipTimeText = computed(() => {
         @mousedown="handleTrackMouseDown"
         @mousemove="handleTrackMouseMove"
         @mouseleave="handleTrackMouseLeave"
+        @contextmenu.prevent="handleTrackContextMenu"
       >
         <div class="track-grid">
           <span v-for="h in visibleHours" :key="h" class="grid-line"></span>
@@ -821,6 +873,7 @@ const tooltipTimeText = computed(() => {
             class="block all-day-block"
             :style="[allDayBlockStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
             @click="emit('edit', entry)"
+            @contextmenu.prevent.stop="handleEntryContextMenu($event, entry)"
             @mouseenter="showEntryTooltip($event, entry)"
             @mouseleave="hideEntryTooltip"
           >
@@ -844,6 +897,7 @@ const tooltipTimeText = computed(() => {
             class="block"
             :style="[blockStyle(entry), { animationDelay: blockDelay(entry, entryIndex) }]"
             @mousedown.stop="handleBlockMouseDown($event, entry)"
+            @contextmenu.prevent.stop="handleEntryContextMenu($event, entry)"
             @mouseenter="showEntryTooltip($event, entry)"
             @mouseleave="hideEntryTooltip"
           >
@@ -881,6 +935,23 @@ const tooltipTimeText = computed(() => {
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showContextMenu" class="context-menu" :style="contextMenuStyle" @click.stop>
+        <button v-if="contextMenuEntry" type="button" class="context-menu-item" @click="handleContextCopy">
+          <Copy :size="13" /> Copy
+        </button>
+        <button
+          v-else
+          type="button"
+          class="context-menu-item"
+          :disabled="!hasCopiedDay"
+          @click="handleContextPaste"
+        >
+          <ClipboardPaste :size="13" /> Paste
+        </button>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div
@@ -1074,6 +1145,42 @@ const tooltipTimeText = computed(() => {
   white-space: normal;
   cursor: default;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 300;
+  min-width: 9rem;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r2);
+  padding: 0.3rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  border-radius: var(--r2);
+  background: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: var(--surface2);
+}
+
+.context-menu-item:disabled {
+  color: var(--mute);
+  cursor: default;
 }
 
 .entry-tooltip {

@@ -220,6 +220,26 @@ function markPasteSuccess(date) {
   pasteSuccess.value = { date, id: pasteSuccessCounter }
 }
 
+// Right-click "Copy" on a single entry - shares the same clipboard as
+// Copy Day, just holding one entry instead of the whole day's worth.
+function handleCopyEntry(entry) {
+  const { date: _date, ...rest } = entryPayload(entry)
+  copiedDayEntries.value = [rest]
+}
+
+// Right-click "Paste" on empty timeline space - unlike Paste Day, this adds
+// the clipboard's entries onto the target day at their original times
+// without clearing whatever's already there first.
+async function handlePasteEntries(date) {
+  if (!copiedDayEntries.value) return
+  try {
+    await pasteCopiedEntriesOnto(date)
+    markPasteSuccess(date)
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
+}
+
 async function handlePasteDay(date) {
   if (!copiedDayEntries.value) return
   if (entriesForDate(date).length > 0) {
@@ -393,6 +413,8 @@ async function handleDelete(id) {
         @resize-entry="handleResizeEntry"
         @copy-day="handleCopyDay"
         @paste-day="handlePasteDay"
+        @copy-entry="handleCopyEntry"
+        @paste-entries="handlePasteEntries"
       />
     </div>
 
