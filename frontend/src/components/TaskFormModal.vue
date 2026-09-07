@@ -14,8 +14,8 @@ const tasksStore = useTasksStore()
 const scheduleStore = useScheduleStore()
 const tagsStore = useTagsStore()
 
-const STATUSES = ['Backlog', 'Planned', 'InProgress', 'Done']
-const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In Progress', Done: 'Done' }
+const STATUSES = ['Backlog', 'Ready', 'InProgress', 'Done']
+const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
 const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 const PRIORITY_LABELS = { None: 'None', Low: 'Low', Medium: 'Medium', High: 'High' }
 const DEFAULT_COLOR = '#3b82f6'

@@ -81,13 +81,13 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    // For every Backlog/Planned task whose earliest linked Working entry has
+    // For every Backlog/Ready task whose earliest linked Working entry has
     // already started, flips it to In Progress - a one-shot check run on
     // load rather than a live ticker, since this is a personal app you check
     // in on rather than leave open and watch.
     async syncAutoStatuses(entries) {
       const dueTasks = this.tasks.filter((t) => {
-        if (t.status !== 'Backlog' && t.status !== 'Planned') return false
+        if (t.status !== 'Backlog' && t.status !== 'Ready') return false
         const earliest = earliestLinkedEntryDateTime(entries, t.id)
         return earliest !== null && earliest <= new Date()
       })

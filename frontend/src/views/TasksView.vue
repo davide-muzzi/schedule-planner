@@ -15,14 +15,14 @@ import TaskCard from '@/components/TaskCard.vue'
 import ChoiceDialog from '@/components/ChoiceDialog.vue'
 import TagManageModal from '@/components/TagManageModal.vue'
 
-const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In Progress', Done: 'Done' }
+const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
 
 // The Kanban board's columns, left to right - the same 4 values drive the
 // Status filter category below.
-const COLUMN_STATUSES = ['Backlog', 'Planned', 'InProgress', 'Done']
+const COLUMN_STATUSES = ['Backlog', 'Ready', 'InProgress', 'Done']
 const STATUS_HINTS = {
   Backlog: 'Not prioritized yet',
-  Planned: 'Scheduled, not started',
+  Ready: 'Ready to start',
   InProgress: 'Actively being worked on',
   Done: 'Finished',
 }
@@ -48,7 +48,7 @@ const BASE_FILTER_CATEGORIES = [
     options: [
       { value: 'all', label: 'All' },
       { value: 'Backlog', label: STATUS_LABELS.Backlog },
-      { value: 'Planned', label: STATUS_LABELS.Planned },
+      { value: 'Ready', label: STATUS_LABELS.Ready },
       { value: 'InProgress', label: STATUS_LABELS.InProgress },
       { value: 'Done', label: STATUS_LABELS.Done },
     ],
@@ -929,7 +929,7 @@ async function handleQuickComplete(task, event) {
   background: var(--mute);
 }
 
-.kanban-dot.dot-Planned {
+.kanban-dot.dot-Ready {
   background: var(--warn);
 }
 

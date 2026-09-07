@@ -3,7 +3,7 @@ import { realMinutesForTask } from './taskStats'
 export function taskCountsByStatus(tasks) {
   return {
     backlog: tasks.filter((t) => t.status === 'Backlog').length,
-    planned: tasks.filter((t) => t.status === 'Planned').length,
+    ready: tasks.filter((t) => t.status === 'Ready').length,
     inProgress: tasks.filter((t) => t.status === 'InProgress').length,
     done: tasks.filter((t) => t.status === 'Done').length,
   }

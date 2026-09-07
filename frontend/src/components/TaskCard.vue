@@ -201,7 +201,7 @@ function formatDueDate(dueDate) {
   border-color: var(--line-2);
 }
 
-.status-badge.badge-Planned {
+.status-badge.badge-Ready {
   color: var(--warn);
   border-color: var(--warn);
 }
@@ -378,7 +378,7 @@ function formatDueDate(dueDate) {
   background: var(--mute);
 }
 
-.subtask-preview-status.badge-Planned {
+.subtask-preview-status.badge-Ready {
   background: var(--warn);
 }
 

@@ -12,7 +12,7 @@ export function realMinutesForTask(entries, taskId) {
 }
 
 // The earliest start date/time among a task's linked Working entries, or
-// null if it has none - used to decide when a Backlog/Planned task should
+// null if it has none - used to decide when a Backlog/Ready task should
 // flip to In Progress.
 export function earliestLinkedEntryDateTime(entries, taskId) {
   const linked = linkedWorkingEntries(entries, taskId)

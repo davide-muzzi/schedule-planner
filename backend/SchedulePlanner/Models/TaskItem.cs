@@ -53,7 +53,7 @@ public class TaskItem
 //
 // Backlog reuses the old Open=0 ordinal (renamed label only) and
 // InProgress/Done keep their ordinals unchanged, so existing stored values
-// don't shift. Planned is a new value appended at 3 rather than inserted in
+// don't shift. Ready is a value appended at 3 rather than inserted in
 // display order, to avoid a data migration - display order is controlled by
 // the frontend, not by these integers.
 public enum TaskItemStatus
@@ -61,7 +61,7 @@ public enum TaskItemStatus
     Backlog = 0,
     InProgress = 1,
     Done = 2,
-    Planned = 3,
+    Ready = 3,
 }
 
 // A Task carries its own planned time and can be linked to a planner entry
