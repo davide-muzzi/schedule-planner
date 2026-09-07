@@ -8,6 +8,6 @@ public interface ITaskItemService
     Task<TaskItem?> GetByIdAsync(int id);
     Task<TaskItem> CreateAsync(TaskItem task);
     Task<TaskItem?> UpdateAsync(int id, TaskItem task);
-    Task<bool> DeleteAsync(int id);
+    Task<bool> DeleteAsync(int id, bool cascadeSubtasks = false);
     Task<int> DeleteAllAsync();
 }

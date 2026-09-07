@@ -8,6 +8,8 @@ public class TaskItemDto
     public int EstimatedMinutes { get; set; }
     public TaskItemStatus Status { get; set; } = TaskItemStatus.Open;
     public bool IsImportant { get; set; }
+    public TaskItemType TaskType { get; set; } = TaskItemType.Task;
+    public int? ParentTaskId { get; set; }
     public string? Color { get; set; }
     public string? Notes { get; set; }
     public DateOnly? DueDate { get; set; }

@@ -48,6 +48,8 @@ public class TasksController : ControllerBase
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = dto.Status,
             IsImportant = dto.IsImportant,
+            TaskType = dto.TaskType,
+            ParentTaskId = dto.ParentTaskId,
             Color = dto.Color,
             Notes = dto.Notes,
             DueDate = dto.DueDate,
@@ -76,6 +78,8 @@ public class TasksController : ControllerBase
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = dto.Status,
             IsImportant = dto.IsImportant,
+            TaskType = dto.TaskType,
+            ParentTaskId = dto.ParentTaskId,
             Color = dto.Color,
             Notes = dto.Notes,
             DueDate = dto.DueDate,
@@ -98,16 +102,18 @@ public class TasksController : ControllerBase
         }
     }
 
-    // Delete task by ID
+    // Delete task by ID. For a Group task, cascadeSubtasks chooses whether
+    // its subtasks are deleted too (true) or just unlinked back to
+    // standalone tasks (false, the default).
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, [FromQuery] bool cascadeSubtasks = false)
     {
-        var deleted = await _service.DeleteAsync(id);
+        var deleted = await _service.DeleteAsync(id, cascadeSubtasks);
         if (!deleted)
         {
             return NotFound();
         }
-        _logger.LogInformation("Deleted task {Id}", id);
+        _logger.LogInformation("Deleted task {Id} (cascadeSubtasks={Cascade})", id, cascadeSubtasks);
         return NoContent();
     }
 

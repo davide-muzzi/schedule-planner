@@ -25,7 +25,7 @@ public class TaskItemService : ITaskItemService
 
     public async Task<TaskItem> CreateAsync(TaskItem task)
     {
-        Validate(task);
+        await Validate(task, id: null);
 
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
@@ -40,12 +40,14 @@ public class TaskItemService : ITaskItemService
             return null;
         }
 
-        Validate(task);
+        await Validate(task, id);
 
         existing.Name = task.Name;
         existing.EstimatedMinutes = task.EstimatedMinutes;
         existing.Status = task.Status;
         existing.IsImportant = task.IsImportant;
+        existing.TaskType = task.TaskType;
+        existing.ParentTaskId = task.ParentTaskId;
         existing.Color = task.Color;
         existing.Notes = task.Notes;
         existing.DueDate = task.DueDate;
@@ -54,12 +56,18 @@ public class TaskItemService : ITaskItemService
         return existing;
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(int id, bool cascadeSubtasks = false)
     {
         var existing = await _context.Tasks.FindAsync(id);
         if (existing is null)
         {
             return false;
+        }
+
+        if (cascadeSubtasks)
+        {
+            var subtasks = await _context.Tasks.Where(t => t.ParentTaskId == id).ToListAsync();
+            _context.Tasks.RemoveRange(subtasks);
         }
 
         _context.Tasks.Remove(existing);
@@ -77,19 +85,40 @@ public class TaskItemService : ITaskItemService
 
     private static readonly Regex HexColorPattern = new("^#[0-9A-Fa-f]{6}$");
 
-    private static void Validate(TaskItem task)
+    private async Task Validate(TaskItem task, int? id)
     {
         if (string.IsNullOrWhiteSpace(task.Name))
         {
             throw new ArgumentException("Task name is required.");
         }
-        if (task.EstimatedMinutes <= 0)
+        // A Group's planned time is derived from its subtasks, not set directly.
+        if (task.TaskType == TaskItemType.Task && task.EstimatedMinutes <= 0)
         {
             throw new ArgumentException("Estimated time must be greater than 0.");
         }
         if (task.Color is not null && !HexColorPattern.IsMatch(task.Color))
         {
             throw new ArgumentException("Color must be a hex value like #3b82f6.");
+        }
+        if (task.ParentTaskId is not null)
+        {
+            if (task.TaskType == TaskItemType.Group)
+            {
+                throw new ArgumentException("A Group cannot itself be a subtask.");
+            }
+            if (task.ParentTaskId == id)
+            {
+                throw new ArgumentException("A task cannot be its own parent.");
+            }
+            var parent = await _context.Tasks.FindAsync(task.ParentTaskId);
+            if (parent is null)
+            {
+                throw new ArgumentException("Parent task not found.");
+            }
+            if (parent.TaskType != TaskItemType.Group)
+            {
+                throw new ArgumentException("A subtask's parent must be a Group.");
+            }
         }
     }
 }

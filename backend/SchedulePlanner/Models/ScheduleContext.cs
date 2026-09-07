@@ -27,5 +27,14 @@ public class ScheduleContext : IdentityDbContext<ApplicationUser>
             .WithMany(t => t.Entries)
             .HasForeignKey(e => e.TaskItemId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Deleting a Group unlinks its subtasks by default (SetNull); the
+        // service explicitly removes them first when cascade delete is
+        // requested instead.
+        modelBuilder.Entity<TaskItem>()
+            .HasOne(t => t.ParentTask)
+            .WithMany(t => t.Subtasks)
+            .HasForeignKey(t => t.ParentTaskId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
