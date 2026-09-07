@@ -126,6 +126,38 @@ const selectableTasks = computed(() =>
 // its own full-screen OS picker rather than an inline list, which looks and
 // behaves nothing like the rest of this form (or its desktop counterpart).
 const showTaskDropdown = ref(false)
+const taskSelectTriggerEl = ref(null)
+
+// The dropdown itself is teleported to <body> and positioned fixed (below),
+// rather than living inside .task-select. It used to be position:absolute
+// inside the scrolling .modal - which meant a long task list got clipped/
+// squished by the modal's own overflow-y:auto, and its off-screen portion
+// counted toward the modal's scrollable area, producing a phantom scrollbar
+// on a form that otherwise has nothing to scroll.
+const dropdownPosition = ref({ top: 0, left: 0, width: 0, maxHeight: 192 })
+
+function updateDropdownPosition() {
+  const el = taskSelectTriggerEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const gap = 4
+  const margin = 8
+  const preferredMax = 192 // 12rem, same cap the dropdown always had
+  const spaceBelow = window.innerHeight - rect.bottom - gap - margin
+  const spaceAbove = rect.top - gap - margin
+  const openUp = spaceBelow < 120 && spaceAbove > spaceBelow
+  const maxHeight = Math.round(Math.max(80, Math.min(preferredMax, openUp ? spaceAbove : spaceBelow)))
+  dropdownPosition.value = {
+    left: Math.round(rect.left),
+    width: Math.round(rect.width),
+    top: Math.round(openUp ? rect.top - gap - maxHeight : rect.bottom + gap),
+    maxHeight,
+  }
+}
+
+function handleViewportChange() {
+  if (showTaskDropdown.value) updateDropdownPosition()
+}
 
 const selectedTaskLabel = computed(() => {
   const match = selectableTasks.value.find((t) => t.id === form.value.taskItemId)
@@ -133,7 +165,12 @@ const selectedTaskLabel = computed(() => {
 })
 
 function toggleTaskDropdown() {
-  showTaskDropdown.value = !showTaskDropdown.value
+  if (showTaskDropdown.value) {
+    showTaskDropdown.value = false
+    return
+  }
+  updateDropdownPosition()
+  showTaskDropdown.value = true
 }
 
 function selectTask(id) {
@@ -145,8 +182,16 @@ function closeTaskDropdown() {
   showTaskDropdown.value = false
 }
 
-onMounted(() => document.addEventListener('click', closeTaskDropdown))
-onBeforeUnmount(() => document.removeEventListener('click', closeTaskDropdown))
+onMounted(() => {
+  document.addEventListener('click', closeTaskDropdown)
+  window.addEventListener('resize', handleViewportChange)
+  window.addEventListener('scroll', handleViewportChange, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeTaskDropdown)
+  window.removeEventListener('resize', handleViewportChange)
+  window.removeEventListener('scroll', handleViewportChange, true)
+})
 
 // "Create new Task" - opens TaskFormModal stacked on top of this one,
 // prefilled with this entry's own length as the estimate. Saving it creates
@@ -353,6 +398,7 @@ function handleOverlayClick(event) {
           <label>Linked task</label>
           <div class="task-select">
             <button
+              ref="taskSelectTriggerEl"
               type="button"
               class="task-select-trigger"
               :disabled="form.entryType !== 'Working'"
@@ -363,24 +409,6 @@ function handleOverlayClick(event) {
               <span class="task-select-value">{{ selectedTaskLabel }}</span>
               <ChevronDown :size="14" />
             </button>
-            <div v-if="showTaskDropdown" class="task-select-dropdown" @click.stop>
-              <button type="button" class="task-select-option" :class="{ active: form.taskItemId === null }" @click="selectTask(null)">
-                (none)
-              </button>
-              <button
-                v-for="t in selectableTasks"
-                :key="t.id"
-                type="button"
-                class="task-select-option"
-                :class="{ active: t.id === form.taskItemId }"
-                @click="selectTask(t.id)"
-              >
-                #{{ t.id }} - {{ t.name }}
-              </button>
-              <button type="button" class="task-select-option task-select-create" @click="openCreateTask">
-                <Plus :size="13" /> Create new Task
-              </button>
-            </div>
           </div>
         </div>
 
@@ -399,6 +427,35 @@ function handleOverlayClick(event) {
         </footer>
       </form>
     </div>
+  </div>
+
+  <div
+    v-if="showTaskDropdown"
+    class="task-select-dropdown"
+    :style="{
+      top: dropdownPosition.top + 'px',
+      left: dropdownPosition.left + 'px',
+      width: dropdownPosition.width + 'px',
+      maxHeight: dropdownPosition.maxHeight + 'px',
+    }"
+    @click.stop
+  >
+    <button type="button" class="task-select-option" :class="{ active: form.taskItemId === null }" @click="selectTask(null)">
+      (none)
+    </button>
+    <button
+      v-for="t in selectableTasks"
+      :key="t.id"
+      type="button"
+      class="task-select-option"
+      :class="{ active: t.id === form.taskItemId }"
+      @click="selectTask(t.id)"
+    >
+      #{{ t.id }} - {{ t.name }}
+    </button>
+    <button type="button" class="task-select-option task-select-create" @click="openCreateTask">
+      <Plus :size="13" /> Create new Task
+    </button>
   </div>
 
   <TaskFormModal
@@ -572,12 +629,8 @@ input[type='date'] {
 }
 
 .task-select-dropdown {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  right: 0;
-  z-index: 20;
-  max-height: 12rem;
+  position: fixed;
+  z-index: 60;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -585,10 +638,26 @@ input[type='date'] {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.task-select-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.task-select-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.task-select-dropdown::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 .task-select-option {
   display: block;
+  flex-shrink: 0;
   width: 100%;
   padding: 0.4rem 0.6rem;
   background: transparent;
