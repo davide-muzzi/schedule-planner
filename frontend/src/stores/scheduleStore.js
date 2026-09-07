@@ -96,11 +96,20 @@ export const useScheduleStore = defineStore('schedule', {
     // excluded from "expected" with no special-casing needed - a full
     // vacation week nets to a 0 diff for free, the same way an entirely
     // untouched day never demands a share of the goal in the first place.
+    // OvertimeCompensation is the one exception: it's time off spent *from*
+    // the balance (that's the whole point of it), so its hours are
+    // subtracted from the diff directly - independent of dayCount/expected,
+    // since taking it doesn't newly "demand" that day's target the way a
+    // Working day does.
     overallBalance(state) {
       const days = new Map()
+      let compensationHours = 0
       for (const entry of state.entries) {
-        if (entry.entryType === 'Working' && !entry.allDay) {
+        if (entry.allDay) continue
+        if (entry.entryType === 'Working') {
           days.set(entry.date, (days.get(entry.date) || 0) + durationHours(entry.startTime, entry.endTime))
+        } else if (entry.entryType === 'OvertimeCompensation') {
+          compensationHours += durationHours(entry.startTime, entry.endTime)
         }
       }
 
@@ -110,31 +119,47 @@ export const useScheduleStore = defineStore('schedule', {
       return {
         actualHours,
         expectedHours,
+        compensationHours,
         manualAdjustmentHours,
-        diffHours: actualHours - expectedHours + manualAdjustmentHours,
+        diffHours: actualHours - expectedHours - compensationHours + manualAdjustmentHours,
       }
     },
 
     // Same day-based logic as overallBalance, but broken out per week instead
     // of collapsed into one running total - one row per week that has at
-    // least one Working entry, sorted oldest first. Each week's "expected" is
-    // its own day count x dailyTargetHours, not a flat weeklyTargetHours.
+    // least one Working or OvertimeCompensation entry, sorted oldest first.
+    // Each week's "expected" is its own day count x dailyTargetHours, not a
+    // flat weeklyTargetHours.
     weeklyBalances(state) {
       const days = new Map()
+      const compensationByDate = new Map()
       for (const entry of state.entries) {
-        if (entry.entryType === 'Working' && !entry.allDay) {
+        if (entry.allDay) continue
+        if (entry.entryType === 'Working') {
           days.set(entry.date, (days.get(entry.date) || 0) + durationHours(entry.startTime, entry.endTime))
+        } else if (entry.entryType === 'OvertimeCompensation') {
+          compensationByDate.set(
+            entry.date,
+            (compensationByDate.get(entry.date) || 0) + durationHours(entry.startTime, entry.endTime),
+          )
         }
       }
 
       const weeks = new Map()
-      for (const [dateStr, hours] of days) {
+      function weekFor(dateStr) {
         const monday = getMonday(new Date(dateStr + 'T00:00:00'))
         const weekKey = toISODate(monday)
-        if (!weeks.has(weekKey)) weeks.set(weekKey, { monday, workedHours: 0, dayCount: 0 })
-        const week = weeks.get(weekKey)
+        if (!weeks.has(weekKey)) weeks.set(weekKey, { monday, workedHours: 0, dayCount: 0, compensationHours: 0 })
+        return weeks.get(weekKey)
+      }
+
+      for (const [dateStr, hours] of days) {
+        const week = weekFor(dateStr)
         week.workedHours += hours
         week.dayCount += 1
+      }
+      for (const [dateStr, hours] of compensationByDate) {
+        weekFor(dateStr).compensationHours += hours
       }
 
       return [...weeks.values()]
@@ -142,7 +167,7 @@ export const useScheduleStore = defineStore('schedule', {
         .map((week) => ({
           monday: week.monday,
           workedHours: week.workedHours,
-          diffHours: week.workedHours - week.dayCount * this.dailyTargetHours,
+          diffHours: week.workedHours - week.dayCount * this.dailyTargetHours - week.compensationHours,
         }))
     },
 
