@@ -7,7 +7,7 @@ public class TaskItem
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public int EstimatedMinutes { get; set; }
-    public TaskItemStatus Status { get; set; } = TaskItemStatus.Open;
+    public TaskItemStatus Status { get; set; } = TaskItemStatus.Backlog;
     public TaskItemPriority Priority { get; set; } = TaskItemPriority.None;
     public TaskItemType TaskType { get; set; } = TaskItemType.Task;
 
@@ -46,11 +46,18 @@ public class TaskItem
 // Named TaskItem/TaskItemStatus rather than Task/TaskStatus to avoid
 // colliding with System.Threading.Tasks.Task, used throughout this codebase
 // for every async method.
+//
+// Backlog reuses the old Open=0 ordinal (renamed label only) and
+// InProgress/Done keep their ordinals unchanged, so existing stored values
+// don't shift. Planned is a new value appended at 3 rather than inserted in
+// display order, to avoid a data migration - display order is controlled by
+// the frontend, not by these integers.
 public enum TaskItemStatus
 {
-    Open = 0,
+    Backlog = 0,
     InProgress = 1,
     Done = 2,
+    Planned = 3,
 }
 
 // A Task carries its own planned time and can be linked to a planner entry

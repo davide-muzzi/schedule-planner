@@ -220,7 +220,7 @@ namespace SchedulePlanner.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("BalanceAdjustments");
+                    b.ToTable("BalanceAdjustments", (string)null);
                 });
 
             modelBuilder.Entity("SchedulePlanner.Models.HolidayYearSetting", b =>
@@ -240,7 +240,7 @@ namespace SchedulePlanner.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("HolidayYearSettings");
+                    b.ToTable("HolidayYearSettings", (string)null);
                 });
 
             modelBuilder.Entity("SchedulePlanner.Models.ScheduleEntry", b =>
@@ -280,7 +280,7 @@ namespace SchedulePlanner.Migrations
 
                     b.HasIndex("TaskItemId");
 
-                    b.ToTable("ScheduleEntries");
+                    b.ToTable("ScheduleEntries", (string)null);
                 });
 
             modelBuilder.Entity("SchedulePlanner.Models.TaskItem", b =>
@@ -321,7 +321,7 @@ namespace SchedulePlanner.Migrations
 
                     b.HasIndex("ParentTaskId");
 
-                    b.ToTable("Tasks");
+                    b.ToTable("Tasks", (string)null);
                 });
 
             modelBuilder.Entity("SchedulePlanner.Models.WorkGoalSettings", b =>
@@ -335,7 +335,7 @@ namespace SchedulePlanner.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("WorkGoalSettings");
+                    b.ToTable("WorkGoalSettings", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
