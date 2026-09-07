@@ -470,6 +470,12 @@ async function handleQuickComplete(task, event) {
         <h1 class="title">Tasks</h1>
       </div>
       <div v-if="!isNarrowViewport" class="header-actions">
+        <label class="sort-control">
+          Sort by
+          <select v-model="sortBy">
+            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
         <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
           <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
         </button>
@@ -480,17 +486,21 @@ async function handleQuickComplete(task, event) {
           <Search :size="14" />
           <input v-model="searchQuery" type="text" placeholder="Search tasks..." />
         </label>
-        <label class="sort-control">
-          Sort by
-          <select v-model="sortBy">
-            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
         <button type="button" class="add-btn" @click="openAdd"><Plus :size="14" /> New Task</button>
       </div>
 
       <div v-else class="header-actions-mobile">
         <div class="mobile-icon-row">
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: showMobileSearch || searchQuery }"
+            aria-label="Search"
+            title="Search"
+            @click="toggleMobileSearch"
+          >
+            <Search :size="16" />
+          </button>
           <button
             type="button"
             class="icon-btn"
@@ -503,16 +513,6 @@ async function handleQuickComplete(task, event) {
           </button>
           <button type="button" class="icon-btn" aria-label="Manage tags" title="Manage tags" @click="showTagManageModal = true">
             <Tags :size="16" />
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
-            :class="{ active: showMobileSearch || searchQuery }"
-            aria-label="Search"
-            title="Search"
-            @click="toggleMobileSearch"
-          >
-            <Search :size="16" />
           </button>
           <button type="button" class="icon-btn add-icon-btn" aria-label="New task" title="New task" @click="openAdd()">
             <Plus :size="16" />
@@ -763,6 +763,7 @@ async function handleQuickComplete(task, event) {
 .mobile-icon-row {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -790,7 +791,6 @@ async function handleQuickComplete(task, event) {
 }
 
 .icon-btn.add-icon-btn {
-  margin-left: auto;
   border-color: var(--accent);
   background: var(--accent-tint);
   color: var(--accent);
