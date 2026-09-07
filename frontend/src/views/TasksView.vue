@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
-import { Plus, X, SlidersHorizontal, Tags } from '@lucide/vue'
+import { Plus, X, SlidersHorizontal, Tags, Search } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
@@ -128,6 +128,27 @@ const activeFilterCount = computed(
   () => FILTER_CATEGORIES.value.filter((c) => (filters.value[c.key] ?? 'all') !== 'all').length,
 )
 
+// Free-text search by name/id - deliberately not persisted (unlike
+// sort/filters) since a search is a one-off "find this" action, not a
+// lasting view preference you'd want restored on your next visit.
+const searchQuery = ref('')
+const showMobileSearch = ref(false)
+const mobileSearchInputEl = ref(null)
+
+function toggleMobileSearch() {
+  showMobileSearch.value = !showMobileSearch.value
+  if (showMobileSearch.value) {
+    nextTick(() => mobileSearchInputEl.value?.focus())
+  } else {
+    searchQuery.value = ''
+  }
+}
+
+function closeMobileSearch() {
+  showMobileSearch.value = false
+  searchQuery.value = ''
+}
+
 // Staggers each card's entrance by its position within its own column, in
 // the first non-empty task list this view sees, captured once - same
 // reasoning as DayTable's own entry stagger: a task created afterward (or a
@@ -211,6 +232,8 @@ function matchesFilters(task) {
   if ((f.status ?? 'all') !== 'all' && task.status !== f.status) return false
   if ((f.priority ?? 'all') !== 'all' && task.priority !== f.priority) return false
   if ((f.tags ?? 'all') !== 'all' && !(task.tags || []).some((t) => String(t.id) === f.tags)) return false
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q && !task.name.toLowerCase().includes(q) && !String(task.id).includes(q)) return false
   return true
 }
 
@@ -446,13 +469,17 @@ async function handleQuickComplete(task, event) {
         <p class="kicker">To-do</p>
         <h1 class="title">Tasks</h1>
       </div>
-      <div class="header-actions">
+      <div v-if="!isNarrowViewport" class="header-actions">
         <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
           <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
         </button>
         <button type="button" class="filter-btn" @click="showTagManageModal = true">
           <Tags :size="14" /> Manage tags
         </button>
+        <label class="search-control" :class="{ active: searchQuery }">
+          <Search :size="14" />
+          <input v-model="searchQuery" type="text" placeholder="Search tasks..." />
+        </label>
         <label class="sort-control">
           Sort by
           <select v-model="sortBy">
@@ -460,6 +487,58 @@ async function handleQuickComplete(task, event) {
           </select>
         </label>
         <button type="button" class="add-btn" @click="openAdd"><Plus :size="14" /> New Task</button>
+      </div>
+
+      <div v-else class="header-actions-mobile">
+        <div class="mobile-icon-row">
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: activeFilterCount > 0 }"
+            aria-label="Filters"
+            :title="`Filters${activeFilterCount ? ` (${activeFilterCount})` : ''}`"
+            @click="showFilterModal = true"
+          >
+            <SlidersHorizontal :size="16" />
+          </button>
+          <button type="button" class="icon-btn" aria-label="Manage tags" title="Manage tags" @click="showTagManageModal = true">
+            <Tags :size="16" />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: showMobileSearch || searchQuery }"
+            aria-label="Search"
+            title="Search"
+            @click="toggleMobileSearch"
+          >
+            <Search :size="16" />
+          </button>
+          <button type="button" class="icon-btn add-icon-btn" aria-label="New task" title="New task" @click="openAdd()">
+            <Plus :size="16" />
+          </button>
+        </div>
+
+        <div v-if="showMobileSearch" class="mobile-search-row">
+          <input
+            ref="mobileSearchInputEl"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search tasks..."
+            class="mobile-search-input"
+            @keydown.escape="closeMobileSearch"
+          />
+          <button type="button" class="icon-btn" aria-label="Close search" @click="closeMobileSearch">
+            <X :size="16" />
+          </button>
+        </div>
+
+        <label class="sort-control mobile-sort-control">
+          Sort by
+          <select v-model="sortBy">
+            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </label>
       </div>
     </div>
 
@@ -644,6 +723,102 @@ async function handleQuickComplete(task, event) {
   color: var(--fg);
   font-family: inherit;
   font-size: 12px;
+}
+
+.search-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--mute);
+  transition: border-color 0.16s;
+}
+
+.search-control:focus-within,
+.search-control.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.search-control input {
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
+  width: 130px;
+}
+
+.header-actions-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.mobile-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.icon-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.icon-btn.add-icon-btn {
+  margin-left: auto;
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.mobile-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-search-input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.mobile-sort-control {
+  width: 100%;
+}
+
+.mobile-sort-control select {
+  flex: 1;
 }
 
 .kanban-mobile-switcher {
