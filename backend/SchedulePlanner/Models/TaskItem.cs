@@ -8,7 +8,7 @@ public class TaskItem
     public string Name { get; set; } = string.Empty;
     public int EstimatedMinutes { get; set; }
     public TaskItemStatus Status { get; set; } = TaskItemStatus.Open;
-    public bool IsImportant { get; set; }
+    public TaskItemPriority Priority { get; set; } = TaskItemPriority.None;
     public TaskItemType TaskType { get; set; } = TaskItemType.Task;
 
     // Set only on a Task (never a Group) to make it a subtask of a Group.
@@ -61,4 +61,12 @@ public enum TaskItemType
 {
     Task = 0,
     Group = 1,
+}
+
+public enum TaskItemPriority
+{
+    None = 0,
+    Low = 1,
+    Medium = 2,
+    High = 3,
 }
