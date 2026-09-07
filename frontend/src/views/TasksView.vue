@@ -486,7 +486,7 @@ async function handleQuickComplete(task, event) {
           <Search :size="14" />
           <input v-model="searchQuery" type="text" placeholder="Search tasks..." />
         </label>
-        <button type="button" class="add-btn" @click="openAdd"><Plus :size="14" /> New Task</button>
+        <button type="button" class="add-btn" @click="openAdd()"><Plus :size="14" /> New Task</button>
       </div>
 
       <div v-else class="header-actions-mobile">

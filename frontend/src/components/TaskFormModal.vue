@@ -7,6 +7,7 @@ import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { formatHours } from '@/utils/date'
 import ChoiceDialog from './ChoiceDialog.vue'
+import TimePartInput from './TimePartInput.vue'
 
 const { isNarrowViewport } = useAppShell()
 const tasksStore = useTasksStore()
@@ -18,6 +19,8 @@ const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In 
 const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 const PRIORITY_LABELS = { None: 'None', Low: 'Low', Medium: 'Medium', High: 'High' }
 const DEFAULT_COLOR = '#3b82f6'
+const ESTIMATE_HOUR_OPTIONS = ['00', '01', '02', '03', '04', '05']
+const ESTIMATE_MINUTE_OPTIONS = ['00', '15', '30', '45']
 
 const props = defineProps({
   task: { type: Object, default: null }, // null => create mode
@@ -103,6 +106,23 @@ const isDirty = computed(
 )
 
 const isGroup = computed(() => form.value.taskType === 'Group')
+
+// TimePartInput (the same custom dropdown+pencil combobox the Planner's
+// time fields use) works in padded 2-digit strings - these just bridge
+// that to form.estimatedHours/estimatedMinutes, which stay plain numbers
+// for the rest of the form (submit payload, isDirty snapshot, etc).
+const estimatedHoursStr = computed({
+  get: () => String(form.value.estimatedHours).padStart(2, '0'),
+  set: (val) => {
+    form.value.estimatedHours = Number(val)
+  },
+})
+const estimatedMinutesStr = computed({
+  get: () => String(form.value.estimatedMinutes).padStart(2, '0'),
+  set: (val) => {
+    form.value.estimatedMinutes = Number(val)
+  },
+})
 
 // A Group's planned time is always the live sum of its subtasks, never a
 // value typed into this form - see plannedMinutesForGroup's own comment.
@@ -397,11 +417,11 @@ function handleOverlayClick(event) {
         <div v-if="!isGroup" class="field-row">
           <div class="field">
             <label>Est. h</label>
-            <input v-model.number="form.estimatedHours" type="number" min="0" step="1" @keydown.escape.stop />
+            <TimePartInput v-model="estimatedHoursStr" :options="ESTIMATE_HOUR_OPTIONS" :max="99" />
           </div>
           <div class="field">
             <label>Est. min</label>
-            <input v-model.number="form.estimatedMinutes" type="number" min="0" max="59" step="1" @keydown.escape.stop />
+            <TimePartInput v-model="estimatedMinutesStr" :options="ESTIMATE_MINUTE_OPTIONS" :max="59" />
           </div>
         </div>
         <div v-else class="field">
