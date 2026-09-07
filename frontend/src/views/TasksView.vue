@@ -121,6 +121,33 @@ const activeFilterCount = computed(
   () => FILTER_CATEGORIES.value.filter((c) => (filters.value[c.key] ?? 'all') !== 'all').length,
 )
 
+// Staggers each card's entrance by its position in the first non-empty task
+// list this view sees, captured once - same reasoning as DayTable's own
+// entry stagger: a task created afterward (or a filter/sort change
+// reshuffling what's visible) shouldn't replay the cascade for every
+// existing card, so anything outside that captured set just gets 0ms.
+const STAGGER_STEP_MS = 40
+const STAGGER_MAX_MS = 400
+const initialTaskOrder = ref(new Map())
+let capturedInitialOrder = false
+
+watch(
+  () => tasksStore.tasks,
+  (tasks) => {
+    if (capturedInitialOrder || tasks.length === 0) return
+    capturedInitialOrder = true
+    const visibleIds = tasks.filter((t) => t.parentTaskId == null).map((t) => t.id)
+    initialTaskOrder.value = new Map(visibleIds.map((id, i) => [id, i]))
+  },
+  { immediate: true },
+)
+
+function taskCardDelay(task) {
+  const idx = initialTaskOrder.value.get(task.id)
+  if (idx === undefined) return '0ms'
+  return `${Math.min(idx * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms`
+}
+
 // Entries/tasks are already loaded app-wide (see App.vue) - this just
 // re-checks the auto Open -> In Progress transition in case an entry's
 // start time has passed since app load, while the user was on another page.
@@ -390,6 +417,7 @@ async function handleQuickComplete(task, event) {
             :subtasks="task.subtasks"
             :status-label="STATUS_LABELS[task.status]"
             :is-narrow-viewport="isNarrowViewport"
+            :style="{ animationDelay: taskCardDelay(task) }"
             @edit="openEdit(task)"
             @quick-complete="handleQuickComplete(task, $event)"
             @quick-delete="handleQuickDelete(task, $event)"

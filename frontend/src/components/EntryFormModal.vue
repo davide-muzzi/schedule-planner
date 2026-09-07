@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { X, ChevronDown, Plus } from '@lucide/vue'
 import { toISODate } from '@/utils/date'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
@@ -165,6 +165,15 @@ const selectedTaskLabel = computed(() => {
   return match ? `#${match.id} - ${match.name}` : '(none)'
 })
 
+const taskSearchQuery = ref('')
+const taskSearchInputEl = ref(null)
+
+const filteredSelectableTasks = computed(() => {
+  const q = taskSearchQuery.value.trim().toLowerCase()
+  if (!q) return selectableTasks.value
+  return selectableTasks.value.filter((t) => t.name.toLowerCase().includes(q) || String(t.id).includes(q))
+})
+
 function toggleTaskDropdown() {
   if (showTaskDropdown.value) {
     showTaskDropdown.value = false
@@ -172,6 +181,8 @@ function toggleTaskDropdown() {
   }
   updateDropdownPosition()
   showTaskDropdown.value = true
+  taskSearchQuery.value = ''
+  nextTick(() => taskSearchInputEl.value?.focus())
 }
 
 function selectTask(id) {
@@ -441,22 +452,35 @@ function handleOverlayClick(event) {
     }"
     @click.stop
   >
-    <button type="button" class="task-select-option" :class="{ active: form.taskItemId === null }" @click="selectTask(null)">
-      (none)
-    </button>
-    <button
-      v-for="t in selectableTasks"
-      :key="t.id"
-      type="button"
-      class="task-select-option"
-      :class="{ active: t.id === form.taskItemId }"
-      @click="selectTask(t.id)"
-    >
-      #{{ t.id }} - {{ t.name }}
-    </button>
-    <button type="button" class="task-select-option task-select-create" @click="openCreateTask">
-      <Plus :size="13" /> Create new Task
-    </button>
+    <div class="task-select-search-wrap">
+      <input
+        ref="taskSearchInputEl"
+        v-model="taskSearchQuery"
+        type="text"
+        placeholder="Search tasks..."
+        class="task-select-search"
+        @keydown.escape.stop="closeTaskDropdown"
+      />
+    </div>
+    <div class="task-select-options">
+      <button type="button" class="task-select-option" :class="{ active: form.taskItemId === null }" @click="selectTask(null)">
+        (none)
+      </button>
+      <button
+        v-for="t in filteredSelectableTasks"
+        :key="t.id"
+        type="button"
+        class="task-select-option"
+        :class="{ active: t.id === form.taskItemId }"
+        @click="selectTask(t.id)"
+      >
+        #{{ t.id }} - {{ t.name }}
+      </button>
+      <p v-if="filteredSelectableTasks.length === 0" class="task-select-empty">No matching tasks.</p>
+      <button type="button" class="task-select-option task-select-create" @click="openCreateTask">
+        <Plus :size="13" /> Create new Task
+      </button>
+    </div>
   </div>
 
   <TaskFormModal
@@ -633,28 +657,61 @@ input[type='date'] {
 .task-select-dropdown {
   position: fixed;
   z-index: 60;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.task-select-search-wrap {
+  flex-shrink: 0;
+  padding: 0.4rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.task-select-search {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  font-size: 0.83rem;
+  font-family: inherit;
+}
+
+.task-select-options {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
 
-.task-select-dropdown::-webkit-scrollbar {
+.task-select-options::-webkit-scrollbar {
   width: 6px;
 }
 
-.task-select-dropdown::-webkit-scrollbar-track {
+.task-select-options::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.task-select-dropdown::-webkit-scrollbar-thumb {
+.task-select-options::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 3px;
+}
+
+.task-select-empty {
+  flex-shrink: 0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.83rem;
+  color: var(--color-text);
+  opacity: 0.6;
 }
 
 .task-select-option {
