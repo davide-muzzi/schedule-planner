@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import draggable from 'vuedraggable'
 import { Plus, X, SlidersHorizontal, Tags } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
@@ -16,10 +17,16 @@ import TagManageModal from '@/components/TagManageModal.vue'
 
 const STATUS_LABELS = { Backlog: 'Backlog', Planned: 'Planned', InProgress: 'In Progress', Done: 'Done' }
 
-// Grouping order applied when no status filter is active - In Progress work
-// surfaces first, then what's still queued up, with Done sinking to the
-// bottom regardless of the current sort field.
-const STATUS_GROUP_ORDER = { InProgress: 0, Planned: 1, Backlog: 2, Done: 3 }
+// The Kanban board's columns, left to right - the same 4 values drive the
+// Status filter category below.
+const COLUMN_STATUSES = ['Backlog', 'Planned', 'InProgress', 'Done']
+const STATUS_HINTS = {
+  Backlog: 'Not prioritized yet',
+  Planned: 'Scheduled, not started',
+  InProgress: 'Actively being worked on',
+  Done: 'Finished',
+}
+const DRAG_GROUP = 'tasks'
 
 const SORT_OPTIONS = [
   { value: 'id', label: 'ID' },
@@ -121,14 +128,16 @@ const activeFilterCount = computed(
   () => FILTER_CATEGORIES.value.filter((c) => (filters.value[c.key] ?? 'all') !== 'all').length,
 )
 
-// Staggers each card's entrance by its position in the first non-empty task
-// list this view sees, captured once - same reasoning as DayTable's own
-// entry stagger: a task created afterward (or a filter/sort change
-// reshuffling what's visible) shouldn't replay the cascade for every
-// existing card, so anything outside that captured set just gets 0ms.
+// Staggers each card's entrance by its position within its own column, in
+// the first non-empty task list this view sees, captured once - same
+// reasoning as DayTable's own entry stagger: a task created afterward (or a
+// filter/sort/drag change reshuffling what's visible) shouldn't replay the
+// cascade for every existing card, so anything outside that captured set
+// just gets 0ms. Per-column (not global) so all four columns cascade in
+// parallel rather than one long snaking delay down the board.
 const STAGGER_STEP_MS = 40
 const STAGGER_MAX_MS = 400
-const initialTaskOrder = ref(new Map())
+const initialColumnOrder = ref({})
 let capturedInitialOrder = false
 
 watch(
@@ -136,14 +145,18 @@ watch(
   (tasks) => {
     if (capturedInitialOrder || tasks.length === 0) return
     capturedInitialOrder = true
-    const visibleIds = tasks.filter((t) => t.parentTaskId == null).map((t) => t.id)
-    initialTaskOrder.value = new Map(visibleIds.map((id, i) => [id, i]))
+    const visible = tasks.filter((t) => t.parentTaskId == null)
+    const byStatus = {}
+    for (const status of COLUMN_STATUSES) {
+      byStatus[status] = new Map(visible.filter((t) => t.status === status).map((t, i) => [t.id, i]))
+    }
+    initialColumnOrder.value = byStatus
   },
   { immediate: true },
 )
 
 function taskCardDelay(task) {
-  const idx = initialTaskOrder.value.get(task.id)
+  const idx = initialColumnOrder.value[task.status]?.get(task.id)
   if (idx === undefined) return '0ms'
   return `${Math.min(idx * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms`
 }
@@ -176,18 +189,13 @@ function taskCard(task) {
   }
 }
 
-// All three orderings are ascending, per-field, with id as the tiebreaker.
+// Both orderings are ascending, per-field, with id as the tiebreaker.
 // dueDate is a "YYYY-MM-DD" string (or null) - plain string comparison
 // already sorts it chronologically; tasks with no due date always sort
-// after every dated one, regardless of which field is active.
+// after every dated one, regardless of which field is active. This is the
+// fallback order for cards a column hasn't had manually dragged yet - see
+// syncColumnLists below.
 function compareTasks(a, b) {
-  // Only groups by status when no single status is already filtered down to
-  // - with one status showing, every card shares the same group, so this
-  // would just be a no-op ahead of the real sort field.
-  if (filters.value.status === 'all') {
-    const groupDiff = STATUS_GROUP_ORDER[a.status] - STATUS_GROUP_ORDER[b.status]
-    if (groupDiff !== 0) return groupDiff
-  }
   if (sortBy.value === 'name') return a.name.localeCompare(b.name) || a.id - b.id
   if (sortBy.value === 'dueDate') {
     if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate) || a.id - b.id
@@ -209,41 +217,88 @@ function matchesFilters(task) {
 // Subtasks never appear as their own top-level cards - they render nested
 // inside their Group's card instead (see TaskCard's subtask-preview).
 const taskCards = computed(() =>
-  tasksStore.tasks
-    .filter((t) => t.parentTaskId == null)
-    .filter(matchesFilters)
-    .map(taskCard)
-    .sort(compareTasks),
+  tasksStore.tasks.filter((t) => t.parentTaskId == null).filter(matchesFilters).map(taskCard),
 )
 
-// Splits the already-grouped-by-status list into labeled sections for
-// display, one per status boundary. Only done when the status filter is off
-// - with a single status already isolated, every card would land in one
-// section and the header would be redundant.
-const taskSections = computed(() => {
-  if (filters.value.status !== 'all') {
-    return [{ status: null, tasks: taskCards.value }]
+// --- Kanban board: per-column ordering, persisted client-side only ---
+
+const KANBAN_ORDER_STORAGE_KEY = 'schedulePlanner.taskKanbanOrder'
+
+function loadColumnOrders() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(KANBAN_ORDER_STORAGE_KEY))
+    return stored && typeof stored === 'object' ? stored : {}
+  } catch {
+    return {}
   }
-  const sections = []
-  for (const task of taskCards.value) {
-    const current = sections[sections.length - 1]
-    if (current && current.status === task.status) {
-      current.tasks.push(task)
-    } else {
-      sections.push({ status: task.status, tasks: [task] })
+}
+
+// { [status]: [taskId, ...] } - only ever contains ids for cards that have
+// actually been dragged at least once; everything else is ordered live by
+// the sort dropdown instead (see syncColumnLists).
+const columnOrders = ref(loadColumnOrders())
+
+function persistColumnOrders() {
+  localStorage.setItem(KANBAN_ORDER_STORAGE_KEY, JSON.stringify(columnOrders.value))
+}
+
+// The actual per-column arrays rendered/dragged - <draggable> mutates these
+// directly via v-model during a drag, so they're plain reactive state, not
+// a computed. Manually-ordered cards (per columnOrders) keep their pinned
+// position; anything not yet dragged falls back to the live sort
+// comparator, appended after the pinned ones.
+const columnLists = reactive(Object.fromEntries(COLUMN_STATUSES.map((s) => [s, []])))
+
+function syncColumnLists() {
+  for (const status of COLUMN_STATUSES) {
+    const cardsInColumn = taskCards.value.filter((t) => t.status === status)
+    const order = columnOrders.value[status] || []
+    const byId = new Map(cardsInColumn.map((c) => [c.id, c]))
+    const pinned = order.filter((id) => byId.has(id)).map((id) => byId.get(id))
+    const pinnedIds = new Set(order)
+    const rest = cardsInColumn.filter((c) => !pinnedIds.has(c.id)).sort(compareTasks)
+    columnLists[status] = [...pinned, ...rest]
+  }
+}
+
+watch(taskCards, syncColumnLists, { immediate: true })
+watch(sortBy, syncColumnLists)
+
+// Fires on every column whose list changed - reordering within a column
+// (event.moved) and both ends of a cross-column drag (event.added on the
+// destination, implicit removal from the source, both already reflected in
+// columnLists by <draggable> itself). Persisting every column's current
+// order unconditionally keeps this simple and covers both cases in one
+// place, and happens before the (async, possibly failing) status update
+// below so the board never visually snaps back on success.
+async function handleColumnChange(status, event) {
+  for (const s of COLUMN_STATUSES) {
+    columnOrders.value[s] = columnLists[s].map((t) => t.id)
+  }
+  persistColumnOrders()
+
+  if (event.added) {
+    const task = event.added.element
+    if (task.status === status) return
+    try {
+      await tasksStore.updateTask(task.id, taskUpdatePayload(task, { status }))
+    } catch {
+      showToast("Couldn't move that task.")
+      syncColumnLists()
     }
   }
-  return sections
-})
+}
 
 const showModal = ref(false)
 const editingTask = ref(null)
 const modalError = ref(null)
 const saving = ref(false)
+const newTaskStatus = ref(null)
 
-function openAdd() {
+function openAdd(status = null) {
   editingTask.value = null
   modalError.value = null
+  newTaskStatus.value = status
   showModal.value = true
 }
 
@@ -257,6 +312,7 @@ function closeModal() {
   showModal.value = false
   editingTask.value = null
   modalError.value = null
+  newTaskStatus.value = null
 }
 
 function taskUpdatePayload(task, overrides) {
@@ -395,40 +451,54 @@ async function handleQuickComplete(task, event) {
 
     <p v-if="tasksStore.loading" class="loading">Loading…</p>
 
-    <p v-else-if="taskCards.length === 0 && activeFilterCount > 0" class="empty-state">
-      No tasks match this filter.
-    </p>
+    <div v-else class="kanban-board">
+      <div v-for="status in COLUMN_STATUSES" :key="status" class="kanban-column">
+        <header class="kanban-column-header">
+          <span class="kanban-dot" :class="'dot-' + status"></span>
+          <h2 class="kanban-column-title">{{ STATUS_LABELS[status] }}</h2>
+          <span class="kanban-column-count">{{ columnLists[status].length }}</span>
+        </header>
+        <p class="kanban-column-hint">{{ STATUS_HINTS[status] }}</p>
 
-    <p v-else-if="taskCards.length === 0" class="empty-state">
-      No tasks yet. Add one to start tracking estimated vs. real time.
-    </p>
+        <draggable
+          v-model="columnLists[status]"
+          :group="DRAG_GROUP"
+          item-key="id"
+          tag="div"
+          class="kanban-drop-zone"
+          ghost-class="kanban-ghost"
+          drag-class="kanban-dragging"
+          filter=".quick-complete, .quick-delete"
+          :prevent-on-filter="false"
+          :animation="150"
+          @change="handleColumnChange(status, $event)"
+        >
+          <template #item="{ element }">
+            <TaskCard
+              :task="element"
+              :subtasks="element.subtasks"
+              :status-label="STATUS_LABELS[element.status]"
+              :is-narrow-viewport="isNarrowViewport"
+              :style="{ animationDelay: taskCardDelay(element) }"
+              @edit="openEdit(element)"
+              @quick-complete="handleQuickComplete(element, $event)"
+              @quick-delete="handleQuickDelete(element, $event)"
+            />
+          </template>
+        </draggable>
 
-    <div v-else class="task-sections">
-      <div v-for="section in taskSections" :key="section.status ?? 'flat'" class="task-section">
-        <div v-if="section.status" class="section-header">
-          <span class="section-label">{{ STATUS_LABELS[section.status] }}</span>
-          <span class="section-count">{{ section.tasks.length }}</span>
-        </div>
-        <div class="task-grid">
-          <TaskCard
-            v-for="task in section.tasks"
-            :key="task.id"
-            :task="task"
-            :subtasks="task.subtasks"
-            :status-label="STATUS_LABELS[task.status]"
-            :is-narrow-viewport="isNarrowViewport"
-            :style="{ animationDelay: taskCardDelay(task) }"
-            @edit="openEdit(task)"
-            @quick-complete="handleQuickComplete(task, $event)"
-            @quick-delete="handleQuickDelete(task, $event)"
-          />
-        </div>
+        <p v-if="columnLists[status].length === 0" class="kanban-empty">No tasks</p>
+
+        <button type="button" class="kanban-add-btn" @click="openAdd(status)">
+          <Plus :size="13" /> Add task
+        </button>
       </div>
     </div>
 
     <TaskFormModal
       v-if="showModal"
       :task="editingTask"
+      :initial-status="newTaskStatus"
       :server-error="modalError"
       :saving="saving"
       @close="closeModal"
@@ -566,8 +636,7 @@ async function handleQuickComplete(task, event) {
   filter: brightness(1.1);
 }
 
-.loading,
-.empty-state {
+.loading {
   color: var(--mute);
   font-size: 0.9rem;
 }
@@ -594,45 +663,118 @@ async function handleQuickComplete(task, event) {
   cursor: pointer;
 }
 
-.task-sections {
+.kanban-board {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  overflow-x: auto;
+  /* Room for TaskCard's quick-delete badge, which deliberately pokes 7-8px
+     outside the card (right: -8px) - harmless in the old CSS grid, but the
+     last column now sits flush against this scroll container's edge, so
+     without this the poke itself counted as overflow and tripped the
+     scrollbar for no visible reason. Padding (not content) absorbs it. */
+  padding: 0 12px 8px 0;
+}
+
+.kanban-column {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  /* 4 equal columns sharing the board's 3 gaps - an exact percentage split
+     rather than flex-grow, which can overshoot the container by a pixel or
+     two (gap/box-sizing rounding) and trip overflow-x:auto for no reason. */
+  flex: 1 1 calc(25% - 12px);
+  min-width: 280px;
 }
 
-.section-header {
+.kanban-column-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  padding-bottom: 8px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--line-2);
 }
 
-.section-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
+.kanban-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mute);
+}
+
+.kanban-dot.dot-Backlog {
+  background: var(--mute);
+}
+
+.kanban-dot.dot-Planned {
+  background: var(--warn);
+}
+
+.kanban-dot.dot-InProgress {
+  background: var(--accent);
+}
+
+.kanban-dot.dot-Done {
+  background: var(--ok);
+}
+
+.kanban-column-title {
+  font-size: 14px;
   font-weight: 600;
-  color: var(--dim);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: var(--fg);
 }
 
-.section-count {
+.kanban-column-count {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--mute);
+  margin-left: auto;
 }
 
-.task-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+.kanban-column-hint {
+  font-size: 11px;
+  color: var(--mute);
+  margin: 3px 0 14px;
 }
 
-@media (max-width: 900px) {
-  .task-grid {
-    grid-template-columns: 1fr;
-  }
+.kanban-drop-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.kanban-ghost {
+  opacity: 0.4;
+}
+
+.kanban-dragging {
+  cursor: grabbing;
+}
+
+.kanban-empty {
+  font-size: 12px;
+  color: var(--mute);
+  opacity: 0.7;
+  padding: 8px 0;
+}
+
+.kanban-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: var(--r);
+  border: 1px dashed var(--line-2);
+  background: transparent;
+  color: var(--mute);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.kanban-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 </style>

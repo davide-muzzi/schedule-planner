@@ -130,6 +130,7 @@ function formatDueDate(dueDate) {
   position: relative;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 10px;
   text-align: left;
   background: var(--surface);

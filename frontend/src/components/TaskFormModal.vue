@@ -25,6 +25,9 @@ const props = defineProps({
   // Task" shortcut passes the entry's own length) - ignored once task is set,
   // since an edit's estimate comes from the task itself.
   initialEstimatedMinutes: { type: Number, default: null },
+  // Seeds the Status field in create mode only - e.g. the Kanban board's
+  // per-column "Add task" button.
+  initialStatus: { type: String, default: null },
   // Hides the Task/Group type picker and forces plain Task, for quick-create
   // flows nested inside another modal (the Planner's "Create new Task", and
   // a Group's own "Create new subtask") where a Group would never make
@@ -45,7 +48,7 @@ function blankForm() {
     taskType: 'Task',
     estimatedHours: Math.floor(minutes / 60),
     estimatedMinutes: minutes % 60,
-    status: 'Backlog',
+    status: props.initialStatus || 'Backlog',
     priority: 'None',
     tagIds: [],
     hasColor: false,
