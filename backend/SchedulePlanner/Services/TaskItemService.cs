@@ -15,26 +15,27 @@ public class TaskItemService : ITaskItemService
 
     public async Task<List<TaskItem>> GetAllAsync()
     {
-        return await _context.Tasks.ToListAsync();
+        return await _context.Tasks.Include(t => t.Tags).ToListAsync();
     }
 
     public async Task<TaskItem?> GetByIdAsync(int id)
     {
-        return await _context.Tasks.FindAsync(id);
+        return await _context.Tasks.Include(t => t.Tags).FirstOrDefaultAsync(t => t.Id == id);
     }
 
-    public async Task<TaskItem> CreateAsync(TaskItem task)
+    public async Task<TaskItem> CreateAsync(TaskItem task, List<int>? tagIds = null)
     {
         await Validate(task, id: null);
+        task.Tags = await ResolveTags(tagIds);
 
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
         return task;
     }
 
-    public async Task<TaskItem?> UpdateAsync(int id, TaskItem task)
+    public async Task<TaskItem?> UpdateAsync(int id, TaskItem task, List<int>? tagIds = null)
     {
-        var existing = await _context.Tasks.FindAsync(id);
+        var existing = await _context.Tasks.Include(t => t.Tags).FirstOrDefaultAsync(t => t.Id == id);
         if (existing is null)
         {
             return null;
@@ -52,8 +53,23 @@ public class TaskItemService : ITaskItemService
         existing.Notes = task.Notes;
         existing.DueDate = task.DueDate;
 
+        existing.Tags.Clear();
+        foreach (var tag in await ResolveTags(tagIds))
+        {
+            existing.Tags.Add(tag);
+        }
+
         await _context.SaveChangesAsync();
         return existing;
+    }
+
+    private async Task<List<Tag>> ResolveTags(List<int>? tagIds)
+    {
+        if (tagIds is null || tagIds.Count == 0)
+        {
+            return new List<Tag>();
+        }
+        return await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync();
     }
 
     public async Task<bool> DeleteAsync(int id, bool cascadeSubtasks = false)

@@ -15,6 +15,7 @@ public class ScheduleContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkGoalSettings> WorkGoalSettings { get; set; } = null!;
     public DbSet<HolidayYearSetting> HolidayYearSettings { get; set; } = null!;
     public DbSet<TaskItem> Tasks { get; set; } = null!;
+    public DbSet<Tag> Tags { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,5 +37,10 @@ public class ScheduleContext : IdentityDbContext<ApplicationUser>
             .WithMany(t => t.Subtasks)
             .HasForeignKey(t => t.ParentTaskId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<TaskItem>()
+            .HasMany(t => t.Tags)
+            .WithMany(tag => tag.Tasks)
+            .UsingEntity(j => j.ToTable("TaskTags"));
     }
 }

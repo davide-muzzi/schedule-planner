@@ -57,7 +57,7 @@ public class TasksController : ControllerBase
 
         try
         {
-            var created = await _service.CreateAsync(task);
+            var created = await _service.CreateAsync(task, dto.TagIds);
             _logger.LogInformation("Created task {Id}", created.Id);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
@@ -87,7 +87,7 @@ public class TasksController : ControllerBase
 
         try
         {
-            var updated = await _service.UpdateAsync(id, task);
+            var updated = await _service.UpdateAsync(id, task, dto.TagIds);
             if (updated is null)
             {
                 return NotFound();

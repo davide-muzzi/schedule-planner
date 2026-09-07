@@ -72,6 +72,7 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddScoped<IScheduleEntryService, ScheduleEntryService>();
 builder.Services.AddScoped<ITaskItemService, TaskItemService>();
+builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<BalanceAdjustmentService>();
 builder.Services.AddScoped<WorkGoalSettingsService>();
 builder.Services.AddScoped<HolidayYearSettingService>();

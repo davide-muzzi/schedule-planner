@@ -24,6 +24,10 @@ public class TaskItem
     [JsonIgnore]
     public ICollection<TaskItem> Subtasks { get; set; } = new List<TaskItem>();
 
+    // Unlike Subtasks/ParentTask/Entries above, this IS Include()d wherever
+    // the API returns a TaskItem, so it serializes with real data.
+    public ICollection<Tag> Tags { get; set; } = new List<Tag>();
+
     // "#rrggbb", or null when the task has no assigned color. Shown as
     // diagonal stripes over this task's linked entries in the Planner.
     public string? Color { get; set; }

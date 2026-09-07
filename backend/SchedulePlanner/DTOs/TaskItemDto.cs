@@ -10,6 +10,7 @@ public class TaskItemDto
     public TaskItemPriority Priority { get; set; } = TaskItemPriority.None;
     public TaskItemType TaskType { get; set; } = TaskItemType.Task;
     public int? ParentTaskId { get; set; }
+    public List<int> TagIds { get; set; } = new();
     public string? Color { get; set; }
     public string? Notes { get; set; }
     public DateOnly? DueDate { get; set; }
