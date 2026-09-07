@@ -84,7 +84,7 @@ builder.Services.AddHttpClient<WeatherService>(client =>
 builder.Services.AddCors(options =>
     options.AddPolicy("Dev", policy => policy
         .WithOrigins("http://localhost:5173")
-        .AllowAnyHeader()
+        .AllowAnyHeader()        
         .AllowAnyMethod()
         // The dev frontend runs on a different port than the API, so the
         // auth cookie only round-trips if the browser is told it's allowed
