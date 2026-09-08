@@ -16,7 +16,7 @@ import {
   timeBreakdownByType,
   trackingStreakGrid,
 } from '@/utils/overviewStats'
-import { taskCountsByStatus, taskEstimateAccuracy } from '@/utils/taskOverviewStats'
+import { taskCountsByStatus, taskCountsByPriority, taskEstimateAccuracy } from '@/utils/taskOverviewStats'
 import { taskAccuracyStatus } from '@/utils/status'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 import OverviewWeeklyHoursChart from '@/components/OverviewWeeklyHoursChart.vue'
@@ -25,6 +25,7 @@ import OverviewBalanceTrend from '@/components/OverviewBalanceTrend.vue'
 import OverviewTimeBreakdown from '@/components/OverviewTimeBreakdown.vue'
 import OverviewTrackingStreak from '@/components/OverviewTrackingStreak.vue'
 import OverviewTaskStatusBreakdown from '@/components/OverviewTaskStatusBreakdown.vue'
+import OverviewTaskPriorityBreakdown from '@/components/OverviewTaskPriorityBreakdown.vue'
 import MobileCardCarousel from '@/components/MobileCardCarousel.vue'
 
 const WEEKLY_CHART_WEEKS = 52
@@ -72,7 +73,10 @@ const avgPerTrackedWeek = computed(() => averagePerTrackedWeek(store.weeklyBalan
 const daysWithEntries = computed(() => daysWithEntriesInYear(store.entries, currentYear.value))
 const carriedOver = computed(() => store.overallBalance.manualAdjustmentHours)
 const taskCounts = computed(() => taskCountsByStatus(tasksStore.tasks))
-const totalTasks = computed(() => taskCounts.value.open + taskCounts.value.inProgress + taskCounts.value.done)
+const taskPriorityCounts = computed(() => taskCountsByPriority(tasksStore.tasks))
+const totalTasks = computed(
+  () => taskCounts.value.backlog + taskCounts.value.ready + taskCounts.value.inProgress + taskCounts.value.done,
+)
 const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries))
 const taskDiffMinutes = computed(() =>
   taskAccuracy.value ? taskAccuracy.value.realMinutes - taskAccuracy.value.estimatedMinutes : null,
@@ -92,7 +96,6 @@ const plannerStats = computed(() => [
 const taskStats = computed(() => {
   const cells = [
     { value: String(totalTasks.value), label: 'total tasks' },
-    { value: String(taskCounts.value.open + taskCounts.value.inProgress), label: 'active tasks' },
     { value: String(taskCounts.value.done), label: 'completed tasks' },
   ]
   // Omitted rather than shown as "on target" until at least one task has
@@ -224,9 +227,16 @@ const longestDayCaption = computed(() => {
         </div>
       </MobileCardCarousel>
 
-      <div class="card tasks-chart-card">
-        <div class="card-heading"><h2>Task status breakdown</h2></div>
-        <OverviewTaskStatusBreakdown :counts="taskCounts" />
+      <div class="tasks-charts-row">
+        <div class="card tasks-chart-card">
+          <div class="card-heading"><h2>Task status breakdown</h2></div>
+          <OverviewTaskStatusBreakdown :counts="taskCounts" />
+        </div>
+
+        <div class="card tasks-chart-card">
+          <div class="card-heading"><h2>Task priority breakdown</h2></div>
+          <OverviewTaskPriorityBreakdown :counts="taskPriorityCounts" />
+        </div>
       </div>
     </div>
 
@@ -447,9 +457,17 @@ const longestDayCaption = computed(() => {
   border-top: 1px solid var(--line-2);
 }
 
-.tasks-chart-card {
-  max-width: 460px;
+.tasks-charts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
   margin-top: 28px;
+}
+
+.tasks-chart-card {
+  flex: 1 1 420px;
+  max-width: 460px;
+  margin-top: 0;
 }
 
 @media (max-width: 900px) {

@@ -1,11 +1,30 @@
 import { realMinutesForTask } from './taskStats'
 
+// Every card on the Tasks board is one countable "task" - a standalone task
+// or a Group. Subtasks live inside a card rather than being cards of their
+// own, so both breakdowns below only look at top-level items
+// (parentTaskId == null).
+function topLevelTasks(tasks) {
+  return tasks.filter((t) => t.parentTaskId == null)
+}
+
 export function taskCountsByStatus(tasks) {
+  const cards = topLevelTasks(tasks)
   return {
-    backlog: tasks.filter((t) => t.status === 'Backlog').length,
-    ready: tasks.filter((t) => t.status === 'Ready').length,
-    inProgress: tasks.filter((t) => t.status === 'InProgress').length,
-    done: tasks.filter((t) => t.status === 'Done').length,
+    backlog: cards.filter((t) => t.status === 'Backlog').length,
+    ready: cards.filter((t) => t.status === 'Ready').length,
+    inProgress: cards.filter((t) => t.status === 'InProgress').length,
+    done: cards.filter((t) => t.status === 'Done').length,
+  }
+}
+
+export function taskCountsByPriority(tasks) {
+  const cards = topLevelTasks(tasks)
+  return {
+    none: cards.filter((t) => (t.priority ?? 'None') === 'None').length,
+    low: cards.filter((t) => t.priority === 'Low').length,
+    medium: cards.filter((t) => t.priority === 'Medium').length,
+    high: cards.filter((t) => t.priority === 'High').length,
   }
 }
 
