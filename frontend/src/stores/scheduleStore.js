@@ -14,6 +14,7 @@ import {
 import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 import { extractErrorMessage } from '@/utils/apiError'
 import { useTasksStore } from './tasksStore'
+import { useTagsStore } from './tagsStore'
 
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
 const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
@@ -461,29 +462,64 @@ export const useScheduleStore = defineStore('schedule', {
 
       try {
         const tasksStore = useTasksStore()
+        const tagsStore = useTagsStore()
         await api.deleteBulk(null)
         this.entries = []
         await tasksStore.deleteAllTasks()
 
+        // Tags are a separate catalog, not wiped by the task deletion above -
+        // reuse any tag whose name already matches (case-insensitively) and
+        // create the rest from the backup, so old tag ids can be remapped
+        // onto real ones the same way task ids are below.
+        await tagsStore.fetchAll()
+        const tagNameToId = new Map(tagsStore.tags.map((t) => [t.name.toLowerCase(), t.id]))
+        const backupTagsById = new Map()
+        for (const task of Array.isArray(data.tasks) ? data.tasks : []) {
+          for (const tag of task.tags ?? []) {
+            if (tag && typeof tag.name === 'string' && tag.id != null) backupTagsById.set(tag.id, tag)
+          }
+        }
+        const tagIdMap = {}
+        for (const tag of backupTagsById.values()) {
+          const existingId = tagNameToId.get(tag.name.toLowerCase())
+          if (existingId != null) {
+            tagIdMap[tag.id] = existingId
+            continue
+          }
+          const created = await tagsStore.createTag({ name: tag.name, color: tag.color ?? null })
+          tagIdMap[tag.id] = created.id
+          tagNameToId.set(tag.name.toLowerCase(), created.id)
+        }
+
         // Tasks must exist before entries can reference them - each
         // recreated task gets a fresh backend id, so old ids from the
         // backup have to be mapped onto the new ones before entries are
-        // recreated below.
+        // recreated below. Top-level tasks (including Groups) are created
+        // before subtasks so a subtask's parentTaskId always has something
+        // to map onto - subtasks are never nested more than one level deep,
+        // so this single parents-then-children pass is enough.
         const taskIdMap = {}
-        if (Array.isArray(data.tasks)) {
-          for (const task of data.tasks) {
-            if (typeof task?.name !== 'string' || typeof task?.estimatedMinutes !== 'number') continue
-            const createdTask = await tasksStore.createTask({
-              name: task.name,
-              estimatedMinutes: task.estimatedMinutes,
-              status: task.status ?? 'Backlog',
-              priority: task.priority ?? 'None',
-              color: task.color ?? null,
-              dueDate: task.dueDate ?? null,
-              notes: task.notes ?? null,
-            })
-            taskIdMap[task.id] = createdTask.id
-          }
+        const orderedTasks = Array.isArray(data.tasks)
+          ? [...data.tasks].sort((a, b) => (a.parentTaskId == null ? 0 : 1) - (b.parentTaskId == null ? 0 : 1))
+          : []
+        for (const task of orderedTasks) {
+          if (typeof task?.name !== 'string' || typeof task?.estimatedMinutes !== 'number') continue
+          const taskType = task.taskType === 'Group' ? 'Group' : 'Task'
+          const createdTask = await tasksStore.createTask({
+            name: task.name,
+            // A Group's estimatedMinutes is always 0 server-side - same rule
+            // taskUpdatePayload follows elsewhere.
+            estimatedMinutes: taskType === 'Group' ? 0 : task.estimatedMinutes,
+            status: task.status ?? 'Backlog',
+            priority: task.priority ?? 'None',
+            taskType,
+            parentTaskId: task.parentTaskId != null ? (taskIdMap[task.parentTaskId] ?? null) : null,
+            tagIds: (task.tags ?? []).map((t) => tagIdMap[t.id]).filter((id) => id != null),
+            color: task.color ?? null,
+            dueDate: task.dueDate ?? null,
+            notes: task.notes ?? null,
+          })
+          taskIdMap[task.id] = createdTask.id
         }
 
         const created = []
