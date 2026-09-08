@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X, Plus, ChevronDown, ChevronUp } from '@lucide/vue'
 import { useAppShell } from '@/composables/useAppShell'
+import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTagsStore } from '@/stores/tagsStore'
@@ -14,7 +15,6 @@ const tasksStore = useTasksStore()
 const scheduleStore = useScheduleStore()
 const tagsStore = useTagsStore()
 
-const STATUSES = ['Backlog', 'Ready', 'InProgress', 'Done']
 const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
 const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 const PRIORITY_LABELS = { None: 'None', Low: 'Low', Medium: 'Medium', High: 'High' }
@@ -28,9 +28,6 @@ const props = defineProps({
   // Task" shortcut passes the entry's own length) - ignored once task is set,
   // since an edit's estimate comes from the task itself.
   initialEstimatedMinutes: { type: Number, default: null },
-  // Seeds the Status field in create mode only - e.g. the Kanban board's
-  // per-column "Add task" button.
-  initialStatus: { type: String, default: null },
   // Hides the Task/Group type picker and forces plain Task, for quick-create
   // flows nested inside another modal (the Planner's "Create new Task", and
   // a Group's own "Create new subtask") where a Group would never make
@@ -51,7 +48,7 @@ function blankForm() {
     taskType: 'Task',
     estimatedHours: Math.floor(minutes / 60),
     estimatedMinutes: minutes % 60,
-    status: props.initialStatus || 'Backlog',
+    status: 'Backlog',
     priority: 'None',
     tagIds: [],
     hasColor: false,
@@ -253,6 +250,15 @@ function subtaskUpdatePayload(task, overrides) {
   }
 }
 
+// A subtask is never linked to a planner entry of its own - its
+// Backlog/Ready/InProgress always mirrors its group's current status.
+// Already-Done stays Done regardless of what the group is doing; joining a
+// Done group starts a task at Backlog rather than inheriting Done.
+function subtaskJoinStatus(task) {
+  if (task.status === 'Done') return 'Done'
+  return props.task.status === 'Done' ? 'Backlog' : props.task.status
+}
+
 async function addExistingSubtask(task) {
   subtaskActionError.value = null
   const linked = scheduleStore.entries.filter((e) => e.taskItemId === task.id)
@@ -266,7 +272,10 @@ async function addExistingSubtask(task) {
 async function commitAddSubtask(task) {
   subtaskActionBusy.value = true
   try {
-    await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: props.task.id }))
+    await tasksStore.updateTask(
+      task.id,
+      subtaskUpdatePayload(task, { parentTaskId: props.task.id, status: subtaskJoinStatus(task) }),
+    )
     subtasksChanged.value = true
     showAddExisting.value = false
     addExistingSearch.value = ''
@@ -284,7 +293,10 @@ async function confirmRelink() {
     for (const entry of entries) {
       await scheduleStore.updateEntry(entry.id, { ...entry, taskItemId: props.task.id })
     }
-    await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: props.task.id }))
+    await tasksStore.updateTask(
+      task.id,
+      subtaskUpdatePayload(task, { parentTaskId: props.task.id, status: subtaskJoinStatus(task) }),
+    )
     subtasksChanged.value = true
     pendingRelink.value = null
     showAddExisting.value = false
@@ -304,7 +316,10 @@ async function removeSubtask(task) {
   subtaskActionError.value = null
   subtaskActionBusy.value = true
   try {
-    await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: null }))
+    // No longer part of a group means no status to mirror - back to
+    // Backlog, unless it was already independently Done.
+    const status = task.status === 'Done' ? 'Done' : 'Backlog'
+    await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { parentTaskId: null, status }))
     subtasksChanged.value = true
   } catch {
     subtaskActionError.value = tasksStore.error
@@ -317,9 +332,35 @@ async function handleCreateSubtaskSubmit(payload) {
   subtaskActionBusy.value = true
   subtaskActionError.value = null
   try {
-    await tasksStore.createTask({ ...payload, taskType: 'Task', parentTaskId: props.task.id })
+    const status = subtaskJoinStatus({ status: 'Backlog' })
+    await tasksStore.createTask({ ...payload, taskType: 'Task', parentTaskId: props.task.id, status })
     subtasksChanged.value = true
     showCreateSubtask.value = false
+  } catch {
+    subtaskActionError.value = tasksStore.error
+  } finally {
+    subtaskActionBusy.value = false
+  }
+}
+
+// --- Subtask priority quick-picker (edit mode, Group only) ---
+
+const {
+  openId: openSubtaskPriorityMenu,
+  position: subtaskPriorityMenuPosition,
+  setMenuEl: setSubtaskPriorityMenuEl,
+  toggle: toggleSubtaskPriorityMenu,
+  close: closeSubtaskPriorityMenu,
+} = useFloatingMenu()
+
+async function setSubtaskPriority(task, priority) {
+  closeSubtaskPriorityMenu()
+  if (task.priority === priority) return
+  subtaskActionBusy.value = true
+  subtaskActionError.value = null
+  try {
+    await tasksStore.updateTask(task.id, subtaskUpdatePayload(task, { priority }))
+    subtasksChanged.value = true
   } catch {
     subtaskActionError.value = tasksStore.error
   } finally {
@@ -336,6 +377,10 @@ function handleKeydown(event) {
   // Escape/Enter handling - same reasoning as EntryFormModal's guard.
   if (showCreateSubtask.value || pendingRelink.value) return
   if (event.key === 'Escape') {
+    if (openSubtaskPriorityMenu.value) {
+      closeSubtaskPriorityMenu()
+      return
+    }
     emit('close')
     return
   }
@@ -371,13 +416,15 @@ function handleOverlayClick(event) {
 <template>
   <Teleport to="body">
   <div class="overlay" @mousedown="handleOverlayMouseDown" @click="handleOverlayClick">
-    <div class="modal">
+    <div class="modal" :class="{ 'modal-wide': isEdit && isGroup }">
       <header class="modal-header">
         <h2>{{ isEdit ? 'Edit task' : 'Add task' }}</h2>
         <button type="button" class="close-btn" @click="emit('close')" aria-label="Close"><X :size="20" /></button>
       </header>
 
       <form @submit.prevent="handleSubmit">
+        <div class="form-columns">
+        <div class="form-col-left">
         <div class="field">
           <label>Name</label>
           <input ref="nameInputEl" v-model="form.name" type="text" placeholder="Task name" required />
@@ -403,10 +450,7 @@ function handleOverlayClick(event) {
               Group
             </button>
           </div>
-          <p v-else class="type-readonly">
-            {{ isGroup ? 'Group' : 'Task' }}
-            <span class="label-hint">(type can't be changed after creation)</span>
-          </p>
+          <p v-else class="type-readonly">{{ isGroup ? 'Group' : 'Task' }}</p>
           <p v-if="!isEdit" class="label-hint">
             {{ form.taskType === 'Group'
               ? "A Group holds subtasks - its planned time is their total, and it's what you link to a planner entry."
@@ -433,11 +477,11 @@ function handleOverlayClick(event) {
         </div>
 
         <div class="field-row">
-          <div class="field">
+          <div v-if="isEdit" class="field">
             <label>Status</label>
-            <select v-model="form.status" required @keydown.escape.stop>
-              <option v-for="s in STATUSES" :key="s" :value="s">{{ STATUS_LABELS[s] }}</option>
-            </select>
+            <p class="status-readonly">
+              <span class="status-badge" :class="'badge-' + form.status">{{ STATUS_LABELS[form.status] }}</span>
+            </p>
           </div>
           <div class="field">
             <label>Due date <span class="label-hint">(optional)</span></label>
@@ -524,11 +568,45 @@ function handleOverlayClick(event) {
           </div>
         </div>
 
-        <div v-if="isEdit && isGroup" class="field subtasks-field">
+        </div>
+
+        <div v-if="isEdit && isGroup" class="form-col-right">
+        <div class="field subtasks-field">
           <label>Subtasks</label>
 
           <ul v-if="subtasks.length > 0" class="subtask-list">
             <li v-for="t in subtasks" :key="t.id" class="subtask-row">
+              <span class="subtask-priority-wrap">
+                <button
+                  type="button"
+                  class="priority-dot interactive-dot"
+                  :class="'priority-' + t.priority"
+                  :title="`${PRIORITY_LABELS[t.priority]} priority - click to change`"
+                  :aria-label="`${PRIORITY_LABELS[t.priority]} priority - click to change`"
+                  @click.stop="toggleSubtaskPriorityMenu(t.id, $event)"
+                ></button>
+                <Teleport to="body">
+                  <div
+                    v-if="openSubtaskPriorityMenu === t.id"
+                    :ref="setSubtaskPriorityMenuEl"
+                    class="priority-menu"
+                    :style="{ top: subtaskPriorityMenuPosition.top + 'px', left: subtaskPriorityMenuPosition.left + 'px' }"
+                  >
+                    <button
+                      v-for="p in PRIORITIES"
+                      :key="p"
+                      type="button"
+                      class="priority-menu-option"
+                      :class="{ active: t.priority === p }"
+                      :disabled="subtaskActionBusy"
+                      @click="setSubtaskPriority(t, p)"
+                    >
+                      <span class="priority-dot" :class="'priority-' + p"></span>
+                      {{ PRIORITY_LABELS[p] }}
+                    </button>
+                  </div>
+                </Teleport>
+              </span>
               <span class="subtask-name" :title="t.name">#{{ t.id }} - {{ t.name }}</span>
               <span class="subtask-minutes">{{ hoursFor(t.estimatedMinutes) }}</span>
               <button
@@ -579,6 +657,8 @@ function handleOverlayClick(event) {
               </li>
             </ul>
           </div>
+        </div>
+        </div>
         </div>
 
         <p v-if="localError || serverError" class="error-msg">{{ localError || serverError }}</p>
@@ -634,6 +714,36 @@ function handleOverlayClick(event) {
   max-height: 90vh;
   overflow-y: auto;
   padding: 1.25rem 1.5rem 1.5rem;
+}
+
+/* A group's edit modal doubles in width so its Subtasks section can sit
+   beside the rest of the form instead of stacking below it - the point is
+   avoiding a long scroll when a group has a lot of subtasks. */
+.modal-wide {
+  max-width: 52rem;
+}
+
+.form-columns {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-wide .form-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 2rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .modal-wide {
+    max-width: 26rem;
+  }
+
+  .modal-wide .form-columns {
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .modal-header {
@@ -827,6 +937,127 @@ input[type='date'] {
 .subtasks-field {
   padding-top: 0.6rem;
   border-top: 1px solid var(--color-border);
+}
+
+/* Side-by-side with the rest of the form (see .modal-wide) instead of
+   stacked below it, so it gets its own scroll instead of stretching the
+   whole modal taller than the left column. */
+.modal-wide .form-col-right .subtasks-field {
+  padding-top: 0;
+  border-top: none;
+  padding-left: 2rem;
+  border-left: 1px solid var(--color-border);
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .modal-wide .form-col-right .subtasks-field {
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--color-border);
+    padding-left: 0;
+    border-left: none;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+.status-readonly {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+}
+
+.status-badge {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--mute);
+}
+
+.status-badge.badge-Backlog {
+  color: var(--mute);
+  border-color: var(--line-2);
+}
+
+.status-badge.badge-Ready {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.status-badge.badge-InProgress {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.status-badge.badge-Done {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.subtask-priority-wrap {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.priority-dot.interactive-dot {
+  width: 9px;
+  height: 9px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.priority-dot.interactive-dot:hover {
+  outline: 2px solid var(--color-border-hover);
+  outline-offset: 2px;
+}
+
+.priority-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.3rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.priority-menu-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+.priority-menu-option:hover {
+  background: var(--color-background-soft);
+}
+
+.priority-menu-option.active {
+  color: var(--color-heading);
+  font-weight: 600;
 }
 
 .subtask-list {

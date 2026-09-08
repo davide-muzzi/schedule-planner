@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import tasksApi from '@/services/tasksApi'
 import { extractErrorMessage } from '@/utils/apiError'
-import { earliestLinkedEntryDateTime } from '@/utils/taskStats'
+import { deriveTaskStatus, subtasksOf, taskUpdatePayload } from '@/utils/taskStats'
 
 export const useTasksStore = defineStore('tasks', {
   state: () => ({
@@ -81,23 +81,33 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    // For every Backlog/Ready task whose earliest linked Working entry has
-    // already started, flips it to In Progress - a one-shot check run on
-    // load rather than a live ticker, since this is a personal app you check
-    // in on rather than leave open and watch.
-    async syncAutoStatuses(entries) {
-      const dueTasks = this.tasks.filter((t) => {
-        if (t.status !== 'Backlog' && t.status !== 'Ready') return false
-        const earliest = earliestLinkedEntryDateTime(entries, t.id)
-        return earliest !== null && earliest <= new Date()
-      })
+    // Re-derives Backlog/Ready/InProgress for every top-level (non-Done) task
+    // from its link/timing and writes back whatever changed. Subtasks are
+    // never linked directly, so a Group's own status change cascades to its
+    // subtasks via applyStatusToSubtasks instead of being derived per-subtask.
+    async syncTaskStatuses(entries) {
+      const topLevel = this.tasks.filter((t) => t.parentTaskId == null && t.status !== 'Done')
 
-      for (const task of dueTasks) {
+      for (const task of topLevel) {
+        const desired = deriveTaskStatus(entries, task.id)
+        if (desired === task.status) continue
         try {
-          // Spread the full task rather than listing fields, so a future
-          // field addition can't silently go missing from this PUT the way
-          // color did before this comment was added.
-          await this.updateTask(task.id, { ...task, status: 'InProgress' })
+          await this.updateTask(task.id, taskUpdatePayload(task, { status: desired }))
+          if (task.taskType === 'Group') await this.applyStatusToSubtasks(task.id, desired)
+        } catch {
+          // store.error is already set; the caller's error banner picks it up
+        }
+      }
+    },
+
+    // Sets `status` on every non-Done subtask of the given group - used both
+    // by syncTaskStatuses above and by a group's manual Done/reopen actions.
+    // Subtasks already marked Done independently are left alone.
+    async applyStatusToSubtasks(groupId, status) {
+      const subtasks = subtasksOf(this.tasks, groupId).filter((t) => t.status !== 'Done')
+      for (const sub of subtasks) {
+        try {
+          await this.updateTask(sub.id, taskUpdatePayload(sub, { status }))
         } catch {
           // store.error is already set; the caller's error banner picks it up
         }

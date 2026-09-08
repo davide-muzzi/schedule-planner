@@ -1,5 +1,5 @@
 <script setup>
-import { watch } from 'vue'
+import { onBeforeUnmount, watch } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
@@ -14,6 +14,18 @@ const store = useScheduleStore()
 const tasksStore = useTasksStore()
 const tagsStore = useTagsStore()
 
+// Re-checks Backlog/Ready/InProgress against "now" every minute while the
+// app is open and logged in, so a task flips to In Progress the moment its
+// linked entry starts rather than only the next time something else happens
+// to reload it.
+const STATUS_SYNC_INTERVAL_MS = 60000
+let statusSyncTimer = null
+
+function stopStatusSync() {
+  clearInterval(statusSyncTimer)
+  statusSyncTimer = null
+}
+
 // Watches (rather than onMounted) because the router guard's session check
 // resolves asynchronously - by the time it settles, App.vue may already have
 // mounted while logged out. This fires both on an already-authenticated
@@ -21,25 +33,28 @@ const tagsStore = useTagsStore()
 watch(
   () => authStore.isAuthenticated,
   async (isAuthenticated) => {
+    stopStatusSync()
     if (!isAuthenticated) return
 
     store.fetchAdjustment()
     store.fetchWorkGoal()
     store.fetchHolidayYearSetting(store.currentHolidayYear)
 
-    // Entries and tasks both need to be in before an Open task's earliest
-    // linked entry can be checked against "now" - the Tasks page re-runs this
-    // same check on its own mount too, to catch entries whose start time
-    // passes later in the session rather than only right at app load.
+    // Entries and tasks both need to be in before a task's derived status
+    // can be computed - the Tasks page re-runs this same check on its own
+    // mount too, to catch it immediately after navigating in.
     const [entries] = await Promise.all([
       store.fetchAll().then(() => store.entries),
       tasksStore.fetchAll(),
       tagsStore.fetchAll(),
     ])
-    await tasksStore.syncAutoStatuses(entries)
+    await tasksStore.syncTaskStatuses(entries)
+    statusSyncTimer = setInterval(() => tasksStore.syncTaskStatuses(store.entries), STATUS_SYNC_INTERVAL_MS)
   },
   { immediate: true },
 )
+
+onBeforeUnmount(stopStatusSync)
 </script>
 
 <template>

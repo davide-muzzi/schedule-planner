@@ -1,7 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import { CalendarDays, Check, ChevronDown, ChevronUp, X } from '@lucide/vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, Undo2, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
+import { useFloatingMenu } from '@/composables/useFloatingMenu'
+
+const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 
 const props = defineProps({
   task: { type: Object, required: true },
@@ -12,13 +15,43 @@ const props = defineProps({
   subtasks: { type: Array, default: () => [] },
 })
 
-defineEmits(['edit', 'quick-complete', 'quick-delete'])
+const emit = defineEmits([
+  'edit',
+  'quick-complete',
+  'quick-reopen',
+  'quick-delete',
+  'edit-subtask',
+  'toggle-subtask-done',
+  'update-subtask-priority',
+])
 
 const expanded = ref(false)
 
 function toggleExpanded(event) {
   event.stopPropagation()
   expanded.value = !expanded.value
+}
+
+// Which single subtask (by id) currently has its detail panel open - one at
+// a time, mirroring the group card's own single `expanded` toggle.
+const openSubtaskId = ref(null)
+
+const {
+  openId: openPriorityFor,
+  position: priorityMenuPosition,
+  setMenuEl: setPriorityMenuEl,
+  toggle: togglePriorityMenu,
+  close: closePriorityMenu,
+} = useFloatingMenu()
+
+function toggleSubtaskDetail(id) {
+  closePriorityMenu()
+  openSubtaskId.value = openSubtaskId.value === id ? null : id
+}
+
+function selectPriority(task, priority) {
+  closePriorityMenu()
+  if (task.priority !== priority) emit('update-subtask-priority', task, priority)
 }
 
 function hoursFor(minutes) {
@@ -94,9 +127,69 @@ function formatDueDate(dueDate) {
       </button>
       <ul v-if="expanded && subtasks.length > 0" class="subtask-preview-list">
         <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row">
-          <span class="subtask-preview-status" :class="'badge-' + t.status"></span>
-          <span class="subtask-preview-name">{{ t.name }}</span>
-          <span class="subtask-preview-minutes">{{ hoursFor(t.estimatedMinutes) }}</span>
+          <div class="subtask-preview-main" @click.stop="toggleSubtaskDetail(t.id)">
+            <span class="subtask-priority-wrap">
+              <button
+                type="button"
+                class="priority-dot interactive-dot"
+                :class="'priority-' + t.priority"
+                :title="`${t.priority} priority - click to change`"
+                :aria-label="`${t.priority} priority - click to change`"
+                @click.stop="togglePriorityMenu(t.id, $event)"
+              ></button>
+              <Teleport to="body">
+                <div
+                  v-if="openPriorityFor === t.id"
+                  :ref="setPriorityMenuEl"
+                  class="priority-menu"
+                  :style="{ top: priorityMenuPosition.top + 'px', left: priorityMenuPosition.left + 'px' }"
+                >
+                  <button
+                    v-for="p in PRIORITIES"
+                    :key="p"
+                    type="button"
+                    class="priority-menu-option"
+                    :class="{ active: t.priority === p }"
+                    @click="selectPriority(t, p)"
+                  >
+                    <span class="priority-dot" :class="'priority-' + p"></span>
+                    {{ p }}
+                  </button>
+                </div>
+              </Teleport>
+            </span>
+            <span class="subtask-preview-name" :class="{ 'is-done': t.status === 'Done' }">{{ t.name }}</span>
+            <span class="subtask-preview-minutes" :class="{ 'is-done': t.status === 'Done' }">{{ hoursFor(t.estimatedMinutes) }}</span>
+          </div>
+          <div v-if="openSubtaskId === t.id" class="subtask-detail" @click.stop>
+            <p v-if="t.notes" class="subtask-detail-notes">{{ t.notes }}</p>
+            <div v-if="t.tags && t.tags.length > 0" class="subtask-detail-tags">
+              <span v-for="tag in t.tags" :key="tag.id" class="task-tag-chip">
+                <span class="task-tag-swatch" :style="{ background: tag.color || 'var(--line-2)' }"></span>
+                {{ tag.name }}
+              </span>
+            </div>
+            <div class="subtask-detail-actions">
+              <button
+                type="button"
+                class="subtask-edit-btn"
+                title="Edit subtask"
+                aria-label="Edit subtask"
+                @click="$emit('edit-subtask', t)"
+              >
+                <Pencil :size="12" />
+              </button>
+              <label class="subtask-done-checkbox">
+                <input
+                  type="checkbox"
+                  :checked="t.status === 'Done'"
+                  @click.stop
+                  @change="$emit('toggle-subtask-done', t, $event.target.checked)"
+                />
+                Done
+              </label>
+            </div>
+          </div>
         </li>
       </ul>
     </div>
@@ -110,6 +203,17 @@ function formatDueDate(dueDate) {
       @click="$emit('quick-complete', $event)"
     >
       <Check :size="12" />
+    </button>
+
+    <button
+      v-if="!isNarrowViewport && task.status === 'Done'"
+      type="button"
+      class="quick-complete quick-reopen"
+      title="Reopen task"
+      aria-label="Reopen task"
+      @click="$emit('quick-reopen', $event)"
+    >
+      <Undo2 :size="12" />
     </button>
 
     <button
@@ -361,33 +465,16 @@ function formatDueDate(dueDate) {
 
 .subtask-preview-row {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  flex-direction: column;
+  gap: 6px;
   padding-left: 4px;
 }
 
-.subtask-preview-status {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--line-2);
-}
-
-.subtask-preview-status.badge-Backlog {
-  background: var(--mute);
-}
-
-.subtask-preview-status.badge-Ready {
-  background: var(--warn);
-}
-
-.subtask-preview-status.badge-InProgress {
-  background: var(--accent);
-}
-
-.subtask-preview-status.badge-Done {
-  background: var(--ok);
+.subtask-preview-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
 }
 
 .subtask-preview-name {
@@ -400,11 +487,142 @@ function formatDueDate(dueDate) {
   color: var(--dim);
 }
 
+.subtask-preview-name.is-done {
+  color: var(--ok);
+}
+
 .subtask-preview-minutes {
   flex: none;
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--mute);
+}
+
+.subtask-preview-minutes.is-done {
+  color: var(--ok);
+}
+
+.subtask-priority-wrap {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.priority-dot.priority-None {
+  background: var(--mute);
+}
+
+.priority-dot.interactive-dot {
+  width: 8px;
+  height: 8px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.priority-dot.interactive-dot:hover {
+  outline: 2px solid var(--line-2);
+  outline-offset: 2px;
+}
+
+.priority-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.priority-menu-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: var(--r);
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+.priority-menu-option:hover {
+  background: var(--surface2);
+}
+
+.priority-menu-option.active {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.subtask-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 2px 19px;
+  cursor: default;
+}
+
+.subtask-detail-notes {
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.4;
+}
+
+.subtask-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.subtask-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subtask-edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.subtask-edit-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.subtask-done-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.subtask-done-checkbox input {
+  accent-color: var(--ok);
+  cursor: pointer;
 }
 
 .quick-delete,
@@ -452,5 +670,10 @@ function formatDueDate(dueDate) {
   color: #fff;
   background: var(--ok);
   border-color: var(--ok);
+}
+
+.quick-reopen:hover {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 </style>

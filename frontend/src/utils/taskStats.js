@@ -22,6 +22,50 @@ export function earliestLinkedEntryDateTime(entries, taskId) {
     .reduce((earliest, d) => (d < earliest ? d : earliest))
 }
 
+// Whether a task is linked to any planner entry at all - deliberately not
+// restricted to timed Working entries (unlike earliestLinkedEntryDateTime)
+// since an all-day Working entry still counts as "linked", it just has no
+// clock time to compare against "now".
+function isTaskLinked(entries, taskId) {
+  return entries.some((e) => e.taskItemId === taskId)
+}
+
+// A task's Backlog/Ready/InProgress status is never set directly - it's
+// always derived from whether (and when) it's linked to a planner entry.
+// Done is the one exception, handled entirely by the caller: this never
+// returns it, and callers should skip already-Done tasks before using this.
+export function deriveTaskStatus(entries, taskId) {
+  if (!isTaskLinked(entries, taskId)) return 'Backlog'
+  const earliest = earliestLinkedEntryDateTime(entries, taskId)
+  if (earliest !== null && earliest <= new Date()) return 'InProgress'
+  // Also covers a task linked only to an all-day entry (earliest === null) -
+  // no clock time to compare, so it just sits at Ready until marked Done.
+  return 'Ready'
+}
+
+// Builds a full TaskItemDto-shaped PUT payload from a task object as
+// returned by the API (which carries `tags` as full objects, not the
+// `tagIds` the write DTO expects) plus any field overrides. Every PUT is a
+// full overwrite, so spreading a raw task directly would silently wipe its
+// tags - the backend defaults a missing `tagIds` to none.
+export function taskUpdatePayload(task, overrides = {}) {
+  return {
+    name: task.name,
+    // A Group's estimatedMinutes is never set directly - it's always 0
+    // server-side, with "planned time" being the live sum of its subtasks.
+    estimatedMinutes: task.taskType === 'Group' ? 0 : task.estimatedMinutes,
+    status: task.status,
+    priority: task.priority ?? 'None',
+    taskType: task.taskType,
+    parentTaskId: task.parentTaskId ?? null,
+    tagIds: (task.tags || []).map((t) => t.id),
+    color: task.color ?? null,
+    dueDate: task.dueDate ?? null,
+    notes: task.notes ?? null,
+    ...overrides,
+  }
+}
+
 export function subtasksOf(tasks, groupId) {
   return tasks.filter((t) => t.parentTaskId === groupId)
 }

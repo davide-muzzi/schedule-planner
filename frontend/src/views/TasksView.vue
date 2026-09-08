@@ -6,7 +6,13 @@ import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { useAppShell } from '@/composables/useAppShell'
-import { realMinutesForTask, plannedMinutesForGroup, subtasksOf } from '@/utils/taskStats'
+import {
+  realMinutesForTask,
+  plannedMinutesForGroup,
+  subtasksOf,
+  deriveTaskStatus,
+  taskUpdatePayload,
+} from '@/utils/taskStats'
 import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
@@ -26,7 +32,6 @@ const STATUS_HINTS = {
   InProgress: 'Actively being worked on',
   Done: 'Finished',
 }
-const DRAG_GROUP = 'tasks'
 
 const SORT_OPTIONS = [
   { value: 'id', label: 'ID' },
@@ -182,11 +187,11 @@ function taskCardDelay(task) {
   return `${Math.min(idx * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms`
 }
 
-// Entries/tasks are already loaded app-wide (see App.vue) - this just
-// re-checks the auto Open -> In Progress transition in case an entry's
-// start time has passed since app load, while the user was on another page.
+// Entries/tasks are already loaded app-wide (see App.vue, which also keeps
+// re-checking this live every minute) - this just catches it immediately
+// after navigating in, rather than waiting for the next tick of that timer.
 onMounted(() => {
-  tasksStore.syncAutoStatuses(scheduleStore.entries)
+  tasksStore.syncTaskStatuses(scheduleStore.entries)
 })
 
 function taskCard(task) {
@@ -287,29 +292,13 @@ function syncColumnLists() {
 watch(taskCards, syncColumnLists, { immediate: true })
 watch(sortBy, syncColumnLists)
 
-// Fires on every column whose list changed - reordering within a column
-// (event.moved) and both ends of a cross-column drag (event.added on the
-// destination, implicit removal from the source, both already reflected in
-// columnLists by <draggable> itself). Persisting every column's current
-// order unconditionally keeps this simple and covers both cases in one
-// place, and happens before the (async, possibly failing) status update
-// below so the board never visually snaps back on success.
-async function handleColumnChange(status, event) {
-  for (const s of COLUMN_STATUSES) {
-    columnOrders.value[s] = columnLists[s].map((t) => t.id)
-  }
+// Fires when a column's own order changes from a within-column drag (status
+// is derived automatically now - see tasksStore.syncTaskStatuses - so each
+// column has its own drag group and a card can no longer be dropped into a
+// different one). Just persists the new order.
+function handleColumnChange(status) {
+  columnOrders.value[status] = columnLists[status].map((t) => t.id)
   persistColumnOrders()
-
-  if (event.added) {
-    const task = event.added.element
-    if (task.status === status) return
-    try {
-      await tasksStore.updateTask(task.id, taskUpdatePayload(task, { status }))
-    } catch {
-      showToast("Couldn't move that task.")
-      syncColumnLists()
-    }
-  }
 }
 
 // Mobile shows one column at a time (picked via a <select>) instead of a
@@ -335,12 +324,10 @@ const showModal = ref(false)
 const editingTask = ref(null)
 const modalError = ref(null)
 const saving = ref(false)
-const newTaskStatus = ref(null)
 
-function openAdd(status = null) {
+function openAdd() {
   editingTask.value = null
   modalError.value = null
-  newTaskStatus.value = status
   showModal.value = true
 }
 
@@ -354,24 +341,6 @@ function closeModal() {
   showModal.value = false
   editingTask.value = null
   modalError.value = null
-  newTaskStatus.value = null
-}
-
-function taskUpdatePayload(task, overrides) {
-  return {
-    name: task.name,
-    // A Group's estimatedMinutes is never set directly - see taskCard().
-    estimatedMinutes: task.taskType === 'Group' ? 0 : task.estimatedMinutes,
-    status: task.status,
-    priority: task.priority ?? 'None',
-    taskType: task.taskType,
-    parentTaskId: task.parentTaskId ?? null,
-    tagIds: (task.tags || []).map((t) => t.id),
-    color: task.color ?? null,
-    dueDate: task.dueDate ?? null,
-    notes: task.notes ?? null,
-    ...overrides,
-  }
 }
 
 async function handleSubmit(payload) {
@@ -454,10 +423,57 @@ async function handleQuickComplete(task, event) {
   saving.value = true
   try {
     await tasksStore.updateTask(task.id, taskUpdatePayload(task, { status: 'Done' }))
+    // Marking a Group Done takes every subtask with it.
+    if (task.taskType === 'Group') await tasksStore.applyStatusToSubtasks(task.id, 'Done')
   } catch {
     modalError.value = tasksStore.error
   } finally {
     saving.value = false
+  }
+}
+
+// Undoes a Done task/group - recomputes what its status should actually be
+// from its current link/timing (not just a hardcoded Backlog), since it may
+// already be linked to an entry that's already started.
+async function handleQuickReopen(task, event) {
+  event.stopPropagation()
+  saving.value = true
+  try {
+    const reopened = deriveTaskStatus(scheduleStore.entries, task.id)
+    await tasksStore.updateTask(task.id, taskUpdatePayload(task, { status: reopened }))
+    if (task.taskType === 'Group') await tasksStore.applyStatusToSubtasks(task.id, reopened)
+  } catch {
+    modalError.value = tasksStore.error
+  } finally {
+    saving.value = false
+  }
+}
+
+function handleEditSubtask(subtask) {
+  openEdit(subtask)
+}
+
+// Checking marks just that one subtask Done, independent of its group.
+// Unchecking reopens it by adopting its parent group's current status - a
+// subtask is never linked to an entry of its own, so it has nothing else to
+// derive from.
+async function handleToggleSubtaskDone(subtask, done) {
+  saving.value = true
+  try {
+    const status = done ? 'Done' : (tasksStore.tasks.find((t) => t.id === subtask.parentTaskId)?.status ?? 'Backlog')
+    await tasksStore.updateTask(subtask.id, taskUpdatePayload(subtask, { status }))
+  } catch {
+    modalError.value = tasksStore.error
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleUpdateSubtaskPriority(subtask, priority) {
+  try {
+    await tasksStore.updateTask(subtask.id, taskUpdatePayload(subtask, { priority }))
+  } catch {
+    modalError.value = tasksStore.error
   }
 }
 </script>
@@ -570,7 +586,7 @@ async function handleQuickComplete(task, event) {
 
         <draggable
           v-model="columnLists[status]"
-          :group="DRAG_GROUP"
+          :group="'kanban-' + status"
           item-key="id"
           tag="div"
           class="kanban-drop-zone"
@@ -579,7 +595,7 @@ async function handleQuickComplete(task, event) {
           filter=".quick-complete, .quick-delete"
           :prevent-on-filter="false"
           :animation="150"
-          @change="handleColumnChange(status, $event)"
+          @change="handleColumnChange(status)"
         >
           <template #item="{ element }">
             <TaskCard
@@ -590,14 +606,18 @@ async function handleQuickComplete(task, event) {
               :style="{ animationDelay: taskCardDelay(element) }"
               @edit="openEdit(element)"
               @quick-complete="handleQuickComplete(element, $event)"
+              @quick-reopen="handleQuickReopen(element, $event)"
               @quick-delete="handleQuickDelete(element, $event)"
+              @edit-subtask="handleEditSubtask"
+              @toggle-subtask-done="handleToggleSubtaskDone"
+              @update-subtask-priority="handleUpdateSubtaskPriority"
             />
           </template>
         </draggable>
 
         <p v-if="columnLists[status].length === 0" class="kanban-empty">No tasks</p>
 
-        <button type="button" class="kanban-add-btn" @click="openAdd(status)">
+        <button v-if="status === 'Backlog'" type="button" class="kanban-add-btn" @click="openAdd()">
           <Plus :size="13" /> Add task
         </button>
       </div>
@@ -607,7 +627,6 @@ async function handleQuickComplete(task, event) {
     <TaskFormModal
       v-if="showModal"
       :task="editingTask"
-      :initial-status="newTaskStatus"
       :server-error="modalError"
       :saving="saving"
       @close="closeModal"
