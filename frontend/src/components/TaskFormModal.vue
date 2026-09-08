@@ -730,7 +730,11 @@ function handleOverlayClick(event) {
 
 .modal-wide .form-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr), not plain 1fr - a grid track otherwise refuses to
+     shrink below its content's natural (unwrapped) width, which let a long
+     subtask name stretch the whole right column - and with it the modal -
+     wider instead of respecting .subtask-name's own ellipsis truncation. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0 2rem;
   align-items: start;
 }
