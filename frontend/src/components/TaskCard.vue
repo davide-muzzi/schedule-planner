@@ -111,6 +111,13 @@ function formatDueDate(dueDate) {
     year: 'numeric',
   })
 }
+
+function isOverdue(task) {
+  if (!task.dueDate || task.status === 'Done') return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(`${task.dueDate}T00:00:00`) < today
+}
 </script>
 
 <template>
@@ -140,7 +147,7 @@ function formatDueDate(dueDate) {
       <span class="task-name-text">{{ task.name }}</span>
     </h3>
 
-    <span v-if="task.dueDate" class="task-due-date"><CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }}</span>
+    <span v-if="task.dueDate" class="task-due-date" :class="{ overdue: isOverdue(task) }"><CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }}</span>
 
     <div v-if="task.tags && task.tags.length > 0" class="task-tags">
       <span v-for="tag in task.tags.slice(0, 2)" :key="tag.id" class="task-tag-chip">
@@ -419,6 +426,10 @@ function formatDueDate(dueDate) {
   gap: 5px;
   font-size: 11px;
   color: var(--mute);
+}
+
+.task-due-date.overdue {
+  color: var(--bad);
 }
 
 .task-tags {

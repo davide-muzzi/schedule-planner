@@ -16,7 +16,13 @@ import {
   timeBreakdownByType,
   trackingStreakGrid,
 } from '@/utils/overviewStats'
-import { taskCountsByStatus, taskCountsByPriority, taskEstimateAccuracy } from '@/utils/taskOverviewStats'
+import {
+  taskCountsByStatus,
+  taskCountsByPriority,
+  overdueTaskCount,
+  taskTimeByPriority,
+  taskEstimateAccuracy,
+} from '@/utils/taskOverviewStats'
 import { taskAccuracyStatus } from '@/utils/status'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
 import OverviewWeeklyHoursChart from '@/components/OverviewWeeklyHoursChart.vue'
@@ -26,6 +32,7 @@ import OverviewTimeBreakdown from '@/components/OverviewTimeBreakdown.vue'
 import OverviewTrackingStreak from '@/components/OverviewTrackingStreak.vue'
 import OverviewTaskStatusBreakdown from '@/components/OverviewTaskStatusBreakdown.vue'
 import OverviewTaskPriorityBreakdown from '@/components/OverviewTaskPriorityBreakdown.vue'
+import OverviewTaskTimeByPriority from '@/components/OverviewTaskTimeByPriority.vue'
 import MobileCardCarousel from '@/components/MobileCardCarousel.vue'
 
 const WEEKLY_CHART_WEEKS = 52
@@ -77,6 +84,8 @@ const taskPriorityCounts = computed(() => taskCountsByPriority(tasksStore.tasks)
 const totalTasks = computed(
   () => taskCounts.value.backlog + taskCounts.value.ready + taskCounts.value.inProgress + taskCounts.value.done,
 )
+const overdueCount = computed(() => overdueTaskCount(tasksStore.tasks))
+const taskTimeByPriorityData = computed(() => taskTimeByPriority(tasksStore.tasks, store.entries))
 const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries))
 const taskDiffMinutes = computed(() =>
   taskAccuracy.value ? taskAccuracy.value.realMinutes - taskAccuracy.value.estimatedMinutes : null,
@@ -97,6 +106,7 @@ const taskStats = computed(() => {
   const cells = [
     { value: String(totalTasks.value), label: 'total tasks' },
     { value: String(taskCounts.value.done), label: 'completed tasks' },
+    { value: String(overdueCount.value), label: 'overdue tasks', status: overdueCount.value > 0 ? 'bad' : 'ok' },
   ]
   // Omitted rather than shown as "on target" until at least one task has
   // real time logged against it - there's nothing to diff yet.
@@ -236,6 +246,11 @@ const longestDayCaption = computed(() => {
         <div class="card tasks-chart-card">
           <div class="card-heading"><h2>Task priority breakdown</h2></div>
           <OverviewTaskPriorityBreakdown :counts="taskPriorityCounts" />
+        </div>
+
+        <div class="card tasks-chart-card">
+          <div class="card-heading"><h2>Time by priority</h2></div>
+          <OverviewTaskTimeByPriority :breakdown="taskTimeByPriorityData" />
         </div>
       </div>
     </div>

@@ -28,6 +28,39 @@ export function taskCountsByPriority(tasks) {
   }
 }
 
+// Cards (not their subtasks - a Group's own real time comes only from
+// entries linked directly to the Group itself, same as everywhere else real
+// minutes are computed) with a due date in the past that aren't Done yet.
+export function overdueTaskCount(tasks) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return topLevelTasks(tasks).filter(
+    (t) => t.dueDate && t.status !== 'Done' && new Date(`${t.dueDate}T00:00:00`) < today,
+  ).length
+}
+
+const PRIORITY_SEVERITY_ORDER = ['High', 'Medium', 'Low', 'None']
+
+// Real tracked hours grouped by task priority, same shape/sort convention as
+// overviewStats.js's timeBreakdownByType - descending by hours, zero-hour
+// priorities dropped rather than shown as empty bar segments.
+export function taskTimeByPriority(tasks, entries) {
+  const totals = { High: 0, Medium: 0, Low: 0, None: 0 }
+  for (const task of topLevelTasks(tasks)) {
+    const priority = task.priority ?? 'None'
+    totals[priority] += realMinutesForTask(entries, task.id) / 60
+  }
+
+  const grandTotal = Object.values(totals).reduce((sum, h) => sum + h, 0)
+  return PRIORITY_SEVERITY_ORDER.map((priority) => ({
+    priority,
+    hours: totals[priority],
+    pct: grandTotal > 0 ? (totals[priority] / grandTotal) * 100 : 0,
+  }))
+    .filter((p) => p.hours > 0.001)
+    .sort((a, b) => b.hours - a.hours)
+}
+
 // Aggregate estimated-vs-real accuracy across every task with at least some
 // real time logged against it. Tasks nobody's started yet are excluded
 // entirely rather than counted as "100% under" - otherwise a pile of
