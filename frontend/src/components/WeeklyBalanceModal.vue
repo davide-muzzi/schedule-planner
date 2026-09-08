@@ -83,7 +83,7 @@ function handleOverlayClick(event) {
         </thead>
         <tbody>
           <tr v-for="week in weeks" :key="week.monday.getTime()">
-            <td><span class="week-num">{{ weekNumberLabel(week.monday) }}</span>{{ formatWeekRange(week.monday) }}</td>
+            <td><span class="week-num">{{ weekNumberLabel(week.monday) }}</span><span class="week-range">{{ formatWeekRange(week.monday) }}</span></td>
             <td>{{ formatHours(week.workedHours) }}</td>
             <td :class="'status-' + status(week.diffHours)">{{ diffLabel(week.diffHours) }}</td>
           </tr>
@@ -129,10 +129,10 @@ function handleOverlayClick(event) {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   width: 100%;
-  max-width: 28rem;
+  max-width: 36rem;
   max-height: 85vh;
   overflow-y: auto;
-  padding: 1.25rem 1.5rem 1.5rem;
+  padding: 1.25rem 1.75rem 1.5rem;
 }
 
 .modal-header {
@@ -253,5 +253,16 @@ function handleOverlayClick(event) {
   background: transparent;
   border: 1px solid var(--color-border);
   color: var(--color-text);
+}
+
+@media (max-width: 900px) {
+  .modal {
+    max-width: 28rem;
+    padding: 1.25rem 1.5rem 1.5rem;
+  }
+
+  .week-range {
+    display: none;
+  }
 }
 </style>
