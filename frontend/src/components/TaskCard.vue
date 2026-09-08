@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, Undo2, X } from '@lucide/vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useCtrlHeld } from '@/composables/useCtrlHeld'
@@ -10,7 +10,6 @@ const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 
 const props = defineProps({
   task: { type: Object, required: true },
-  statusLabel: { type: String, required: true },
   isNarrowViewport: { type: Boolean, required: true },
   // Only populated (by TasksView) for a Group task - its subtasks, for the
   // inline expandable preview below.
@@ -121,7 +120,19 @@ function formatDueDate(dueDate) {
         <span v-if="task.priority !== 'None'" class="priority-dot" :class="'priority-' + task.priority" :title="task.priority + ' priority'"></span>
         <span class="task-id">#{{ task.id }}</span>
       </span>
-      <span class="status-badge" :class="'badge-' + task.status">{{ statusLabel }}</span>
+      <label
+        class="task-done-checkbox"
+        :class="{ disabled: task.status === 'Backlog' }"
+        :title="task.status === 'Backlog' ? 'Link this to a planner entry before marking it done' : (task.status === 'Done' ? 'Reopen task' : 'Mark task complete')"
+      >
+        <input
+          type="checkbox"
+          :checked="task.status === 'Done'"
+          :disabled="task.status === 'Backlog'"
+          @click.stop
+          @change="$event.target.checked ? $emit('quick-complete', $event) : $emit('quick-reopen', $event)"
+        />
+      </label>
     </div>
 
     <h3 class="task-name">
@@ -285,29 +296,6 @@ function formatDueDate(dueDate) {
     </Teleport>
 
     <button
-      v-if="!isNarrowViewport && task.status !== 'Done'"
-      type="button"
-      class="quick-complete"
-      :disabled="task.status === 'Backlog'"
-      :title="task.status === 'Backlog' ? 'Link this to a planner entry before marking it done' : 'Mark task complete'"
-      aria-label="Mark task complete"
-      @click="$emit('quick-complete', $event)"
-    >
-      <Check :size="12" />
-    </button>
-
-    <button
-      v-if="!isNarrowViewport && task.status === 'Done'"
-      type="button"
-      class="quick-complete quick-reopen"
-      title="Reopen task"
-      aria-label="Reopen task"
-      @click="$emit('quick-reopen', $event)"
-    >
-      <Undo2 :size="12" />
-    </button>
-
-    <button
       v-if="!isNarrowViewport"
       type="button"
       class="quick-delete"
@@ -379,37 +367,26 @@ function formatDueDate(dueDate) {
   background: var(--bad);
 }
 
-.status-badge {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line-2);
-  color: var(--mute);
+.task-done-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
 }
 
-.status-badge.badge-Backlog {
-  color: var(--mute);
-  border-color: var(--line-2);
+.task-done-checkbox.disabled {
+  cursor: not-allowed;
 }
 
-.status-badge.badge-Ready {
-  color: var(--warn);
-  border-color: var(--warn);
+.task-done-checkbox input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--ok);
+  cursor: pointer;
 }
 
-.status-badge.badge-InProgress {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-tint);
-}
-
-.status-badge.badge-Done {
-  color: var(--ok);
-  border-color: var(--ok);
+.task-done-checkbox input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .task-name {
@@ -816,10 +793,10 @@ function formatDueDate(dueDate) {
   cursor: pointer;
 }
 
-.quick-delete,
-.quick-complete {
+.quick-delete {
   position: absolute;
   top: -8px;
+  right: -8px;
   width: 20px;
   height: 20px;
   display: grid;
@@ -838,16 +815,7 @@ function formatDueDate(dueDate) {
     background-color 0.16s;
 }
 
-.quick-delete {
-  right: -8px;
-}
-
-.quick-complete {
-  right: 18px;
-}
-
-.task-card:hover .quick-delete,
-.task-card:hover .quick-complete {
+.task-card:hover .quick-delete {
   opacity: 1;
 }
 
@@ -855,27 +823,5 @@ function formatDueDate(dueDate) {
   color: #fff;
   background: var(--bad);
   border-color: var(--bad);
-}
-
-.quick-complete:hover {
-  color: #fff;
-  background: var(--ok);
-  border-color: var(--ok);
-}
-
-.quick-complete:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
-
-.quick-complete:disabled:hover {
-  color: var(--mute);
-  background: var(--surface);
-  border-color: var(--line-2);
-}
-
-.quick-reopen:hover {
-  background: var(--accent);
-  border-color: var(--accent);
 }
 </style>

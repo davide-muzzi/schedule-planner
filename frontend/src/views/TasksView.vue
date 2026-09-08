@@ -599,7 +599,6 @@ async function handleUpdateTags(target, tagIds) {
             :key="element.id"
             :task="element"
             :subtasks="element.subtasks"
-            :status-label="STATUS_LABELS[element.status]"
             :is-narrow-viewport="isNarrowViewport"
             :style="{ animationDelay: taskCardDelay(element) }"
             @edit="openEdit(element)"
