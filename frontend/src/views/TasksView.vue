@@ -1,6 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
-import draggable from 'vuedraggable'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Plus, X, SlidersHorizontal, Tags, Search } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
@@ -263,58 +262,16 @@ const taskCards = computed(() =>
   tasksStore.tasks.filter((t) => t.parentTaskId == null).filter(matchesFilters).map(taskCard),
 )
 
-// --- Kanban board: per-column ordering, persisted client-side only ---
-
-const KANBAN_ORDER_STORAGE_KEY = 'schedulePlanner.taskKanbanOrder'
-
-function loadColumnOrders() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(KANBAN_ORDER_STORAGE_KEY))
-    return stored && typeof stored === 'object' ? stored : {}
-  } catch {
-    return {}
-  }
-}
-
-// { [status]: [taskId, ...] } - only ever contains ids for cards that have
-// actually been dragged at least once; everything else is ordered live by
-// the sort dropdown instead (see syncColumnLists).
-const columnOrders = ref(loadColumnOrders())
-
-function persistColumnOrders() {
-  localStorage.setItem(KANBAN_ORDER_STORAGE_KEY, JSON.stringify(columnOrders.value))
-}
-
-// The actual per-column arrays rendered/dragged - <draggable> mutates these
-// directly via v-model during a drag, so they're plain reactive state, not
-// a computed. Manually-ordered cards (per columnOrders) keep their pinned
-// position; anything not yet dragged falls back to the live sort
-// comparator, appended after the pinned ones.
-const columnLists = reactive(Object.fromEntries(COLUMN_STATUSES.map((s) => [s, []])))
-
-function syncColumnLists() {
+// --- Kanban board: per-column lists ---
+// No manual reordering (drag-and-drop) any more - each column is just its
+// matching cards in the live sort order.
+const columnLists = computed(() => {
+  const result = {}
   for (const status of COLUMN_STATUSES) {
-    const cardsInColumn = taskCards.value.filter((t) => t.status === status)
-    const order = columnOrders.value[status] || []
-    const byId = new Map(cardsInColumn.map((c) => [c.id, c]))
-    const pinned = order.filter((id) => byId.has(id)).map((id) => byId.get(id))
-    const pinnedIds = new Set(order)
-    const rest = cardsInColumn.filter((c) => !pinnedIds.has(c.id)).sort(compareTasks)
-    columnLists[status] = [...pinned, ...rest]
+    result[status] = taskCards.value.filter((t) => t.status === status).sort(compareTasks)
   }
-}
-
-watch(taskCards, syncColumnLists, { immediate: true })
-watch(sortBy, syncColumnLists)
-
-// Fires when a column's own order changes from a within-column drag (status
-// is derived automatically now - see tasksStore.syncTaskStatuses - so each
-// column has its own drag group and a card can no longer be dropped into a
-// different one). Just persists the new order.
-function handleColumnChange(status) {
-  columnOrders.value[status] = columnLists[status].map((t) => t.id)
-  persistColumnOrders()
-}
+  return result
+})
 
 // Mobile shows one column at a time (picked via a <select>) instead of a
 // horizontally-scrolled 4-column row - remembered across visits the same
@@ -636,37 +593,25 @@ async function handleUpdateTags(target, tagIds) {
         </header>
         <p class="kanban-column-hint">{{ STATUS_HINTS[status] }}</p>
 
-        <draggable
-          v-model="columnLists[status]"
-          :group="'kanban-' + status"
-          item-key="id"
-          tag="div"
-          class="kanban-drop-zone"
-          ghost-class="kanban-ghost"
-          drag-class="kanban-dragging"
-          filter=".quick-complete, .quick-delete"
-          :prevent-on-filter="false"
-          :animation="150"
-          @change="handleColumnChange(status)"
-        >
-          <template #item="{ element }">
-            <TaskCard
-              :task="element"
-              :subtasks="element.subtasks"
-              :status-label="STATUS_LABELS[element.status]"
-              :is-narrow-viewport="isNarrowViewport"
-              :style="{ animationDelay: taskCardDelay(element) }"
-              @edit="openEdit(element)"
-              @quick-complete="handleQuickComplete(element, $event)"
-              @quick-reopen="handleQuickReopen(element, $event)"
-              @quick-delete="handleQuickDelete(element, $event)"
-              @edit-subtask="handleEditSubtask"
-              @toggle-subtask-done="handleToggleSubtaskDone"
-              @update-subtask-priority="handleUpdateSubtaskPriority"
-              @update-tags="handleUpdateTags"
-            />
-          </template>
-        </draggable>
+        <div class="kanban-drop-zone">
+          <TaskCard
+            v-for="element in columnLists[status]"
+            :key="element.id"
+            :task="element"
+            :subtasks="element.subtasks"
+            :status-label="STATUS_LABELS[element.status]"
+            :is-narrow-viewport="isNarrowViewport"
+            :style="{ animationDelay: taskCardDelay(element) }"
+            @edit="openEdit(element)"
+            @quick-complete="handleQuickComplete(element, $event)"
+            @quick-reopen="handleQuickReopen(element, $event)"
+            @quick-delete="handleQuickDelete(element, $event)"
+            @edit-subtask="handleEditSubtask"
+            @toggle-subtask-done="handleToggleSubtaskDone"
+            @update-subtask-priority="handleUpdateSubtaskPriority"
+            @update-tags="handleUpdateTags"
+          />
+        </div>
 
         <p v-if="columnLists[status].length === 0" class="kanban-empty">No tasks</p>
 
@@ -1050,14 +995,6 @@ async function handleUpdateTags(target, tagIds) {
   flex-direction: column;
   gap: 12px;
   min-height: 40px;
-}
-
-.kanban-ghost {
-  opacity: 0.4;
-}
-
-.kanban-dragging {
-  cursor: grabbing;
 }
 
 .kanban-empty {
