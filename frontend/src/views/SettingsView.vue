@@ -199,6 +199,8 @@ async function handleExportData() {
 
 const importFileInput = ref(null)
 const importError = ref(null)
+const showImportConfirm = ref(false)
+const pendingImportData = ref(null)
 
 function triggerImportPicker() {
   importError.value = null
@@ -223,11 +225,15 @@ async function handleFileSelected(event) {
     return
   }
 
-  const count = parsed.entries.length
-  const confirmed = window.confirm(
-    `Import ${count} entr${count === 1 ? 'y' : 'ies'} from this file?\n\nThis PERMANENTLY REPLACES all current data - every entry, your goals, and your preferences - with what's in the file. This cannot be undone.`,
-  )
-  if (!confirmed) return
+  pendingImportData.value = parsed
+  showImportConfirm.value = true
+}
+
+async function confirmImport() {
+  showImportConfirm.value = false
+  const parsed = pendingImportData.value
+  pendingImportData.value = null
+  if (!parsed) return
 
   importingData.value = true
   dataError.value = null
@@ -520,6 +526,17 @@ async function saveWeeklyGoal() {
       require-typed-word="confirm"
       @confirm="confirmClearAll"
       @cancel="showClearAllConfirm = false"
+    />
+
+    <ConfirmDialog
+      v-if="showImportConfirm"
+      title="Import data?"
+      :message="`Import ${pendingImportData?.entries.length ?? 0} entr${pendingImportData?.entries.length === 1 ? 'y' : 'ies'} from this file?\n\nThis PERMANENTLY REPLACES all current data - every entry, your goals, and your preferences - with what's in the file. This cannot be undone.`"
+      confirm-label="Import"
+      danger
+      require-typed-word="confirm"
+      @confirm="confirmImport"
+      @cancel="showImportConfirm = false; pendingImportData = null"
     />
   </section>
 </template>
