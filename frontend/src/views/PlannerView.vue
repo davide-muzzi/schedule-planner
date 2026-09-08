@@ -11,6 +11,7 @@ import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import UnlinkOrDeleteTaskDialog from '@/components/UnlinkOrDeleteTaskDialog.vue'
 
 // Fields that make up an entry's "content" (everything except its id) -
 // what gets snapshotted for an undo and what a create/update payload needs.
@@ -414,13 +415,17 @@ async function handleSubmit(payload) {
   }
 }
 
-async function handleDelete(id) {
+// Actually deletes the entry via the API. `announce` is turned off when the
+// caller (confirmDeleteEntryAndTask below) wants to show its own combined
+// toast instead of this one - showing both back-to-back would just have the
+// second replace the first, since only one toast can be visible at a time.
+async function performDelete(id, { announce = true } = {}) {
   saving.value = true
   const entry = store.entries.find((e) => e.id === id)
   try {
     await store.deleteEntry(id)
     closeModal()
-    if (entry) {
+    if (entry && announce) {
       showToast('Entry deleted.', {
         variant: 'error',
         duration: 6000,
@@ -428,10 +433,59 @@ async function handleDelete(id) {
         onAction: () => restoreEntries([entryPayload(entry)]),
       })
     }
+    return true
   } catch {
     modalError.value = store.error
+    return false
   } finally {
     saving.value = false
+  }
+}
+
+// Holds the entry/task pair while UnlinkOrDeleteTaskDialog is open - null
+// otherwise. Deleting an entry that's the ONLY thing still linking its task
+// would silently leave that task orphaned (fine on its own, tasks can exist
+// unlinked), so this asks first rather than just doing it.
+const pendingUnlinkOrDeleteEntryId = ref(null)
+const pendingUnlinkOrDeleteTask = ref(null)
+
+async function handleDelete(id) {
+  const entry = store.entries.find((e) => e.id === id)
+  if (entry?.taskItemId != null) {
+    const isOnlyLinkedEntry = !store.entries.some((e) => e.taskItemId === entry.taskItemId && e.id !== id)
+    const task = isOnlyLinkedEntry ? tasksStore.tasks.find((t) => t.id === entry.taskItemId) : null
+    if (task) {
+      pendingUnlinkOrDeleteEntryId.value = id
+      pendingUnlinkOrDeleteTask.value = task
+      return
+    }
+  }
+  await performDelete(id)
+}
+
+function cancelUnlinkOrDelete() {
+  pendingUnlinkOrDeleteEntryId.value = null
+  pendingUnlinkOrDeleteTask.value = null
+}
+
+async function confirmUnlinkEntry() {
+  const id = pendingUnlinkOrDeleteEntryId.value
+  cancelUnlinkOrDelete()
+  if (id != null) await performDelete(id)
+}
+
+async function confirmDeleteEntryAndTask() {
+  const id = pendingUnlinkOrDeleteEntryId.value
+  const task = pendingUnlinkOrDeleteTask.value
+  cancelUnlinkOrDelete()
+  if (id == null) return
+  const deleted = await performDelete(id, { announce: false })
+  if (!deleted || !task) return
+  try {
+    await tasksStore.deleteTask(task.id)
+    showToast('Entry and task deleted.', { variant: 'error' })
+  } catch {
+    showToast("Entry deleted, but couldn't delete the task.")
   }
 }
 </script>
@@ -542,6 +596,14 @@ async function handleDelete(id) {
       danger
       @confirm="confirmPasteOverwrite"
       @cancel="pastePendingOverwriteDate = null"
+    />
+
+    <UnlinkOrDeleteTaskDialog
+      v-if="pendingUnlinkOrDeleteTask"
+      :task-name="pendingUnlinkOrDeleteTask.name"
+      @unlink="confirmUnlinkEntry"
+      @delete="confirmDeleteEntryAndTask"
+      @cancel="cancelUnlinkOrDelete"
     />
   </div>
 </template>
