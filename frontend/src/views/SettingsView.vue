@@ -164,12 +164,35 @@ async function handleClearAllData() {
   }
 }
 
-function handleExportData() {
-  const blob = new Blob([JSON.stringify(store.exportSnapshot, null, 2)], { type: 'application/json' })
+async function handleExportData() {
+  const json = JSON.stringify(store.exportSnapshot, null, 2)
+  const filename = `schedule-planner-backup-${toISODate(new Date())}.json`
+
+  // Chromium browsers can prompt a native "Save As" dialog so the file
+  // doesn't just land in the default Downloads folder.
+  if (window.showSaveFilePicker) {
+    let handle
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }],
+      })
+    } catch {
+      return // user cancelled the picker
+    }
+    const writable = await handle.createWritable()
+    await writable.write(json)
+    await writable.close()
+    return
+  }
+
+  // Fallback for browsers without the File System Access API (e.g.
+  // Firefox) - same behavior as before, straight to Downloads.
+  const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `schedule-planner-backup-${toISODate(new Date())}.json`
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
 }
