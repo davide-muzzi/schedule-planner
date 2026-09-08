@@ -519,6 +519,7 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
         </label>
         <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
           <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
+          <span v-if="activeFilterCount > 0" class="filter-dot" aria-hidden="true"></span>
         </button>
         <button type="button" class="filter-btn" @click="showTagManageModal = true">
           <Tags :size="14" /> Manage tags
@@ -551,6 +552,7 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
             @click="showFilterModal = true"
           >
             <SlidersHorizontal :size="16" />
+            <span v-if="activeFilterCount > 0" class="filter-dot" aria-hidden="true"></span>
           </button>
           <button type="button" class="icon-btn" aria-label="Manage tags" title="Manage tags" @click="showTagManageModal = true">
             <Tags :size="16" />
@@ -723,6 +725,7 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
 }
 
 .filter-btn {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -748,6 +751,17 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
   border-color: var(--accent);
   background: var(--accent-tint);
   color: var(--accent);
+}
+
+.filter-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+  border: 1.5px solid var(--bg);
 }
 
 .sort-control {
@@ -812,6 +826,7 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
 }
 
 .icon-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
