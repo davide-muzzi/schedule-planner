@@ -1001,6 +1001,7 @@ async function handleUpdateTags(target, tagIds) {
   color: var(--mute);
   opacity: 0.7;
   padding: 8px 0;
+  text-align: center;
 }
 
 .kanban-add-btn {
