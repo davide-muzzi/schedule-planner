@@ -51,7 +51,13 @@ function blankForm() {
     status: 'Backlog',
     priority: 'None',
     tagIds: [],
-    hasColor: false,
+    // 'none' | 'firstTag' | 'custom' - there's no backend field remembering
+    // which of these was picked (Color is just a plain "#rrggbb" string or
+    // null), so 'firstTag' is a one-time snapshot resolved at save time, not
+    // a live link - an existing task with a stored color always reloads as
+    // 'custom' (see the props.task watcher below), since a saved hex value
+    // is no longer distinguishable from a manually-picked one.
+    colorMode: 'none',
     color: DEFAULT_COLOR,
     dueDate: '',
     notes: '',
@@ -81,7 +87,7 @@ watch(
         status: task.status,
         priority: task.priority || 'None',
         tagIds: (task.tags || []).map((t) => t.id),
-        hasColor: !!task.color,
+        colorMode: task.color ? 'custom' : 'none',
         color: task.color || DEFAULT_COLOR,
         dueDate: task.dueDate || '',
         notes: task.notes || '',
@@ -143,6 +149,19 @@ const selectedTags = computed(() =>
   form.value.tagIds.map((id) => tagsStore.tags.find((t) => t.id === id)).filter(Boolean),
 )
 
+// The tag "First Tag's color" resolves to - the first of this task's tags
+// (in the order they're attached) that actually has a color set, skipping
+// any that don't. null when no attached tag has a color, which is also
+// what disables that radio option.
+const firstColoredTag = computed(() => selectedTags.value.find((t) => t.color) ?? null)
+
+// If tags change in a way that invalidates the current 'firstTag' selection
+// (last colored tag removed, etc.) don't leave a disabled option selected -
+// fall back to no color rather than silently saving a stale choice.
+watch(firstColoredTag, (tag) => {
+  if (!tag && form.value.colorMode === 'firstTag') form.value.colorMode = 'none'
+})
+
 const eligibleTags = computed(() => {
   const q = tagSearch.value.trim().toLowerCase()
   return tagsStore.tags.filter(
@@ -202,7 +221,12 @@ function handleSubmit() {
     taskType: form.value.taskType,
     parentTaskId: props.task?.parentTaskId ?? null,
     tagIds: form.value.tagIds,
-    color: form.value.hasColor ? form.value.color : null,
+    color:
+      form.value.colorMode === 'custom'
+        ? form.value.color
+        : form.value.colorMode === 'firstTag'
+          ? (firstColoredTag.value?.color ?? null)
+          : null,
     dueDate: form.value.dueDate || null,
     notes: form.value.notes.trim() || null,
   }
@@ -553,18 +577,27 @@ function handleOverlayClick(event) {
 
         <div class="field">
           <label>Color</label>
-          <div class="color-row">
-            <label class="checkbox-box">
-              <input v-model="form.hasColor" type="checkbox" />
-              Assign color
+          <div class="color-mode-list">
+            <label class="color-mode-row">
+              <input v-model="form.colorMode" type="radio" value="none" />
+              No color
             </label>
-            <input
-              v-model="form.color"
-              type="color"
-              class="color-input"
-              :disabled="!form.hasColor"
-              title="Shown as diagonal stripes on this task's timeline entries"
-            />
+            <label class="color-mode-row" :class="{ disabled: !firstColoredTag }">
+              <input v-model="form.colorMode" type="radio" value="firstTag" :disabled="!firstColoredTag" />
+              First Tag's color
+              <span v-if="firstColoredTag" class="color-mode-swatch" :style="{ background: firstColoredTag.color }"></span>
+            </label>
+            <label class="color-mode-row">
+              <input v-model="form.colorMode" type="radio" value="custom" />
+              Custom color
+              <input
+                v-model="form.color"
+                type="color"
+                class="color-input"
+                :disabled="form.colorMode !== 'custom'"
+                title="Shown as diagonal stripes on this task's timeline entries"
+              />
+            </label>
           </div>
         </div>
 
@@ -896,31 +929,43 @@ input[type='date'] {
   background: #dc2626;
 }
 
-.color-row {
+.color-mode-list {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.checkbox-box {
+.color-mode-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background-soft);
-  color: var(--color-text);
   font-weight: normal;
   font-size: 0.9rem;
+  color: var(--color-text);
   cursor: pointer;
 }
 
-.checkbox-box input[type='checkbox'] {
+.color-mode-row.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.color-mode-row input[type='radio'] {
   width: 1rem;
   height: 1rem;
   accent-color: #3b82f6;
   cursor: pointer;
+}
+
+.color-mode-row.disabled input[type='radio'] {
+  cursor: not-allowed;
+}
+
+.color-mode-swatch {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
 }
 
 .color-input {
