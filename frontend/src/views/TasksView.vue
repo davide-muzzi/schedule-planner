@@ -11,6 +11,7 @@ import {
   subtasksOf,
   deriveTaskStatus,
   taskUpdatePayload,
+  isOverdue,
 } from '@/utils/taskStats'
 import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
@@ -70,6 +71,14 @@ const BASE_FILTER_CATEGORIES = [
       { value: 'Low', label: 'Low' },
       { value: 'Medium', label: 'Medium' },
       { value: 'High', label: 'High' },
+    ],
+  },
+  {
+    key: 'overdue',
+    label: 'Overdue',
+    options: [
+      { value: 'all', label: 'All' },
+      { value: 'yes', label: 'Overdue only' },
     ],
   },
 ]
@@ -252,6 +261,7 @@ function matchesFilters(task) {
   const f = filters.value
   if ((f.status ?? 'all') !== 'all' && task.status !== f.status) return false
   if ((f.priority ?? 'all') !== 'all' && task.priority !== f.priority) return false
+  if ((f.overdue ?? 'all') === 'yes' && !isOverdue(task)) return false
   // AND, not OR - a task has to carry every selected tag, not just one of them.
   const selectedTags = Array.isArray(f.tags) ? f.tags : []
   if (selectedTags.length > 0) {

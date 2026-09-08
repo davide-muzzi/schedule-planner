@@ -70,6 +70,16 @@ export function subtasksOf(tasks, groupId) {
   return tasks.filter((t) => t.parentTaskId === groupId)
 }
 
+// A task is overdue once its due date has passed and it isn't Done yet -
+// used both for the red due-date styling on a task card and the Tasks page
+// Overdue filter.
+export function isOverdue(task) {
+  if (!task.dueDate || task.status === 'Done') return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(`${task.dueDate}T00:00:00`) < today
+}
+
 // A Group's planned time isn't set directly - it's always the sum of its
 // subtasks' own estimatedMinutes, kept live rather than stored/duplicated
 // server-side.

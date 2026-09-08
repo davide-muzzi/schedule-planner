@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
+import { isOverdue } from '@/utils/taskStats'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useCtrlHeld } from '@/composables/useCtrlHeld'
 import TagPopup from './TagPopup.vue'
@@ -110,13 +111,6 @@ function formatDueDate(dueDate) {
     day: 'numeric',
     year: 'numeric',
   })
-}
-
-function isOverdue(task) {
-  if (!task.dueDate || task.status === 'Done') return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return new Date(`${task.dueDate}T00:00:00`) < today
 }
 </script>
 
