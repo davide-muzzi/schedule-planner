@@ -480,8 +480,7 @@ const longestDayCaption = computed(() => {
 }
 
 .tasks-chart-card {
-  flex: 1 1 420px;
-  max-width: 460px;
+  flex: 1 1 320px;
   margin-top: 0;
 }
 
@@ -509,10 +508,6 @@ const longestDayCaption = computed(() => {
 
   .stat-carousel .stat-label {
     font-size: 10px;
-  }
-
-  .tasks-chart-card {
-    max-width: none;
   }
 }
 </style>
