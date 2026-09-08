@@ -87,6 +87,8 @@ const FILTER_CATEGORIES = computed(() => [
   {
     key: 'tags',
     label: 'Tags',
+    // Multiple tags selected here is an AND, not an OR - see matchesFilters.
+    multiSelect: true,
     options: [
       { value: 'all', label: 'All' },
       ...tagsStore.tags.map((t) => ({ value: String(t.id), label: t.name })),
@@ -104,8 +106,12 @@ function loadFiltersFrom(categories, existing = {}) {
   const result = { ...existing }
   for (const category of categories) {
     if (category.key in result) continue
-    if (stored && typeof stored === 'object' && category.options.some((o) => o.value === stored[category.key])) {
-      result[category.key] = stored[category.key]
+    const storedValue = stored && typeof stored === 'object' ? stored[category.key] : undefined
+    const validValues = category.options.map((o) => o.value)
+    if (category.multiSelect) {
+      result[category.key] = Array.isArray(storedValue) ? storedValue.filter((v) => validValues.includes(v)) : []
+    } else if (validValues.includes(storedValue)) {
+      result[category.key] = storedValue
     } else {
       result[category.key] = 'all'
     }
@@ -130,7 +136,11 @@ watch(FILTER_CATEGORIES, (categories) => {
 const showFilterModal = ref(false)
 const showTagManageModal = ref(false)
 const activeFilterCount = computed(
-  () => FILTER_CATEGORIES.value.filter((c) => (filters.value[c.key] ?? 'all') !== 'all').length,
+  () =>
+    FILTER_CATEGORIES.value.filter((c) => {
+      const v = filters.value[c.key]
+      return c.multiSelect ? Array.isArray(v) && v.length > 0 : (v ?? 'all') !== 'all'
+    }).length,
 )
 
 // Free-text search by name/id - deliberately not persisted (unlike
@@ -236,7 +246,12 @@ function matchesFilters(task) {
   const f = filters.value
   if ((f.status ?? 'all') !== 'all' && task.status !== f.status) return false
   if ((f.priority ?? 'all') !== 'all' && task.priority !== f.priority) return false
-  if ((f.tags ?? 'all') !== 'all' && !(task.tags || []).some((t) => String(t.id) === f.tags)) return false
+  // AND, not OR - a task has to carry every selected tag, not just one of them.
+  const selectedTags = Array.isArray(f.tags) ? f.tags : []
+  if (selectedTags.length > 0) {
+    const taskTagIds = new Set((task.tags || []).map((t) => String(t.id)))
+    if (!selectedTags.every((id) => taskTagIds.has(id))) return false
+  }
   const q = searchQuery.value.trim().toLowerCase()
   if (q && !task.name.toLowerCase().includes(q) && !String(task.id).includes(q)) return false
   return true

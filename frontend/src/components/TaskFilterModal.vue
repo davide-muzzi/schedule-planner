@@ -2,25 +2,42 @@
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { X } from '@lucide/vue'
 
-// Generic multi-category filter popup - each category (status, later
-// "important", etc.) is single-select with an "All" option meaning that
-// category imposes no restriction. Categories are data-driven so a new one
-// is just another entry in the caller's list, not a new component.
+// Generic multi-category filter popup - each category (status, priority,
+// etc.) is single-select with an "All" option meaning that category imposes
+// no restriction, UNLESS it sets `multiSelect: true` (currently just tags),
+// in which case its value is an array of selected option values instead of
+// a single one, "All" means the array is empty, and the caller applying the
+// filter treats multiple selections as AND (must match every one), not OR -
+// see TasksView's matchesFilters. Categories are data-driven so a new one is
+// just another entry in the caller's list, not a new component.
 const props = defineProps({
-  categories: { type: Array, required: true }, // [{ key, label, options: [{ value, label }] }]
-  modelValue: { type: Object, required: true }, // { [categoryKey]: selectedValue }
+  categories: { type: Array, required: true }, // [{ key, label, multiSelect?, options: [{ value, label }] }]
+  modelValue: { type: Object, required: true }, // { [categoryKey]: selectedValue | selectedValue[] }
 })
 
 const emit = defineEmits(['update:modelValue', 'close'])
 
-function select(categoryKey, value) {
-  emit('update:modelValue', { ...props.modelValue, [categoryKey]: value })
+function isActive(category, option) {
+  const current = props.modelValue[category.key]
+  if (!category.multiSelect) return current === option.value
+  if (option.value === 'all') return !Array.isArray(current) || current.length === 0
+  return Array.isArray(current) && current.includes(option.value)
+}
+
+function select(category, value) {
+  if (!category.multiSelect) {
+    emit('update:modelValue', { ...props.modelValue, [category.key]: value })
+    return
+  }
+  const current = Array.isArray(props.modelValue[category.key]) ? props.modelValue[category.key] : []
+  const next = value === 'all' ? [] : current.includes(value) ? current.filter((v) => v !== value) : [...current, value]
+  emit('update:modelValue', { ...props.modelValue, [category.key]: next })
 }
 
 function clearAll() {
   emit(
     'update:modelValue',
-    Object.fromEntries(props.categories.map((c) => [c.key, 'all'])),
+    Object.fromEntries(props.categories.map((c) => [c.key, c.multiSelect ? [] : 'all'])),
   )
 }
 
@@ -61,8 +78,8 @@ function handleOverlayClick(event) {
             :key="option.value"
             type="button"
             class="pill"
-            :class="{ active: modelValue[category.key] === option.value }"
-            @click="select(category.key, option.value)"
+            :class="{ active: isActive(category, option) }"
+            @click="select(category, option.value)"
           >
             {{ option.label }}
           </button>
