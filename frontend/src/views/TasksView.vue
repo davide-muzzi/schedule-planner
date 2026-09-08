@@ -516,6 +516,16 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
     modalError.value = tasksStore.error
   }
 }
+
+// Generic across a top-level task/group or a subtask - the tags popup just
+// hands back the target it was showing and the full new tagIds list.
+async function handleUpdateTags(target, tagIds) {
+  try {
+    await tasksStore.updateTask(target.id, taskUpdatePayload(target, { tagIds }))
+  } catch {
+    modalError.value = tasksStore.error
+  }
+}
 </script>
 
 <template>
@@ -653,6 +663,7 @@ async function handleUpdateSubtaskPriority(subtask, priority) {
               @edit-subtask="handleEditSubtask"
               @toggle-subtask-done="handleToggleSubtaskDone"
               @update-subtask-priority="handleUpdateSubtaskPriority"
+              @update-tags="handleUpdateTags"
             />
           </template>
         </draggable>

@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, Undo2, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useCtrlHeld } from '@/composables/useCtrlHeld'
+import TagPopup from './TagPopup.vue'
 
 const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 
@@ -24,6 +25,7 @@ const emit = defineEmits([
   'edit-subtask',
   'toggle-subtask-done',
   'update-subtask-priority',
+  'update-tags',
 ])
 
 const expanded = ref(false)
@@ -55,6 +57,39 @@ function toggleSubtaskDetail(id) {
 function selectPriority(task, priority) {
   closePriorityMenu()
   if (task.priority !== priority) emit('update-subtask-priority', task, priority)
+}
+
+// Tags popup - a single instance per card, shared between the card's own
+// tags and every subtask row's tags. Keyed by 'task' for the card itself, or
+// a subtask's id.
+const {
+  openId: openTagsFor,
+  position: tagsPopupPosition,
+  setMenuEl: setTagsPopupEl,
+  toggle: toggleTagsPopup,
+  close: closeTagsPopup,
+} = useFloatingMenu()
+
+const tagsPopupTarget = computed(() => {
+  if (openTagsFor.value === 'task') return props.task
+  if (openTagsFor.value != null) return props.subtasks.find((t) => t.id === openTagsFor.value) ?? null
+  return null
+})
+
+function handleAddTag(tagId) {
+  const target = tagsPopupTarget.value
+  if (!target) return
+  emit('update-tags', target, [...(target.tags || []).map((t) => t.id), tagId])
+}
+
+function handleRemoveTag(tagId) {
+  const target = tagsPopupTarget.value
+  if (!target) return
+  emit(
+    'update-tags',
+    target,
+    (target.tags || []).map((t) => t.id).filter((id) => id !== tagId),
+  )
 }
 
 function hoursFor(minutes) {
@@ -97,10 +132,19 @@ function formatDueDate(dueDate) {
     <span v-if="task.dueDate" class="task-due-date"><CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }}</span>
 
     <div v-if="task.tags && task.tags.length > 0" class="task-tags">
-      <span v-for="tag in task.tags" :key="tag.id" class="task-tag-chip">
+      <span v-for="tag in task.tags.slice(0, 2)" :key="tag.id" class="task-tag-chip">
         <span class="task-tag-swatch" :style="{ background: tag.color || 'var(--line-2)' }"></span>
         {{ tag.name }}
       </span>
+      <button
+        v-if="task.tags.length > 2"
+        type="button"
+        class="tag-more-pill"
+        :aria-label="`${task.tags.length - 2} more tags - click to view`"
+        @click.stop="toggleTagsPopup('task', $event)"
+      >
+        +{{ task.tags.length - 2 }}
+      </button>
     </div>
 
     <p v-if="task.notes" class="task-notes" :title="task.notes">{{ task.notes }}</p>
@@ -173,6 +217,21 @@ function formatDueDate(dueDate) {
               </Teleport>
             </span>
             <span class="subtask-preview-name" :class="{ 'is-done': t.status === 'Done' }">{{ t.name }}</span>
+            <span v-if="t.tags && t.tags.length > 0" class="subtask-preview-tags">
+              <span v-for="tag in t.tags.slice(0, 2)" :key="tag.id" class="mini-tag-chip">
+                <span class="mini-tag-swatch" :style="{ background: tag.color || 'var(--line-2)' }"></span>
+                {{ tag.name }}
+              </span>
+              <button
+                v-if="t.tags.length > 2"
+                type="button"
+                class="tag-more-pill"
+                :aria-label="`${t.tags.length - 2} more tags - click to view`"
+                @click.stop="toggleTagsPopup(t.id, $event)"
+              >
+                +{{ t.tags.length - 2 }}
+              </button>
+            </span>
             <span class="subtask-preview-minutes" :class="{ 'is-done': t.status === 'Done' }">{{ hoursFor(t.estimatedMinutes) }}</span>
           </div>
           <div v-if="openSubtaskId === t.id" class="subtask-detail" @click.stop>
@@ -212,6 +271,18 @@ function formatDueDate(dueDate) {
         </li>
       </ul>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="tagsPopupTarget"
+        :ref="setTagsPopupEl"
+        class="tag-popup-anchor"
+        :style="{ top: tagsPopupPosition.top + 'px', left: tagsPopupPosition.left + 'px' }"
+        @click.stop
+      >
+        <TagPopup :tags="tagsPopupTarget.tags || []" @add="handleAddTag" @remove="handleRemoveTag" @close="closeTagsPopup" />
+      </div>
+    </Teleport>
 
     <button
       v-if="!isNarrowViewport && task.status !== 'Done'"
@@ -397,6 +468,30 @@ function formatDueDate(dueDate) {
   border-radius: 50%;
 }
 
+.tag-more-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--mute);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.tag-more-pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tag-popup-anchor {
+  position: fixed;
+  z-index: 60;
+}
+
 .task-notes {
   font-size: 11.5px;
   color: var(--dim);
@@ -520,6 +615,32 @@ function formatDueDate(dueDate) {
 
 .subtask-preview-minutes.is-done {
   color: var(--ok);
+}
+
+.subtask-preview-tags {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+}
+
+.mini-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: 9.5px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.mini-tag-swatch {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
 }
 
 .subtask-priority-wrap {
