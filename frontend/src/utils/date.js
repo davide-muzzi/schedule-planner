@@ -24,10 +24,6 @@ export function toISODate(date) {
   return `${y}-${m}-${d}`
 }
 
-export function isSameDate(a, b) {
-  return toISODate(a) === toISODate(b)
-}
-
 export function isWeekend(date) {
   const day = date.getDay()
   return day === 0 || day === 6
