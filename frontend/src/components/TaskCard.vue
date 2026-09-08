@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, Undo2, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
+import { useCtrlHeld } from '@/composables/useCtrlHeld'
 
 const PRIORITIES = ['None', 'Low', 'Medium', 'High']
 
@@ -43,6 +44,8 @@ const {
   toggle: togglePriorityMenu,
   close: closePriorityMenu,
 } = useFloatingMenu()
+
+const ctrlHeld = useCtrlHeld()
 
 function toggleSubtaskDetail(id) {
   closePriorityMenu()
@@ -128,15 +131,26 @@ function formatDueDate(dueDate) {
       <ul v-if="expanded && subtasks.length > 0" class="subtask-preview-list">
         <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row">
           <div class="subtask-preview-main" @click.stop="toggleSubtaskDetail(t.id)">
-            <span class="subtask-priority-wrap">
+            <span class="subtask-priority-wrap" :class="{ 'ctrl-mode': ctrlHeld }">
               <button
                 type="button"
-                class="priority-dot interactive-dot"
+                class="priority-dot interactive-dot priority-dot-normal"
                 :class="'priority-' + t.priority"
                 :title="`${t.priority} priority - click to change`"
                 :aria-label="`${t.priority} priority - click to change`"
                 @click.stop="togglePriorityMenu(t.id, $event)"
               ></button>
+              <button
+                type="button"
+                class="quick-done-swap"
+                :class="{ checked: t.status === 'Done' }"
+                :disabled="t.status === 'Backlog'"
+                :title="t.status === 'Backlog' ? 'Link this task (or its group) to a planner entry before marking it done' : 'Ctrl+click: mark subtask done'"
+                aria-label="Mark subtask done"
+                @click.stop="$emit('toggle-subtask-done', t, t.status !== 'Done')"
+              >
+                <Check :size="8" />
+              </button>
               <Teleport to="body">
                 <div
                   v-if="openPriorityFor === t.id"
@@ -179,10 +193,15 @@ function formatDueDate(dueDate) {
               >
                 <Pencil :size="12" />
               </button>
-              <label class="subtask-done-checkbox">
+              <label
+                class="subtask-done-checkbox"
+                :class="{ disabled: t.status === 'Backlog' }"
+                :title="t.status === 'Backlog' ? 'Link this task (or its group) to a planner entry before marking it done' : undefined"
+              >
                 <input
                   type="checkbox"
                   :checked="t.status === 'Done'"
+                  :disabled="t.status === 'Backlog'"
                   @click.stop
                   @change="$emit('toggle-subtask-done', t, $event.target.checked)"
                 />
@@ -198,7 +217,8 @@ function formatDueDate(dueDate) {
       v-if="!isNarrowViewport && task.status !== 'Done'"
       type="button"
       class="quick-complete"
-      title="Mark task complete"
+      :disabled="task.status === 'Backlog'"
+      :title="task.status === 'Backlog' ? 'Link this to a planner entry before marking it done' : 'Mark task complete'"
       aria-label="Mark task complete"
       @click="$emit('quick-complete', $event)"
     >
@@ -526,6 +546,51 @@ function formatDueDate(dueDate) {
   outline-offset: 2px;
 }
 
+.quick-done-swap {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 2px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+
+/* Holding Ctrl swaps every visible subtask's priority dot for a quick
+   "mark done" checkbox (no hover needed - see useCtrlHeld), so completing a
+   subtask doesn't require expanding its row first. */
+.subtask-priority-wrap.ctrl-mode .priority-dot-normal {
+  display: none;
+}
+
+.subtask-priority-wrap.ctrl-mode .quick-done-swap {
+  display: flex;
+}
+
+.quick-done-swap:hover {
+  border-color: var(--ok);
+}
+
+.quick-done-swap.checked {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+
+.quick-done-swap:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.quick-done-swap:disabled:hover {
+  border-color: var(--line-2);
+}
+
 .priority-menu {
   position: fixed;
   z-index: 60;
@@ -620,6 +685,11 @@ function formatDueDate(dueDate) {
   cursor: pointer;
 }
 
+.subtask-done-checkbox.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .subtask-done-checkbox input {
   accent-color: var(--ok);
   cursor: pointer;
@@ -670,6 +740,17 @@ function formatDueDate(dueDate) {
   color: #fff;
   background: var(--ok);
   border-color: var(--ok);
+}
+
+.quick-complete:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.quick-complete:disabled:hover {
+  color: var(--mute);
+  background: var(--surface);
+  border-color: var(--line-2);
 }
 
 .quick-reopen:hover {

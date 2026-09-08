@@ -98,6 +98,26 @@ export const useTasksStore = defineStore('tasks', {
           // store.error is already set; the caller's error banner picks it up
         }
       }
+
+      await this.autoCompleteFinishedGroups()
+    },
+
+    // A Group with at least one subtask, all of them Done, completes itself.
+    // TasksView's own subtask-toggle handler already does this the instant
+    // the last subtask gets checked - this covers everything else: subtasks
+    // that were already all Done before this logic existed, or before this
+    // tab's next periodic sync/reload picks it up.
+    async autoCompleteFinishedGroups() {
+      const groups = this.tasks.filter((t) => t.taskType === 'Group' && t.status !== 'Done')
+      for (const group of groups) {
+        const subtasks = subtasksOf(this.tasks, group.id)
+        if (subtasks.length === 0 || !subtasks.every((t) => t.status === 'Done')) continue
+        try {
+          await this.updateTask(group.id, taskUpdatePayload(group, { status: 'Done' }))
+        } catch {
+          // store.error is already set; the caller's error banner picks it up
+        }
+      }
     },
 
     // Sets `status` on every non-Done subtask of the given group - used both

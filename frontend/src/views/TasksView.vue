@@ -453,20 +453,45 @@ function handleEditSubtask(subtask) {
   openEdit(subtask)
 }
 
-// Checking marks just that one subtask Done, independent of its group.
-// Unchecking reopens it by adopting its parent group's current status - a
-// subtask is never linked to an entry of its own, so it has nothing else to
-// derive from.
+// Checking marks just that one subtask Done, independent of its group - and
+// if that leaves every subtask in the group Done, the group completes
+// itself too (see maybeAutoCompleteGroup). Unchecking reopens the subtask by
+// adopting its parent group's current status - a subtask is never linked to
+// an entry of its own, so it has nothing else to derive from - except when
+// the group itself is Done (because this was its last remaining open
+// subtask, auto-completing it): reopening one subtask out of a finished
+// group has to reopen the group too, or the subtask would incorrectly
+// inherit "Done" right back from its own stale-Done parent.
 async function handleToggleSubtaskDone(subtask, done) {
   saving.value = true
   try {
-    const status = done ? 'Done' : (tasksStore.tasks.find((t) => t.id === subtask.parentTaskId)?.status ?? 'Backlog')
-    await tasksStore.updateTask(subtask.id, taskUpdatePayload(subtask, { status }))
+    if (done) {
+      await tasksStore.updateTask(subtask.id, taskUpdatePayload(subtask, { status: 'Done' }))
+      if (subtask.parentTaskId != null) await maybeAutoCompleteGroup(subtask.parentTaskId)
+    } else {
+      const group = subtask.parentTaskId != null ? tasksStore.tasks.find((t) => t.id === subtask.parentTaskId) : null
+      let reopenStatus = group?.status ?? 'Backlog'
+      if (group?.status === 'Done') {
+        reopenStatus = deriveTaskStatus(scheduleStore.entries, group.id)
+        await tasksStore.updateTask(group.id, taskUpdatePayload(group, { status: reopenStatus }))
+      }
+      await tasksStore.updateTask(subtask.id, taskUpdatePayload(subtask, { status: reopenStatus }))
+    }
   } catch {
     modalError.value = tasksStore.error
   } finally {
     saving.value = false
   }
+}
+
+// If marking a subtask Done leaves its whole group with everything Done,
+// the group completes itself too - no separate click on the group needed.
+async function maybeAutoCompleteGroup(groupId) {
+  const group = tasksStore.tasks.find((t) => t.id === groupId)
+  if (!group || group.status === 'Done') return
+  const siblings = subtasksOf(tasksStore.tasks, groupId)
+  if (siblings.length === 0 || !siblings.every((t) => t.status === 'Done')) return
+  await tasksStore.updateTask(group.id, taskUpdatePayload(group, { status: 'Done' }))
 }
 
 async function handleUpdateSubtaskPriority(subtask, priority) {
