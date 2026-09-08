@@ -129,7 +129,7 @@ function isOverdue(task) {
       </span>
       <label
         class="task-done-checkbox"
-        :class="{ disabled: task.status === 'Backlog' }"
+        :class="{ disabled: task.status === 'Backlog', done: task.status === 'Done' }"
         :title="task.status === 'Backlog' ? 'Link this to a planner entry before marking it done' : (task.status === 'Done' ? 'Reopen task' : 'Mark task complete')"
       >
         <input
@@ -378,6 +378,13 @@ function isOverdue(task) {
   display: flex;
   align-items: center;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.16s;
+}
+
+.task-card:hover .task-done-checkbox,
+.task-done-checkbox.done {
+  opacity: 1;
 }
 
 .task-done-checkbox.disabled {
