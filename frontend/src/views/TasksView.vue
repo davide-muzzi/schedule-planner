@@ -36,7 +36,11 @@ const SORT_OPTIONS = [
   { value: 'id', label: 'ID' },
   { value: 'name', label: 'Alphabetical' },
   { value: 'dueDate', label: 'Due date' },
+  { value: 'priority', label: 'Priority' },
 ]
+// Most urgent first - same severity ordering used for the priority
+// donut/chart on the Overview page.
+const PRIORITY_RANK = { High: 0, Medium: 1, Low: 2, None: 3 }
 const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
 
 // Each category is single-select with an "all" option meaning that category
@@ -224,12 +228,12 @@ function taskCard(task) {
   }
 }
 
-// Both orderings are ascending, per-field, with id as the tiebreaker.
+// Each non-id ordering is ascending, per-field, with id as the tiebreaker.
 // dueDate is a "YYYY-MM-DD" string (or null) - plain string comparison
 // already sorts it chronologically; tasks with no due date always sort
-// after every dated one, regardless of which field is active. This is the
-// fallback order for cards a column hasn't had manually dragged yet - see
-// syncColumnLists below.
+// after every dated one, regardless of which field is active. priority uses
+// PRIORITY_RANK so High sorts first (severity, not alphabetical). Used to
+// order every column's cards (see columnLists below).
 function compareTasks(a, b) {
   if (sortBy.value === 'name') return a.name.localeCompare(b.name) || a.id - b.id
   if (sortBy.value === 'dueDate') {
@@ -237,6 +241,9 @@ function compareTasks(a, b) {
     if (a.dueDate) return -1
     if (b.dueDate) return 1
     return a.id - b.id
+  }
+  if (sortBy.value === 'priority') {
+    return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.id - b.id
   }
   return a.id - b.id
 }
