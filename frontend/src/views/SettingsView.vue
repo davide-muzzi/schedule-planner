@@ -6,6 +6,7 @@ import { useAppShell, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from '@/composables
 import { BUSINESS_DAYS_PER_WEEK, DEFAULT_HOLIDAY_ALLOTMENT_DAYS } from '@/utils/constants'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { formatHours, toISODate } from '@/utils/date'
+import { showToast } from '@/utils/toast'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const store = useScheduleStore()
@@ -238,7 +239,12 @@ async function confirmImport() {
   importingData.value = true
   dataError.value = null
   try {
-    await store.importSnapshot(parsed)
+    const { skipped } = await store.importSnapshot(parsed)
+    if (skipped.length > 0) {
+      dataError.value = `Import finished, but ${skipped.length} item${skipped.length === 1 ? '' : 's'} couldn't be recreated:\n${skipped.join('\n')}`
+    } else {
+      showToast('Data imported successfully.', { variant: 'ok' })
+    }
   } catch (err) {
     dataError.value = err.message || store.error
   } finally {
@@ -907,6 +913,7 @@ async function saveWeeklyGoal() {
 .error-msg {
   color: var(--bad);
   font-size: 0.85rem;
+  white-space: pre-line;
 }
 
 @media (max-width: 700px) {

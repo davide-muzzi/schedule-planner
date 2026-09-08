@@ -50,6 +50,11 @@ function handleActionClick() {
   border: 1px solid var(--warn);
 }
 
+.toast.variant-ok {
+  background: color-mix(in srgb, var(--ok) 16%, var(--color-background));
+  border: 1px solid var(--ok);
+}
+
 .toast-message {
   white-space: nowrap;
   font-weight: 600;
@@ -61,6 +66,10 @@ function handleActionClick() {
 
 .toast.variant-warn .toast-message {
   color: var(--warn);
+}
+
+.toast.variant-ok .toast-message {
+  color: var(--ok);
 }
 
 .toast-action {

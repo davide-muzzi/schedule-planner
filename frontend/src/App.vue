@@ -7,6 +7,7 @@ import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import AppSidebar from '@/components/AppSidebar.vue'
 import Toast from '@/components/Toast.vue'
+import RetrySkipDialog from '@/components/RetrySkipDialog.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -69,6 +70,7 @@ onBeforeUnmount(stopStatusSync)
   </div>
 
   <Toast />
+  <RetrySkipDialog />
 </template>
 
 <style scoped>

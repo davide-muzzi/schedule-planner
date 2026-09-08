@@ -2,7 +2,7 @@ import { ref } from 'vue'
 
 export const toastMessage = ref('')
 export const toastVisible = ref(false)
-export const toastVariant = ref('error') // 'error' (red - warnings, deletions) | 'warn' (yellow - edits)
+export const toastVariant = ref('error') // 'error' (red - warnings, deletions) | 'warn' (yellow - edits) | 'ok' (green - success)
 export const toastAction = ref(null) // { label, onClick } | null
 
 let hideTimer = null

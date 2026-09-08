@@ -13,6 +13,7 @@ import {
 } from '@/utils/constants'
 import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 import { extractErrorMessage } from '@/utils/apiError'
+import { askRetryOrSkip } from '@/utils/retryPrompt'
 import { useTasksStore } from './tasksStore'
 import { useTagsStore } from './tagsStore'
 
@@ -491,6 +492,30 @@ export const useScheduleStore = defineStore('schedule', {
           tagNameToId.set(tag.name.toLowerCase(), created.id)
         }
 
+        // Attempts `create()`; if it throws, asks the user (a Retry/Skip
+        // modal, since a store action can't just show one itself) what to
+        // do about that one record. Retry loops right back to trying the
+        // same create again - useful if the reason is something the user
+        // can't do anything about mid-import, but also lets them notice a
+        // one-off/transient failure and just try again. Skip records why
+        // and moves on, so one bad record never sinks the rest of an
+        // otherwise-good restore.
+        const skipped = []
+        async function createWithRetry(create, describe) {
+          for (;;) {
+            try {
+              return await create()
+            } catch (err) {
+              const message = extractErrorMessage(err)
+              const shouldRetry = await askRetryOrSkip(`${describe()}\n\n${message}`)
+              if (!shouldRetry) {
+                skipped.push(`${describe()}: ${message}`)
+                return null
+              }
+            }
+          }
+        }
+
         // Tasks must exist before entries can reference them - each
         // recreated task gets a fresh backend id, so old ids from the
         // backup have to be mapped onto the new ones before entries are
@@ -505,37 +530,48 @@ export const useScheduleStore = defineStore('schedule', {
         for (const task of orderedTasks) {
           if (typeof task?.name !== 'string' || typeof task?.estimatedMinutes !== 'number') continue
           const taskType = task.taskType === 'Group' ? 'Group' : 'Task'
-          const createdTask = await tasksStore.createTask({
-            name: task.name,
-            // A Group's estimatedMinutes is always 0 server-side - same rule
-            // taskUpdatePayload follows elsewhere.
-            estimatedMinutes: taskType === 'Group' ? 0 : task.estimatedMinutes,
-            status: task.status ?? 'Backlog',
-            priority: task.priority ?? 'None',
-            taskType,
-            parentTaskId: task.parentTaskId != null ? (taskIdMap[task.parentTaskId] ?? null) : null,
-            tagIds: (task.tags ?? []).map((t) => tagIdMap[t.id]).filter((id) => id != null),
-            color: task.color ?? null,
-            dueDate: task.dueDate ?? null,
-            notes: task.notes ?? null,
-          })
-          taskIdMap[task.id] = createdTask.id
+          const createdTask = await createWithRetry(
+            () =>
+              tasksStore.createTask({
+                name: task.name,
+                // A Group's estimatedMinutes is always 0 server-side - same
+                // rule taskUpdatePayload follows elsewhere. A non-Group task
+                // must be > 0 server-side too - old backups can carry a
+                // legacy task from before that rule existed, so it's clamped
+                // up to 1 rather than rejected outright.
+                estimatedMinutes: taskType === 'Group' ? 0 : Math.max(task.estimatedMinutes, 1),
+                status: task.status ?? 'Backlog',
+                priority: task.priority ?? 'None',
+                taskType,
+                parentTaskId: task.parentTaskId != null ? (taskIdMap[task.parentTaskId] ?? null) : null,
+                tagIds: (task.tags ?? []).map((t) => tagIdMap[t.id]).filter((id) => id != null),
+                color: task.color ?? null,
+                dueDate: task.dueDate ?? null,
+                notes: task.notes ?? null,
+              }),
+            () => `Task "${task.name}"`,
+          )
+          if (createdTask) taskIdMap[task.id] = createdTask.id
         }
 
         const created = []
         for (const entry of data.entries) {
-          const res = await api.create({
-            title: entry.title ?? null,
-            date: entry.date,
-            allDay: !!entry.allDay,
-            startTime: entry.allDay ? null : entry.startTime,
-            endTime: entry.allDay ? null : entry.endTime,
-            entryType: entry.entryType,
-            workLocation: entry.workLocation ?? null,
-            taskItemId: entry.taskItemId != null ? (taskIdMap[entry.taskItemId] ?? null) : null,
-            notes: entry.notes ?? null,
-          })
-          created.push(res.data)
+          const res = await createWithRetry(
+            () =>
+              api.create({
+                title: entry.title ?? null,
+                date: entry.date,
+                allDay: !!entry.allDay,
+                startTime: entry.allDay ? null : entry.startTime,
+                endTime: entry.allDay ? null : entry.endTime,
+                entryType: entry.entryType,
+                workLocation: entry.workLocation ?? null,
+                taskItemId: entry.taskItemId != null ? (taskIdMap[entry.taskItemId] ?? null) : null,
+                notes: entry.notes ?? null,
+              }),
+            () => `Entry on ${entry.date}`,
+          )
+          if (res) created.push(res.data)
         }
         this.entries = created
 
@@ -567,6 +603,8 @@ export const useScheduleStore = defineStore('schedule', {
           this.visibleWeekdays = data.visibleWeekdays
           localStorage.setItem(VISIBLE_WEEKDAYS_STORAGE_KEY, JSON.stringify(data.visibleWeekdays))
         }
+
+        return { skipped }
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err
