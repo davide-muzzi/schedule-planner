@@ -6,6 +6,7 @@ import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend, timeToDecimalHours } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
+import { taskUpdatePayload } from '@/utils/taskStats'
 import { showToast } from '@/utils/toast'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
@@ -446,7 +447,7 @@ async function performDelete(id, { announce = true } = {}) {
 // otherwise. Deleting an entry that's the ONLY thing still linking its task
 // would silently leave that task orphaned (fine on its own, tasks can exist
 // unlinked), so this asks first rather than just doing it.
-const pendingUnlinkOrDeleteEntryId = ref(null)
+const pendingUnlinkOrDeleteEntry = ref(null)
 const pendingUnlinkOrDeleteTask = ref(null)
 
 async function handleDelete(id) {
@@ -455,7 +456,7 @@ async function handleDelete(id) {
     const isOnlyLinkedEntry = !store.entries.some((e) => e.taskItemId === entry.taskItemId && e.id !== id)
     const task = isOnlyLinkedEntry ? tasksStore.tasks.find((t) => t.id === entry.taskItemId) : null
     if (task) {
-      pendingUnlinkOrDeleteEntryId.value = id
+      pendingUnlinkOrDeleteEntry.value = entry
       pendingUnlinkOrDeleteTask.value = task
       return
     }
@@ -464,26 +465,54 @@ async function handleDelete(id) {
 }
 
 function cancelUnlinkOrDelete() {
-  pendingUnlinkOrDeleteEntryId.value = null
+  pendingUnlinkOrDeleteEntry.value = null
   pendingUnlinkOrDeleteTask.value = null
 }
 
 async function confirmUnlinkEntry() {
-  const id = pendingUnlinkOrDeleteEntryId.value
+  const id = pendingUnlinkOrDeleteEntry.value?.id
   cancelUnlinkOrDelete()
   if (id != null) await performDelete(id)
 }
 
+// Restores a task+entry deleted together: recreates the task first (fresh
+// id), then the entry pointing at that new id, then re-attaches any of the
+// task's former subtasks that are still standalone (deleting a Group only
+// unlinks its subtasks, doesn't delete them - see tasksStore.deleteTask) back
+// onto the recreated Group. A subtask deleted independently in the meantime
+// is just skipped rather than failing the whole restore.
+async function restoreEntryAndTask(entrySnapshot, taskSnapshot, subtaskIds) {
+  try {
+    const newTask = await tasksStore.createTask(taskUpdatePayload(taskSnapshot))
+    await store.createEntry({ ...entrySnapshot, taskItemId: newTask.id })
+    for (const subtaskId of subtaskIds) {
+      const subtask = tasksStore.tasks.find((t) => t.id === subtaskId && t.parentTaskId == null)
+      if (!subtask) continue
+      await tasksStore.updateTask(subtask.id, taskUpdatePayload(subtask, { parentTaskId: newTask.id }))
+    }
+  } catch {
+    showToast("Couldn't restore everything - the task or entry may be missing.")
+  }
+}
+
 async function confirmDeleteEntryAndTask() {
-  const id = pendingUnlinkOrDeleteEntryId.value
+  const entry = pendingUnlinkOrDeleteEntry.value
   const task = pendingUnlinkOrDeleteTask.value
   cancelUnlinkOrDelete()
-  if (id == null) return
-  const deleted = await performDelete(id, { announce: false })
+  if (!entry) return
+  const entrySnapshot = entryPayload(entry)
+  const subtaskIds = task ? tasksStore.tasks.filter((t) => t.parentTaskId === task.id).map((t) => t.id) : []
+
+  const deleted = await performDelete(entry.id, { announce: false })
   if (!deleted || !task) return
   try {
     await tasksStore.deleteTask(task.id)
-    showToast('Entry and task deleted.', { variant: 'error' })
+    showToast('Entry and task deleted.', {
+      variant: 'error',
+      duration: 6000,
+      actionLabel: 'Undo',
+      onAction: () => restoreEntryAndTask(entrySnapshot, task, subtaskIds),
+    })
   } catch {
     showToast("Entry deleted, but couldn't delete the task.")
   }
