@@ -9,7 +9,10 @@ Inspired by Odoo's "Anwesenheiten" (Attendance) module, but repurposed for
 separate "break" entry — a gap between two blocks on the same day *is* the
 break, visually.
 
-This is a single-user, no-login personal tool, not a multi-tenant product.
+This is a single-user personal tool, not a multi-tenant product — it does
+sit behind a login now, but there's no self-service registration; the one
+account is bootstrapped from env vars on first run (see **Getting started**
+below).
 
 ## Features
 
@@ -25,13 +28,15 @@ This is a single-user, no-login personal tool, not a multi-tenant product.
   depending on whether that entry has started — and its detail view can jump
   straight to whichever linked entry is running now or coming up next.
 - **Overview** — year-to-date stats: hours per week, average by weekday,
-  balance trend, a breakdown of time by entry type, and a GitHub-style
-  tracking-streak grid.
+  balance trend, a breakdown of time by entry type, longest tracked day, a
+  GitHub-style tracking-streak grid, and Tasks stats (status/priority
+  breakdown, time by priority, overdue count).
 - **Weather** — a small current-conditions + 7-day forecast widget (via
   [Open-Meteo](https://open-meteo.com/), no API key required), using the
   browser's geolocation when available.
 - **Settings** — weekly worktime goal, vacation allotment, visible days,
-  timeline zoom, entry-type colors, theme, and full data export/import.
+  timeline zoom, entry-type colors, theme, reduced motion, sidebar width,
+  and full data export/import.
 - Responsive down to phone-landscape width, with a further set of
   mobile-specific layouts (collapsible nav drawer, card carousels,
   scrollable charts) below that.
@@ -41,7 +46,10 @@ This is a single-user, no-login personal tool, not a multi-tenant product.
 - **Frontend**: Vue 3 (`<script setup>`, plain JavaScript — no TypeScript),
   Vue Router, Pinia, Axios, Vite. Icons from `@lucide/vue`.
 - **Backend**: ASP.NET Core (.NET 10) + Entity Framework Core + SQLite.
-- No authentication — every record implicitly belongs to "the user".
+- **Auth**: ASP.NET Core Identity, cookie-based. No public registration —
+  the single account is created from `ADMIN_USERNAME`/`ADMIN_PASSWORD` the
+  first time the app starts with an empty user table, and never again after
+  that.
 
 ## Project structure
 
@@ -67,9 +75,13 @@ deploy/                     # Raspberry Pi deployment guide + systemd service te
 
 ### Backend
 
+Set `ADMIN_USERNAME`/`ADMIN_PASSWORD` (as env vars, or in
+`appsettings.Development.json`) before starting the backend for the first
+time — without them the user table stays empty and nobody can log in:
+
 ```bash
 cd backend/SchedulePlanner
-dotnet run
+ADMIN_USERNAME=you ADMIN_PASSWORD=change-me dotnet run
 ```
 
 Runs at `http://localhost:5126` by default (see `Properties/launchSettings.json`).
