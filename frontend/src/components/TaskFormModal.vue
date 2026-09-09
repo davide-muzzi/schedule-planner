@@ -53,9 +53,9 @@ function blankForm() {
     // 'none' | 'firstTag' | 'custom' - there's no backend field remembering
     // which of these was picked (Color is just a plain "#rrggbb" string or
     // null), so 'firstTag' is a one-time snapshot resolved at save time, not
-    // a live link - an existing task with a stored color always reloads as
-    // 'custom' (see the props.task watcher below), since a saved hex value
-    // is no longer distinguishable from a manually-picked one.
+    // a live link - reopening an existing task infers the radio from whether
+    // its stored color still matches its first colored tag (see the
+    // props.task watcher below), rather than always falling back to 'custom'.
     colorMode: 'none',
     color: DEFAULT_COLOR,
     dueDate: '',
@@ -78,6 +78,13 @@ watch(
   () => props.task,
   (task) => {
     if (task) {
+      // Still just a heuristic (Color is only ever a plain hex string, see
+      // blankForm's comment above) - if a manually-picked custom color
+      // happens to exactly match the first tag's color, this reads as
+      // 'firstTag' rather than 'custom'. Harmless since the two render
+      // identically, and it's the only way to tell them apart without a
+      // dedicated backend field.
+      const firstColoredTaskTag = (task.tags || []).find((t) => t.color)
       form.value = {
         name: task.name || '',
         taskType: task.taskType || 'Task',
@@ -86,7 +93,7 @@ watch(
         status: task.status,
         priority: task.priority || 'None',
         tagIds: (task.tags || []).map((t) => t.id),
-        colorMode: task.color ? 'custom' : 'none',
+        colorMode: task.color ? (task.color === firstColoredTaskTag?.color ? 'firstTag' : 'custom') : 'none',
         color: task.color || DEFAULT_COLOR,
         dueDate: task.dueDate || '',
         notes: task.notes || '',
