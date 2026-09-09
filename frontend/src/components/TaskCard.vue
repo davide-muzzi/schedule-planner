@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { CalendarDays, Check, ChevronDown, ChevronUp, Expand, Pencil, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
-import { isOverdue } from '@/utils/taskStats'
+import { dueCountdown, isOverdue } from '@/utils/taskStats'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useCtrlHeld } from '@/composables/useCtrlHeld'
 import TagPopup from './TagPopup.vue'
@@ -137,7 +137,9 @@ function formatDueDate(dueDate) {
       <span class="task-name-text">{{ task.name }}</span>
     </h3>
 
-    <span v-if="task.dueDate" class="task-due-date" :class="{ overdue: isOverdue(task) }"><CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }}</span>
+    <span v-if="task.dueDate" class="task-due-date" :class="{ overdue: isOverdue(task) }">
+      <CalendarDays :size="11" /> Due {{ formatDueDate(task.dueDate) }} · {{ dueCountdown(task.dueDate) }}
+    </span>
 
     <div v-if="task.tags && task.tags.length > 0" class="task-tags">
       <span v-for="tag in task.tags.slice(0, 2)" :key="tag.id" class="task-tag-chip">
@@ -244,7 +246,9 @@ function formatDueDate(dueDate) {
           <div v-if="openSubtaskId === t.id" class="subtask-detail" @click.stop>
             <div class="subtask-detail-header">
               <span class="task-id">#{{ t.id }}</span>
-              <span v-if="t.dueDate" class="task-due-date" :class="{ overdue: isOverdue(t) }"><CalendarDays :size="11" /> Due {{ formatDueDate(t.dueDate) }}</span>
+              <span v-if="t.dueDate" class="task-due-date" :class="{ overdue: isOverdue(t) }">
+                <CalendarDays :size="11" /> Due {{ formatDueDate(t.dueDate) }} · {{ dueCountdown(t.dueDate) }}
+              </span>
             </div>
             <p v-if="t.notes" class="subtask-detail-notes">{{ t.notes }}</p>
             <div v-if="t.tags && t.tags.length > 0" class="subtask-detail-tags">

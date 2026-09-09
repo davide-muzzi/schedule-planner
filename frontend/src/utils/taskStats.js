@@ -80,6 +80,29 @@ export function isOverdue(task) {
   return new Date(`${task.dueDate}T00:00:00`) < today
 }
 
+// A short "how far off is this" countdown shown next to a due date - 0 days
+// is "Today", 1-6 days count in days, 7-30 days round to whole weeks, and
+// anything past that rounds to whole months (30-day months, not calendar
+// ones, to keep the math the same shape as the week bucket). Negative (an
+// overdue date) mirrors the same buckets with an "ago" suffix instead of "in".
+export function dueCountdown(dueDate) {
+  if (!dueDate) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((new Date(`${dueDate}T00:00:00`) - today) / 86400000)
+  const abs = Math.abs(diffDays)
+  if (abs === 0) return 'Today'
+  const prefix = diffDays > 0 ? 'in ' : ''
+  const suffix = diffDays < 0 ? ' ago' : ''
+  if (abs < 7) return `${prefix}${abs} day${abs === 1 ? '' : 's'}${suffix}`
+  if (abs <= 30) {
+    const weeks = Math.max(1, Math.round(abs / 7))
+    return `${prefix}${weeks} week${weeks === 1 ? '' : 's'}${suffix}`
+  }
+  const months = Math.max(1, Math.round(abs / 30))
+  return `${prefix}${months} month${months === 1 ? '' : 's'}${suffix}`
+}
+
 // A Group's planned time isn't set directly - it's always the sum of its
 // subtasks' own estimatedMinutes, kept live rather than stored/duplicated
 // server-side.

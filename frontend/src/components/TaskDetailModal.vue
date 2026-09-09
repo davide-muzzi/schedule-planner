@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { CalendarDays, Expand, Pencil, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
-import { isOverdue } from '@/utils/taskStats'
+import { dueCountdown, isOverdue } from '@/utils/taskStats'
 
 const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
 
@@ -98,7 +98,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
             </h2>
 
             <span v-if="task.dueDate" class="task-due-date" :class="{ overdue: isOverdue(task) }">
-              <CalendarDays :size="12" /> Due {{ formatDueDate(task.dueDate) }}
+              <CalendarDays :size="12" /> Due {{ formatDueDate(task.dueDate) }} · {{ dueCountdown(task.dueDate) }}
             </span>
 
             <div v-if="task.tags && task.tags.length > 0" class="detail-tags">
