@@ -45,8 +45,12 @@ function blankForm() {
   return {
     name: '',
     taskType: 'Task',
-    estimatedHours: Math.floor(minutes / 60),
-    estimatedMinutes: minutes % 60,
+    // Kept as the same padded 2-digit strings TimePartInput itself works in
+    // (see its v-model usage below) rather than numbers, so nothing has to
+    // re-pad on every keystroke and fight the field mid-typing - only
+    // coerced back to a number at submit time.
+    estimatedHours: String(Math.floor(minutes / 60)).padStart(2, '0'),
+    estimatedMinutes: String(minutes % 60).padStart(2, '0'),
     status: 'Backlog',
     priority: 'None',
     tagIds: [],
@@ -88,8 +92,8 @@ watch(
       form.value = {
         name: task.name || '',
         taskType: task.taskType || 'Task',
-        estimatedHours: Math.floor(task.estimatedMinutes / 60),
-        estimatedMinutes: task.estimatedMinutes % 60,
+        estimatedHours: String(Math.floor(task.estimatedMinutes / 60)).padStart(2, '0'),
+        estimatedMinutes: String(task.estimatedMinutes % 60).padStart(2, '0'),
         status: task.status,
         priority: task.priority || 'None',
         tagIds: (task.tags || []).map((t) => t.id),
@@ -115,23 +119,6 @@ const isDirty = computed(
 )
 
 const isGroup = computed(() => form.value.taskType === 'Group')
-
-// TimePartInput (the same custom dropdown+pencil combobox the Planner's
-// time fields use) works in padded 2-digit strings - these just bridge
-// that to form.estimatedHours/estimatedMinutes, which stay plain numbers
-// for the rest of the form (submit payload, isDirty snapshot, etc).
-const estimatedHoursStr = computed({
-  get: () => String(form.value.estimatedHours).padStart(2, '0'),
-  set: (val) => {
-    form.value.estimatedHours = Number(val)
-  },
-})
-const estimatedMinutesStr = computed({
-  get: () => String(form.value.estimatedMinutes).padStart(2, '0'),
-  set: (val) => {
-    form.value.estimatedMinutes = Number(val)
-  },
-})
 
 // A Group's planned time is always the live sum of its subtasks, never a
 // value typed into this form - see plannedMinutesForGroup's own comment.
@@ -461,11 +448,11 @@ function handleOverlayClick(event) {
         <div v-if="!isGroup" class="field-row">
           <div class="field">
             <label>Est. h</label>
-            <TimePartInput v-model="estimatedHoursStr" :options="ESTIMATE_HOUR_OPTIONS" :max="99" />
+            <TimePartInput v-model="form.estimatedHours" :options="ESTIMATE_HOUR_OPTIONS" :max="99" />
           </div>
           <div class="field">
             <label>Est. min</label>
-            <TimePartInput v-model="estimatedMinutesStr" :options="ESTIMATE_MINUTE_OPTIONS" :max="59" />
+            <TimePartInput v-model="form.estimatedMinutes" :options="ESTIMATE_MINUTE_OPTIONS" :max="59" />
           </div>
         </div>
         <div v-else class="field">
