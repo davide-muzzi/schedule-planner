@@ -1,7 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { CalendarDays, Expand, Pencil, X } from '@lucide/vue'
-import { formatHours } from '@/utils/date'
+import { useRouter } from 'vue-router'
+import { CalendarClock, CalendarDays, Expand, Pencil, X } from '@lucide/vue'
+import { useScheduleStore } from '@/stores/scheduleStore'
+import { formatHours, getMonday, toISODate } from '@/utils/date'
 import { dueCountdown, isOverdue } from '@/utils/taskStats'
 
 const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
@@ -15,7 +17,57 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'edit', 'delete'])
 
+const router = useRouter()
+const scheduleStore = useScheduleStore()
+
 const isGroup = computed(() => props.task.taskType === 'Group')
+
+// Ready/InProgress are the only statuses a linked task can have (Backlog
+// means unlinked, Done's entries are assumed past) - see deriveTaskStatus.
+const isLinkable = computed(() => props.task.status === 'Ready' || props.task.status === 'InProgress')
+
+function entryStart(entry) {
+  return new Date(`${entry.date}T${entry.allDay ? '00:00:00' : entry.startTime}`)
+}
+function entryEnd(entry) {
+  return new Date(`${entry.date}T${entry.allDay ? '23:59:59' : entry.endTime}`)
+}
+
+// Whichever entry linked to this task is happening right now, if any -
+// takes priority over anything later. null once nothing is currently running.
+const runningEntry = computed(() => {
+  if (!isLinkable.value) return null
+  const now = new Date()
+  return (
+    scheduleStore.entries
+      .filter((e) => e.taskItemId === props.task.id && entryStart(e) <= now && now <= entryEnd(e))
+      .sort((a, b) => entryStart(a) - entryStart(b))[0] ?? null
+  )
+})
+
+// The soonest entry linked to this task that hasn't started yet.
+const upcomingEntry = computed(() => {
+  if (!isLinkable.value) return null
+  const now = new Date()
+  return (
+    scheduleStore.entries
+      .filter((e) => e.taskItemId === props.task.id && entryStart(e) > now)
+      .sort((a, b) => entryStart(a) - entryStart(b))[0] ?? null
+  )
+})
+
+// What the "jump to schedule" button targets - the running entry if one
+// exists, otherwise the next upcoming one, otherwise null (hides the
+// button, e.g. every linked entry is already in the past).
+const nextEntry = computed(() => runningEntry.value || upcomingEntry.value)
+
+function goToSchedule() {
+  const entry = nextEntry.value
+  if (!entry) return
+  const monday = getMonday(new Date(`${entry.date}T00:00:00`))
+  router.push({ name: 'planner', query: { week: toISODate(monday) } })
+  emit('close')
+}
 
 // The subtask currently expanded into its own (nested) detail modal, on top
 // of this one - recursive self-usage, see the template.
@@ -154,6 +206,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
         <footer class="detail-footer">
           <button type="button" class="detail-delete-btn" @click="emit('delete', task.id)">Delete</button>
           <span class="detail-footer-spacer"></span>
+          <button v-if="nextEntry" type="button" class="detail-goto-btn" @click="goToSchedule">
+            <CalendarClock :size="13" /> {{ runningEntry ? 'View current entry' : 'View next entry' }}
+          </button>
           <button type="button" class="detail-edit-btn" @click="emit('edit', task)"><Pencil :size="13" /> Edit</button>
         </footer>
       </div>
@@ -504,6 +559,29 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 .detail-edit-btn:hover {
   opacity: 0.85;
+}
+
+.detail-goto-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.detail-goto-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .priority-dot {

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
@@ -41,7 +42,13 @@ const hiddenWeekendLabel = computed(() => {
   return hidden.join(' & ')
 })
 
-const currentMonday = ref(getMonday(new Date()))
+const route = useRoute()
+// A ?week=YYYY-MM-DD query param (e.g. from the task detail modal's "jump
+// to schedule" button) opens straight into that week instead of the
+// current one - read once at mount, not kept in sync afterward, since
+// navigating here is always a fresh route entry (see App.vue's routing).
+const initialWeekParam = typeof route.query.week === 'string' ? route.query.week : null
+const currentMonday = ref(initialWeekParam ? getMonday(new Date(`${initialWeekParam}T00:00:00`)) : getMonday(new Date()))
 // All 7 days of the current week, Mon-Sun - calculations (totals, balance)
 // always use this full set regardless of which days are visible.
 const allWeekDates = computed(() => Array.from({ length: 7 }, (_, i) => addDays(currentMonday.value, i)))
