@@ -178,7 +178,7 @@ function formatDueDate(dueDate) {
           {{ subtasks.length }} subtask{{ subtasks.length === 1 ? '' : 's' }}
           <span v-if="subtasks.length > 0" class="subtask-done-count">· {{ doneSubtaskCount(subtasks) }} done</span>
         </span>
-        <component :is="expanded ? ChevronUp : ChevronDown" :size="12" />
+        <component :is="expanded ? ChevronUp : ChevronDown" :size="14" />
       </button>
       <ul v-if="expanded && subtasks.length > 0" class="subtask-preview-list">
         <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row" :class="{ expanded: openSubtaskId === t.id }">
@@ -512,6 +512,8 @@ function formatDueDate(dueDate) {
 }
 
 .subtask-preview {
+  display: flex;
+  flex-direction: column;
   padding-top: 6px;
   border-top: 1px solid var(--line);
 }
@@ -520,15 +522,14 @@ function formatDueDate(dueDate) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
   gap: 8px;
   background: none;
   border: none;
-  padding: 4px 6px;
-  margin: -4px -6px;
+  padding: 8px;
+  margin: -6px -8px 0;
   border-radius: var(--r);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--mute);
   cursor: pointer;
   transition:
