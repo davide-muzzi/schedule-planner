@@ -352,6 +352,37 @@ async function removeSubtask(task) {
   }
 }
 
+// Removing a subtask from the group is ambiguous - keep it as its own
+// standalone task, or delete it outright - so ask rather than assuming.
+const pendingRemoveSubtask = ref(null)
+
+function requestRemoveSubtask(task) {
+  pendingRemoveSubtask.value = task
+}
+
+function cancelRemoveSubtask() {
+  pendingRemoveSubtask.value = null
+}
+
+async function confirmRemoveSubtask(choice) {
+  const task = pendingRemoveSubtask.value
+  pendingRemoveSubtask.value = null
+  if (choice === 'delete') {
+    subtaskActionError.value = null
+    subtaskActionBusy.value = true
+    try {
+      await tasksStore.deleteTask(task.id)
+      subtasksChanged.value = true
+    } catch {
+      subtaskActionError.value = tasksStore.error
+    } finally {
+      subtaskActionBusy.value = false
+    }
+    return
+  }
+  await removeSubtask(task)
+}
+
 async function handleCreateSubtaskSubmit(payload) {
   subtaskActionBusy.value = true
   subtaskActionError.value = null
@@ -397,9 +428,10 @@ function hoursFor(minutes) {
 }
 
 function handleKeydown(event) {
-  // The nested "Create new subtask" / relink-confirm dialogs have their own
-  // Escape/Enter handling - same reasoning as EntryFormModal's guard.
-  if (showCreateSubtask.value || pendingRelink.value) return
+  // The nested "Create new subtask" / relink-confirm / remove-subtask-confirm
+  // dialogs have their own Escape/Enter handling - same reasoning as
+  // EntryFormModal's guard.
+  if (showCreateSubtask.value || pendingRelink.value || pendingRemoveSubtask.value) return
   if (event.key === 'Escape') {
     if (openSubtaskPriorityMenu.value) {
       closeSubtaskPriorityMenu()
@@ -648,7 +680,7 @@ function handleOverlayClick(event) {
                 title="Remove from this group"
                 aria-label="Remove from this group"
                 :disabled="subtaskActionBusy"
-                @click="removeSubtask(t)"
+                @click="requestRemoveSubtask(t)"
               >
                 <X :size="12" />
               </button>
@@ -722,6 +754,18 @@ function handleOverlayClick(event) {
     :actions="[{ value: 'relink', label: 'Move & re-link', variant: 'default' }]"
     @choose="confirmRelink"
     @close="cancelRelink"
+  />
+
+  <ChoiceDialog
+    v-if="pendingRemoveSubtask"
+    title="Remove subtask"
+    :message="`Unlink '${pendingRemoveSubtask.name}' and keep it as a standalone task, or delete it entirely?`"
+    :actions="[
+      { value: 'unlink', label: 'Unlink', variant: 'default' },
+      { value: 'delete', label: 'Delete entirely', variant: 'danger' },
+    ]"
+    @choose="confirmRemoveSubtask"
+    @close="cancelRemoveSubtask"
   />
   </Teleport>
 </template>
