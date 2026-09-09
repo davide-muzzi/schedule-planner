@@ -1178,6 +1178,8 @@ input[type='date'] {
 .subtask-action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
   gap: 0.35rem;
   padding: 0.35rem 0.7rem;
   border-radius: 6px;

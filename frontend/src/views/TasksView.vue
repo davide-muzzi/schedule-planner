@@ -18,6 +18,7 @@ import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import TaskFilterModal from '@/components/TaskFilterModal.vue'
 import TaskCard from '@/components/TaskCard.vue'
+import TaskDetailModal from '@/components/TaskDetailModal.vue'
 import ChoiceDialog from '@/components/ChoiceDialog.vue'
 import TagManageModal from '@/components/TagManageModal.vue'
 
@@ -332,6 +333,30 @@ function closeModal() {
   modalError.value = null
 }
 
+const detailTaskId = ref(null)
+
+// Looked up live (not a snapshot) rather than storing the task object
+// itself, so edits/completions made elsewhere - or from inside the detail
+// modal itself, e.g. deleting a subtask it's showing - show up immediately
+// without having to close and reopen it.
+const detailTask = computed(() => {
+  if (detailTaskId.value == null) return null
+  return taskCards.value.find((t) => t.id === detailTaskId.value) ?? tasksStore.tasks.find((t) => t.id === detailTaskId.value) ?? null
+})
+
+function openDetail(task) {
+  detailTaskId.value = task.id
+}
+
+function closeDetail() {
+  detailTaskId.value = null
+}
+
+function handleDetailEdit(task) {
+  detailTaskId.value = null
+  openEdit(task)
+}
+
 async function handleSubmit(payload) {
   saving.value = true
   modalError.value = null
@@ -622,6 +647,8 @@ async function handleUpdateTags(target, tagIds) {
             @quick-complete="handleQuickComplete(element, $event)"
             @quick-reopen="handleQuickReopen(element, $event)"
             @quick-delete="handleQuickDelete(element, $event)"
+            @expand="openDetail(element)"
+            @expand-subtask="openDetail"
             @edit-subtask="handleEditSubtask"
             @toggle-subtask-done="handleToggleSubtaskDone"
             @update-subtask-priority="handleUpdateSubtaskPriority"
@@ -645,6 +672,15 @@ async function handleUpdateTags(target, tagIds) {
       :saving="saving"
       @close="closeModal"
       @submit="handleSubmit"
+      @delete="requestDelete"
+    />
+
+    <TaskDetailModal
+      v-if="detailTask"
+      :task="detailTask"
+      :subtasks="detailTask.subtasks || []"
+      @close="closeDetail"
+      @edit="handleDetailEdit"
       @delete="requestDelete"
     />
 

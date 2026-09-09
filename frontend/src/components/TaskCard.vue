@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { CalendarDays, Check, ChevronDown, ChevronUp, Pencil, X } from '@lucide/vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, Expand, Pencil, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 import { isOverdue } from '@/utils/taskStats'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
@@ -22,6 +22,8 @@ const emit = defineEmits([
   'quick-complete',
   'quick-reopen',
   'quick-delete',
+  'expand',
+  'expand-subtask',
   'edit-subtask',
   'toggle-subtask-done',
   'update-subtask-priority',
@@ -170,6 +172,9 @@ function formatDueDate(dueDate) {
           {{ formatDiff(task) }}
         </span>
       </div>
+      <button type="button" class="expand-btn" title="Expand task" aria-label="Expand task" @click.stop="$emit('expand')">
+        <Expand :size="12" />
+      </button>
     </div>
 
     <div v-if="task.taskType === 'Group'" class="subtask-preview">
@@ -226,6 +231,15 @@ function formatDueDate(dueDate) {
             </span>
             <span class="subtask-preview-name" :class="{ 'is-done': t.status === 'Done' }">{{ t.name }}</span>
             <span class="subtask-preview-minutes" :class="{ 'is-done': t.status === 'Done' }">{{ hoursFor(t.estimatedMinutes) }}</span>
+            <button
+              type="button"
+              class="subtask-expand-btn"
+              title="Expand subtask"
+              aria-label="Expand subtask"
+              @click.stop="$emit('expand-subtask', t)"
+            >
+              <Expand :size="11" />
+            </button>
           </div>
           <div v-if="openSubtaskId === t.id" class="subtask-detail" @click.stop>
             <div class="subtask-detail-header">
@@ -515,6 +529,30 @@ function formatDueDate(dueDate) {
   color: var(--bad);
 }
 
+.expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.expand-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .subtask-preview {
   display: flex;
   flex-direction: column;
@@ -609,6 +647,28 @@ function formatDueDate(dueDate) {
 
 .subtask-preview-minutes.is-done {
   color: var(--ok);
+}
+
+.subtask-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.subtask-expand-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .subtask-priority-wrap {
