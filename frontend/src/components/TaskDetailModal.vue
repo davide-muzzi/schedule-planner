@@ -56,10 +56,23 @@ const upcomingEntry = computed(() => {
   )
 })
 
-// What the "jump to schedule" button targets - the running entry if one
-// exists, otherwise the next upcoming one, otherwise null (hides the
-// button, e.g. every linked entry is already in the past).
-const nextEntry = computed(() => runningEntry.value || upcomingEntry.value)
+// Falls back to the most recent already-finished entry once nothing is
+// running or upcoming, rather than hiding the button outright - anything
+// neither running nor upcoming is, by elimination, already over.
+const pastEntry = computed(() => {
+  if (!isLinkable.value || runningEntry.value || upcomingEntry.value) return null
+  const now = new Date()
+  return (
+    scheduleStore.entries
+      .filter((e) => e.taskItemId === props.task.id && entryEnd(e) < now)
+      .sort((a, b) => entryStart(b) - entryStart(a))[0] ?? null
+  )
+})
+
+// What the "jump to schedule" button targets, in priority order - running,
+// then next upcoming, then the latest past one. null (hiding the button)
+// only when the task has no linked entries at all.
+const nextEntry = computed(() => runningEntry.value || upcomingEntry.value || pastEntry.value)
 
 function goToSchedule() {
   const entry = nextEntry.value
@@ -207,7 +220,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
           <button type="button" class="detail-delete-btn" @click="emit('delete', task.id)">Delete</button>
           <span class="detail-footer-spacer"></span>
           <button v-if="nextEntry" type="button" class="detail-goto-btn" @click="goToSchedule">
-            <CalendarClock :size="13" /> {{ runningEntry ? 'View current entry' : 'View next entry' }}
+            <CalendarClock :size="13" />
+            {{ runningEntry ? 'View current entry' : upcomingEntry ? 'View next entry' : 'View last entry' }}
           </button>
           <button type="button" class="detail-edit-btn" @click="emit('edit', task)"><Pencil :size="13" /> Edit</button>
         </footer>
