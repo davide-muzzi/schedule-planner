@@ -228,6 +228,10 @@ function formatDueDate(dueDate) {
             <span class="subtask-preview-minutes" :class="{ 'is-done': t.status === 'Done' }">{{ hoursFor(t.estimatedMinutes) }}</span>
           </div>
           <div v-if="openSubtaskId === t.id" class="subtask-detail" @click.stop>
+            <div class="subtask-detail-header">
+              <span class="task-id">#{{ t.id }}</span>
+              <span v-if="t.dueDate" class="task-due-date" :class="{ overdue: isOverdue(t) }"><CalendarDays :size="11" /> Due {{ formatDueDate(t.dueDate) }}</span>
+            </div>
             <p v-if="t.notes" class="subtask-detail-notes">{{ t.notes }}</p>
             <div v-if="t.tags && t.tags.length > 0" class="subtask-detail-tags">
               <span v-for="tag in t.tags" :key="tag.id" class="task-tag-chip">
@@ -558,7 +562,7 @@ function formatDueDate(dueDate) {
   gap: 7px;
   list-style: none;
   padding: 0;
-  margin: 8px 0 0;
+  margin: 8px -14px 0;
 }
 
 .subtask-preview-row {
@@ -721,6 +725,13 @@ function formatDueDate(dueDate) {
   padding: 8px 9px 9px;
   border-top: 1px solid var(--line);
   cursor: default;
+}
+
+.subtask-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .subtask-detail-notes {
