@@ -59,9 +59,7 @@ function selectPriority(task, priority) {
   if (task.priority !== priority) emit('update-subtask-priority', task, priority)
 }
 
-// Tags popup - a single instance per card, shared between the card's own
-// tags and every subtask row's tags. Keyed by 'task' for the card itself, or
-// a subtask's id.
+// Tags popup for the card's own tags.
 const {
   openId: openTagsFor,
   position: tagsPopupPosition,
@@ -70,11 +68,7 @@ const {
   close: closeTagsPopup,
 } = useFloatingMenu()
 
-const tagsPopupTarget = computed(() => {
-  if (openTagsFor.value === 'task') return props.task
-  if (openTagsFor.value != null) return props.subtasks.find((t) => t.id === openTagsFor.value) ?? null
-  return null
-})
+const tagsPopupTarget = computed(() => (openTagsFor.value === 'task' ? props.task : null))
 
 function handleAddTag(tagId) {
   const target = tagsPopupTarget.value
@@ -180,12 +174,14 @@ function formatDueDate(dueDate) {
 
     <div v-if="task.taskType === 'Group'" class="subtask-preview">
       <button type="button" class="subtask-toggle" @click="toggleExpanded">
+        <span class="subtask-toggle-label">
+          {{ subtasks.length }} subtask{{ subtasks.length === 1 ? '' : 's' }}
+          <span v-if="subtasks.length > 0" class="subtask-done-count">· {{ doneSubtaskCount(subtasks) }} done</span>
+        </span>
         <component :is="expanded ? ChevronUp : ChevronDown" :size="12" />
-        {{ subtasks.length }} subtask{{ subtasks.length === 1 ? '' : 's' }}
-        <span v-if="subtasks.length > 0" class="subtask-done-count">· {{ doneSubtaskCount(subtasks) }} done</span>
       </button>
       <ul v-if="expanded && subtasks.length > 0" class="subtask-preview-list">
-        <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row">
+        <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row" :class="{ expanded: openSubtaskId === t.id }">
           <div class="subtask-preview-main" @click.stop="toggleSubtaskDetail(t.id)">
             <span class="subtask-priority-wrap" :class="{ 'ctrl-mode': ctrlHeld }">
               <button
@@ -229,21 +225,6 @@ function formatDueDate(dueDate) {
               </Teleport>
             </span>
             <span class="subtask-preview-name" :class="{ 'is-done': t.status === 'Done' }">{{ t.name }}</span>
-            <span v-if="t.tags && t.tags.length > 0" class="subtask-preview-tags">
-              <span v-for="tag in t.tags.slice(0, 2)" :key="tag.id" class="mini-tag-chip">
-                <span class="mini-tag-swatch" :style="{ background: tag.color || 'var(--line-2)' }"></span>
-                {{ tag.name }}
-              </span>
-              <button
-                v-if="t.tags.length > 2"
-                type="button"
-                class="tag-more-pill"
-                :aria-label="`${t.tags.length - 2} more tags - click to view`"
-                @click.stop="toggleTagsPopup(t.id, $event)"
-              >
-                +{{ t.tags.length - 2 }}
-              </button>
-            </span>
             <span class="subtask-preview-minutes" :class="{ 'is-done': t.status === 'Done' }">{{ hoursFor(t.estimatedMinutes) }}</span>
           </div>
           <div v-if="openSubtaskId === t.id" class="subtask-detail" @click.stop>
@@ -408,9 +389,7 @@ function formatDueDate(dueDate) {
 }
 
 .task-name-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }
 
 .task-color-swatch {
@@ -540,18 +519,32 @@ function formatDueDate(dueDate) {
 .subtask-toggle {
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
   background: none;
   border: none;
-  padding: 0;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: var(--r);
   font-family: inherit;
   font-size: 11px;
   color: var(--mute);
   cursor: pointer;
+  transition:
+    color 0.16s,
+    background-color 0.16s;
+}
+
+.subtask-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .subtask-toggle:hover {
   color: var(--fg);
+  background: var(--surface2);
 }
 
 .subtask-done-count {
@@ -561,7 +554,7 @@ function formatDueDate(dueDate) {
 .subtask-preview-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 7px;
   list-style: none;
   padding: 0;
   margin: 8px 0 0;
@@ -570,23 +563,30 @@ function formatDueDate(dueDate) {
 .subtask-preview-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-left: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface2);
+  overflow: hidden;
+  transition: border-color 0.16s;
+}
+
+.subtask-preview-row:hover,
+.subtask-preview-row.expanded {
+  border-color: var(--accent);
 }
 
 .subtask-preview-main {
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 7px 9px;
   cursor: pointer;
 }
 
 .subtask-preview-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
   font-size: 11.5px;
   color: var(--dim);
 }
@@ -604,32 +604,6 @@ function formatDueDate(dueDate) {
 
 .subtask-preview-minutes.is-done {
   color: var(--ok);
-}
-
-.subtask-preview-tags {
-  display: flex;
-  align-items: center;
-  flex: none;
-  gap: 4px;
-}
-
-.mini-tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--line-2);
-  font-size: 9.5px;
-  color: var(--mute);
-  white-space: nowrap;
-}
-
-.mini-tag-swatch {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
 }
 
 .subtask-priority-wrap {
@@ -743,7 +717,8 @@ function formatDueDate(dueDate) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 0 2px 19px;
+  padding: 8px 9px 9px;
+  border-top: 1px solid var(--line);
   cursor: default;
 }
 
