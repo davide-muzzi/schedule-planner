@@ -1,18 +1,17 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X, Plus, ChevronDown, ChevronUp } from '@lucide/vue'
+import { X, Plus, ListPlus } from '@lucide/vue'
 import { useAppShell } from '@/composables/useAppShell'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useTasksStore } from '@/stores/tasksStore'
-import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { formatHours } from '@/utils/date'
 import ChoiceDialog from './ChoiceDialog.vue'
 import TimePartInput from './TimePartInput.vue'
+import SubtaskPickerModal from './SubtaskPickerModal.vue'
 
 const { isNarrowViewport } = useAppShell()
 const tasksStore = useTasksStore()
-const scheduleStore = useScheduleStore()
 const tagsStore = useTagsStore()
 
 const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
@@ -240,23 +239,10 @@ function handleDeleteClick() {
 
 // --- Subtask management (edit mode, Group only) ---
 
-const showAddExisting = ref(false)
-const addExistingSearch = ref('')
+const showSubtaskPicker = ref(false)
 const showCreateSubtask = ref(false)
 const subtaskActionError = ref(null)
 const subtaskActionBusy = ref(false)
-const pendingRelink = ref(null) // { task, entries } while the relink confirm is open
-
-const eligibleExistingTasks = computed(() => {
-  const q = addExistingSearch.value.trim().toLowerCase()
-  return tasksStore.tasks.filter((t) => {
-    if (t.id === props.task?.id) return false
-    if (t.taskType === 'Group') return false
-    if (t.parentTaskId != null) return false
-    if (!q) return true
-    return t.name.toLowerCase().includes(q) || String(t.id).includes(q)
-  })
-})
 
 function subtaskUpdatePayload(task, overrides) {
   return {
@@ -283,57 +269,8 @@ function subtaskJoinStatus(task) {
   return props.task.status === 'Done' ? 'Backlog' : props.task.status
 }
 
-async function addExistingSubtask(task) {
-  subtaskActionError.value = null
-  const linked = scheduleStore.entries.filter((e) => e.taskItemId === task.id)
-  if (linked.length > 0) {
-    pendingRelink.value = { task, entries: linked }
-    return
-  }
-  await commitAddSubtask(task)
-}
-
-async function commitAddSubtask(task) {
-  subtaskActionBusy.value = true
-  try {
-    await tasksStore.updateTask(
-      task.id,
-      subtaskUpdatePayload(task, { parentTaskId: props.task.id, status: subtaskJoinStatus(task) }),
-    )
-    subtasksChanged.value = true
-    showAddExisting.value = false
-    addExistingSearch.value = ''
-  } catch {
-    subtaskActionError.value = tasksStore.error
-  } finally {
-    subtaskActionBusy.value = false
-  }
-}
-
-async function confirmRelink() {
-  const { task, entries } = pendingRelink.value
-  subtaskActionBusy.value = true
-  try {
-    for (const entry of entries) {
-      await scheduleStore.updateEntry(entry.id, { ...entry, taskItemId: props.task.id })
-    }
-    await tasksStore.updateTask(
-      task.id,
-      subtaskUpdatePayload(task, { parentTaskId: props.task.id, status: subtaskJoinStatus(task) }),
-    )
-    subtasksChanged.value = true
-    pendingRelink.value = null
-    showAddExisting.value = false
-    addExistingSearch.value = ''
-  } catch {
-    subtaskActionError.value = tasksStore.error || scheduleStore.error
-  } finally {
-    subtaskActionBusy.value = false
-  }
-}
-
-function cancelRelink() {
-  pendingRelink.value = null
+function handleSubtasksPicked() {
+  subtasksChanged.value = true
 }
 
 async function removeSubtask(task) {
@@ -431,7 +368,7 @@ function handleKeydown(event) {
   // The nested "Create new subtask" / relink-confirm / remove-subtask-confirm
   // dialogs have their own Escape/Enter handling - same reasoning as
   // EntryFormModal's guard.
-  if (showCreateSubtask.value || pendingRelink.value || pendingRemoveSubtask.value) return
+  if (showCreateSubtask.value || showSubtaskPicker.value || pendingRemoveSubtask.value) return
   if (event.key === 'Escape') {
     if (openSubtaskPriorityMenu.value) {
       closeSubtaskPriorityMenu()
@@ -694,33 +631,9 @@ function handleOverlayClick(event) {
             <button type="button" class="subtask-action-btn" @click="showCreateSubtask = true">
               <Plus :size="13" /> Create new subtask
             </button>
-            <button type="button" class="subtask-action-btn" @click="showAddExisting = !showAddExisting">
-              <component :is="showAddExisting ? ChevronUp : ChevronDown" :size="13" /> Add existing task
+            <button type="button" class="subtask-action-btn" @click="showSubtaskPicker = true">
+              <ListPlus :size="13" /> Add existing task
             </button>
-          </div>
-
-          <div v-if="showAddExisting" class="add-existing-panel">
-            <input
-              v-model="addExistingSearch"
-              type="text"
-              placeholder="Search tasks..."
-              class="add-existing-search"
-              @keydown.escape.stop="showAddExisting = false"
-            />
-            <ul class="add-existing-list">
-              <li v-if="eligibleExistingTasks.length === 0" class="add-existing-empty">No matching tasks.</li>
-              <li v-for="t in eligibleExistingTasks" :key="t.id">
-                <button
-                  type="button"
-                  class="add-existing-option"
-                  :disabled="subtaskActionBusy"
-                  @click="addExistingSubtask(t)"
-                >
-                  <span class="subtask-name">#{{ t.id }} - {{ t.name }}</span>
-                  <span class="subtask-minutes">{{ hoursFor(t.estimatedMinutes) }}</span>
-                </button>
-              </li>
-            </ul>
           </div>
         </div>
         </div>
@@ -747,13 +660,11 @@ function handleOverlayClick(event) {
     @submit="handleCreateSubtaskSubmit"
   />
 
-  <ChoiceDialog
-    v-if="pendingRelink"
-    title="Task already linked to a planner entry"
-    :message="`'${pendingRelink.task.name}' is linked to ${pendingRelink.entries.length > 1 ? 'planner entries' : 'a planner entry'}. Move it into this group and re-link ${pendingRelink.entries.length > 1 ? 'those entries' : 'that entry'} to the group instead?`"
-    :actions="[{ value: 'relink', label: 'Move & re-link', variant: 'default' }]"
-    @choose="confirmRelink"
-    @close="cancelRelink"
+  <SubtaskPickerModal
+    v-if="showSubtaskPicker"
+    :group-task="props.task"
+    @applied="handleSubtasksPicked"
+    @close="showSubtaskPicker = false"
   />
 
   <ChoiceDialog
@@ -1239,57 +1150,6 @@ input[type='date'] {
 .subtask-action-btn:hover {
   border-color: #3b82f6;
   color: #3b82f6;
-}
-
-.add-existing-panel {
-  margin-top: 0.6rem;
-  padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background-soft);
-}
-
-.add-existing-search {
-  width: 100%;
-  margin-bottom: 0.4rem;
-}
-
-.add-existing-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 9rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.add-existing-empty {
-  font-size: 0.8rem;
-  color: var(--color-text);
-  opacity: 0.6;
-  padding: 0.3rem;
-}
-
-.add-existing-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--color-text);
-  font-family: inherit;
-  font-size: 0.83rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.add-existing-option:hover {
-  background: var(--color-background);
 }
 
 .tag-chips {

@@ -11,8 +11,8 @@ import {
   subtasksOf,
   deriveTaskStatus,
   taskUpdatePayload,
-  isOverdue,
 } from '@/utils/taskStats'
+import { buildTaskFilterCategories, taskMatchesFilters } from '@/utils/taskFilters'
 import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
@@ -45,44 +45,6 @@ const SORT_OPTIONS = [
 const PRIORITY_RANK = { High: 0, Medium: 1, Low: 2, None: 3 }
 const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
 
-// Each category is single-select with an "all" option meaning that category
-// imposes no restriction - a task only has to clear every category to show.
-// Adding a new filterable attribute later is just another entry here, not a
-// rework of the filter UI itself. Status/Priority are fixed; Tags is
-// data-driven (see FILTER_CATEGORIES below), since the tag catalog changes
-// at runtime.
-const BASE_FILTER_CATEGORIES = [
-  {
-    key: 'status',
-    label: 'Status',
-    options: [
-      { value: 'all', label: 'All' },
-      { value: 'Backlog', label: STATUS_LABELS.Backlog },
-      { value: 'Ready', label: STATUS_LABELS.Ready },
-      { value: 'InProgress', label: STATUS_LABELS.InProgress },
-      { value: 'Done', label: STATUS_LABELS.Done },
-    ],
-  },
-  {
-    key: 'priority',
-    label: 'Priority',
-    options: [
-      { value: 'all', label: 'All' },
-      { value: 'None', label: 'None' },
-      { value: 'Low', label: 'Low' },
-      { value: 'Medium', label: 'Medium' },
-      { value: 'High', label: 'High' },
-    ],
-  },
-  {
-    key: 'overdue',
-    label: 'Overdue',
-    options: [
-      { value: 'all', label: 'All' },
-      { value: 'yes', label: 'Overdue only' },
-    ],
-  },
-]
 const FILTERS_STORAGE_KEY = 'schedulePlanner.taskFilters'
 
 function loadSortBy() {
@@ -95,19 +57,7 @@ const tasksStore = useTasksStore()
 const tagsStore = useTagsStore()
 const { isNarrowViewport } = useAppShell()
 
-const FILTER_CATEGORIES = computed(() => [
-  ...BASE_FILTER_CATEGORIES,
-  {
-    key: 'tags',
-    label: 'Tags',
-    // Multiple tags selected here is an AND, not an OR - see matchesFilters.
-    multiSelect: true,
-    options: [
-      { value: 'all', label: 'All' },
-      ...tagsStore.tags.map((t) => ({ value: String(t.id), label: t.name })),
-    ],
-  },
-])
+const FILTER_CATEGORIES = computed(() => buildTaskFilterCategories(tagsStore.tags))
 
 function loadFiltersFrom(categories, existing = {}) {
   let stored
@@ -259,19 +209,7 @@ function compareTasks(a, b) {
 }
 
 function matchesFilters(task) {
-  const f = filters.value
-  if ((f.status ?? 'all') !== 'all' && task.status !== f.status) return false
-  if ((f.priority ?? 'all') !== 'all' && task.priority !== f.priority) return false
-  if ((f.overdue ?? 'all') === 'yes' && !isOverdue(task)) return false
-  // AND, not OR - a task has to carry every selected tag, not just one of them.
-  const selectedTags = Array.isArray(f.tags) ? f.tags : []
-  if (selectedTags.length > 0) {
-    const taskTagIds = new Set((task.tags || []).map((t) => String(t.id)))
-    if (!selectedTags.every((id) => taskTagIds.has(id))) return false
-  }
-  const q = searchQuery.value.trim().toLowerCase()
-  if (q && !task.name.toLowerCase().includes(q) && !String(task.id).includes(q)) return false
-  return true
+  return taskMatchesFilters(task, filters.value, searchQuery.value)
 }
 
 // Subtasks never appear as their own top-level cards - they render nested
