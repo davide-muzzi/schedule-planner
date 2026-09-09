@@ -16,6 +16,14 @@ This is a single-user, no-login personal tool, not a multi-tenant product.
 - **Planner** — a Monday–Sunday timeline view (configurable visible days
   and hour range) with drag-to-create, drag-to-resize/move, copy/paste a
   day's entries, and per-day/per-week goal-diff indicators.
+- **Tasks** — a Backlog/Ready/InProgress/Done Kanban board for one-off
+  tasks and multi-subtask Groups, with priorities, tags, colors, due dates
+  (with a relative countdown), search/sort/filtering, and an expandable
+  detail view (a wider side-by-side layout for Groups, with each subtask
+  itself expandable). A task's status follows its Planner links automatically
+  — Backlog while unscheduled, Ready/InProgress once linked to an entry,
+  depending on whether that entry has started — and its detail view can jump
+  straight to whichever linked entry is running now or coming up next.
 - **Overview** — year-to-date stats: hours per week, average by weekday,
   balance trend, a breakdown of time by entry type, and a GitHub-style
   tracking-streak grid.
@@ -43,9 +51,9 @@ backend/
   SchedulePlanner.Tests/    # xUnit test suite
 frontend/
   src/
-    views/                  # Planner, Overview, Weather, Settings
-    components/             # DayTable, WeekSummary, charts, modals, etc.
-    stores/                 # Pinia store (scheduleStore.js)
+    views/                  # Planner, Tasks, Overview, Weather, Settings
+    components/             # DayTable, WeekSummary, TaskCard, charts, modals, etc.
+    stores/                 # Pinia stores (scheduleStore, tasksStore, tagsStore)
     composables/            # shared reactive state (app shell chrome, weather, etc.)
 deploy/                     # Raspberry Pi deployment guide + systemd service template
 ```
