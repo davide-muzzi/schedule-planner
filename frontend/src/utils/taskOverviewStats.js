@@ -1,4 +1,4 @@
-import { realMinutesForTask } from './taskStats'
+import { realMinutesForTask, plannedMinutesForGroup } from './taskStats'
 
 // Every card on the Tasks board is one countable "task" - a standalone task
 // or a Group. Subtasks live inside a card rather than being cards of their
@@ -74,7 +74,11 @@ export function taskEstimateAccuracy(tasks, entries) {
   for (const task of tasks) {
     const real = realMinutesForTask(entries, task.id)
     if (real <= 0) continue
-    estimatedMinutes += task.estimatedMinutes
+    // A Group's own estimatedMinutes is always 0 server-side - its real
+    // estimate is the live sum of its subtasks (see plannedMinutesForGroup).
+    // Using the raw 0 here would inject a phantom diff for any Group with
+    // real time logged directly against it.
+    estimatedMinutes += task.taskType === 'Group' ? plannedMinutesForGroup(tasks, task.id) : task.estimatedMinutes
     realMinutes += real
   }
 
