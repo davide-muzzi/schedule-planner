@@ -35,6 +35,7 @@ const emit = defineEmits([
   'paste-entries',
   'entry-right-drag-start',
   'view-task',
+  'resize-linked-entries',
 ])
 
 const { isNarrowViewport } = useAppShell()
@@ -306,6 +307,18 @@ const dragPreviewEnd = ref(0)
 const dragGrabOffsetHours = ref(0) // move only: time-under-cursor minus entry.start at mousedown
 const dragMoved = ref(false) // move/resize only: whether the pointer actually moved this gesture
 
+// resize-start/resize-end only: the neighbor exactly touching the edge being
+// dragged (if any), captured once at mousedown - not re-detected mid-drag.
+// While Shift is held, that shared boundary moves both entries together
+// instead of the dragged edge just stopping at it. dragLinkedFixedEdge is
+// the neighbor's own opposite edge, which never moves during this gesture.
+const dragLinkedEntry = ref(null)
+const dragLinkedFixedEdge = ref(0)
+// Live "is the shift-link actually in effect right now" - recomputed every
+// mousemove (Shift can be pressed/released mid-drag, same as Ctrl already
+// can), driving both the live preview and what gets saved at drag end.
+const dragShiftHeld = ref(false)
+
 const MIN_DURATION_HOURS = 1 / 60
 
 function clamp(value, min, max) {
@@ -439,6 +452,13 @@ function effectiveRange(entry) {
   if (dragEntry.value?.id === entry.id && dragMode.value && dragMode.value !== 'create') {
     return { start: dragPreviewStart.value, end: dragPreviewEnd.value }
   }
+  // The shift-linked neighbor's touching edge always mirrors the dragged
+  // entry's corresponding preview value; its far edge is fixed for the gesture.
+  if (dragShiftHeld.value && dragLinkedEntry.value?.id === entry.id) {
+    return dragMode.value === 'resize-end'
+      ? { start: dragPreviewEnd.value, end: dragLinkedFixedEdge.value }
+      : { start: dragLinkedFixedEdge.value, end: dragPreviewStart.value }
+  }
   if (pendingOverrides[entry.id]) return pendingOverrides[entry.id]
   return entryRange(entry)
 }
@@ -548,6 +568,16 @@ function handleEdgeMouseDown(event, entry, edge) {
   dragPreviewEnd.value = end
   dragMoved.value = false
   hoveredEntry.value = null
+
+  const neighbor = timedEntries.value.find((other) => {
+    if (other.id === entry.id) return false
+    const r = entryRange(other)
+    return edge === 'end' ? r.start === end : r.end === start
+  })
+  dragLinkedEntry.value = neighbor || null
+  dragLinkedFixedEdge.value = neighbor ? (edge === 'end' ? entryRange(neighbor).end : entryRange(neighbor).start) : 0
+  dragShiftHeld.value = false
+
   startDragListeners()
 }
 
@@ -568,11 +598,32 @@ function handleDragMove(event) {
       dragPreviewStart.value = clampToNearestEntry(snapped, dragAnchorHours.value, null)
     }
   } else if (dragMode.value === 'resize-start') {
-    const magnet = clampToNearestEntry(snapped, entryRange(dragEntry.value).start, dragEntry.value.id)
-    dragPreviewStart.value = Math.min(magnet, dragPreviewEnd.value - MIN_DURATION_HOURS)
+    dragShiftHeld.value = !!dragLinkedEntry.value && event.shiftKey
+    if (dragShiftHeld.value) {
+      // Shared-boundary move: bounded by the linked neighbor keeping its own
+      // minimum duration on one side, and this entry keeping its own on the
+      // other - no need to scan past it, its own far edge is fixed.
+      dragPreviewStart.value = clamp(
+        snapped,
+        dragLinkedFixedEdge.value + MIN_DURATION_HOURS,
+        dragPreviewEnd.value - MIN_DURATION_HOURS,
+      )
+    } else {
+      const magnet = clampToNearestEntry(snapped, entryRange(dragEntry.value).start, dragEntry.value.id)
+      dragPreviewStart.value = Math.min(magnet, dragPreviewEnd.value - MIN_DURATION_HOURS)
+    }
   } else if (dragMode.value === 'resize-end') {
-    const magnet = clampToNearestEntry(snapped, entryRange(dragEntry.value).end, dragEntry.value.id)
-    dragPreviewEnd.value = Math.max(magnet, dragPreviewStart.value + MIN_DURATION_HOURS)
+    dragShiftHeld.value = !!dragLinkedEntry.value && event.shiftKey
+    if (dragShiftHeld.value) {
+      dragPreviewEnd.value = clamp(
+        snapped,
+        dragPreviewStart.value + MIN_DURATION_HOURS,
+        dragLinkedFixedEdge.value - MIN_DURATION_HOURS,
+      )
+    } else {
+      const magnet = clampToNearestEntry(snapped, entryRange(dragEntry.value).end, dragEntry.value.id)
+      dragPreviewEnd.value = Math.max(magnet, dragPreviewStart.value + MIN_DURATION_HOURS)
+    }
   } else if (dragMode.value === 'move') {
     const { start: origStart, end: origEnd } = entryRange(dragEntry.value)
     const duration = origEnd - origStart
@@ -591,9 +642,13 @@ function handleDragEnd() {
   const entry = dragEntry.value
   const start = dragPreviewStart.value
   const end = dragPreviewEnd.value
+  const linked = dragShiftHeld.value ? dragLinkedEntry.value : null
+  const linkedFixedEdge = dragLinkedFixedEdge.value
 
   dragMode.value = null
   dragEntry.value = null
+  dragLinkedEntry.value = null
+  dragShiftHeld.value = false
 
   if (mode === 'create') {
     let rangeStart = start
@@ -624,6 +679,29 @@ function handleDragEnd() {
   const original = entryRange(entry)
   const changed = Math.abs(start - original.start) > 1e-6 || Math.abs(end - original.end) > 1e-6
   if (!changed) return
+
+  if (linked) {
+    // Shared-boundary resize: derive the linked neighbor's own new range
+    // from the same boundary (its far edge never moved), then save
+    // whichever side shrank before the side that grew - the backend
+    // rejects a range that overlaps a neighbor still sitting in the space
+    // it's about to grow into.
+    const boundary = mode === 'resize-end' ? end : start
+    const linkedRange =
+      mode === 'resize-end' ? { start: boundary, end: linkedFixedEdge } : { start: linkedFixedEdge, end: boundary }
+    const entryGrew = end - start > original.end - original.start + 1e-6
+    const entryUpdate = { id: entry.id, startTime: hoursToTimeString(start), endTime: hoursToTimeString(end) }
+    const linkedUpdate = {
+      id: linked.id,
+      startTime: hoursToTimeString(linkedRange.start),
+      endTime: hoursToTimeString(linkedRange.end),
+    }
+    setPendingOverride(entry.id, start, end)
+    setPendingOverride(linked.id, linkedRange.start, linkedRange.end)
+    emit('resize-linked-entries', entryGrew ? linkedUpdate : entryUpdate, entryGrew ? entryUpdate : linkedUpdate)
+    return
+  }
+
   if (hasOverlap(start, end, entry.id)) {
     showToast('This time range overlaps with an existing entry.')
     return
@@ -755,17 +833,25 @@ function entryRightLabel(entry) {
   return `${duration} (${range})`
 }
 
-// Same as entryRightLabel, but while this entry is being moved/resized it
-// reads from the live drag preview instead of the entry's saved times, so
-// the label updates in real time as you drag.
-function blockTimeLabel(entry) {
+// Whether `entry` currently has a live drag preview to show instead of its
+// saved times - either it's the block actually being moved/resized, or it's
+// the shift-linked neighbor riding along with a shared-boundary resize.
+function isLiveDragTarget(entry) {
   const isDraggingThis =
     dragEntry.value?.id === entry.id &&
     (dragMode.value === 'move' || dragMode.value === 'resize-start' || dragMode.value === 'resize-end')
-  if (!isDraggingThis) return entryRightLabel(entry)
+  const isLinkedNeighbor = dragShiftHeld.value && dragLinkedEntry.value?.id === entry.id
+  return isDraggingThis || isLinkedNeighbor
+}
 
-  const duration = formatBlockDuration(dragPreviewEnd.value - dragPreviewStart.value)
-  const range = `${hoursToTimeString(dragPreviewStart.value)}-${hoursToTimeString(dragPreviewEnd.value)}`
+// Same as entryRightLabel, but while this entry has a live drag preview it
+// reads from that instead of the entry's saved times, so the label updates
+// in real time as you drag.
+function blockTimeLabel(entry) {
+  if (!isLiveDragTarget(entry)) return entryRightLabel(entry)
+  const { start, end } = effectiveRange(entry)
+  const duration = formatBlockDuration(end - start)
+  const range = `${hoursToTimeString(start)}-${hoursToTimeString(end)}`
   return `${duration} (${range})`
 }
 
@@ -774,11 +860,8 @@ function blockTimeLabel(entry) {
 // duration as blockTimeLabel, just without the start-end range alongside it.
 function blockMobileLabel(entry) {
   if (entry.allDay) return `${blockTitleLabel(entry)} (All Day)`
-  const isDraggingThis =
-    dragEntry.value?.id === entry.id &&
-    (dragMode.value === 'move' || dragMode.value === 'resize-start' || dragMode.value === 'resize-end')
-  const hours = isDraggingThis
-    ? dragPreviewEnd.value - dragPreviewStart.value
+  const hours = isLiveDragTarget(entry)
+    ? effectiveRange(entry).end - effectiveRange(entry).start
     : durationHours(entry.startTime, entry.endTime)
   return `${blockTitleLabel(entry)} (${formatBlockDuration(hours)})`
 }

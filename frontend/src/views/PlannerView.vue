@@ -425,6 +425,43 @@ async function handleResizeEntry(id, startTime, endTime) {
   }
 }
 
+// Shift-linked edge resize: the shared boundary between two touching
+// entries moved, so one shrank and the other grew by the same amount.
+async function handleResizeLinkedEntries(shrink, grow) {
+  const shrinkEntry = store.entries.find((e) => e.id === shrink.id)
+  const growEntry = store.entries.find((e) => e.id === grow.id)
+  if (!shrinkEntry || !growEntry) return
+  const shrinkPrevious = entryPayload(shrinkEntry)
+  const growPrevious = entryPayload(growEntry)
+  try {
+    // Shrink first - the backend rejects the growing side's update while
+    // the shrinking side still occupies the space it's about to grow into.
+    await store.updateEntry(shrink.id, {
+      ...shrinkPrevious,
+      startTime: `${shrink.startTime}:00`,
+      endTime: `${shrink.endTime}:00`,
+    })
+    await store.updateEntry(grow.id, { ...growPrevious, startTime: `${grow.startTime}:00`, endTime: `${grow.endTime}:00` })
+    showToast('Entries updated.', {
+      variant: 'warn',
+      duration: 6000,
+      actionLabel: 'Undo',
+      onAction: async () => {
+        try {
+          // Same shrink-then-grow ordering, roles swapped: whichever side
+          // grew has to shrink back to its original size first.
+          await store.updateEntry(grow.id, growPrevious)
+          await store.updateEntry(shrink.id, shrinkPrevious)
+        } catch {
+          showToast("Couldn't undo that edit.")
+        }
+      },
+    })
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  }
+}
+
 async function handleSubmit(payload) {
   saving.value = true
   modalError.value = null
@@ -613,6 +650,7 @@ async function confirmDeleteEntryAndTask() {
         @paste-entries="handlePasteEntries"
         @entry-right-drag-start="handleEntryRightDragStart"
         @view-task="handleViewTask"
+        @resize-linked-entries="handleResizeLinkedEntries"
       />
     </div>
 
