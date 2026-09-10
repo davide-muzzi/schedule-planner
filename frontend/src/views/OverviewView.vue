@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ChartColumn } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
-import { formatHours } from '@/utils/date'
+import { formatHours, getMonday, toISODate } from '@/utils/date'
 import {
   hoursTrackedInYear,
   daysWithEntriesInYear,
@@ -43,6 +44,7 @@ const STREAK_WEEKS = 52
 
 const store = useScheduleStore()
 const tasksStore = useTasksStore()
+const router = useRouter()
 const { isNarrowViewport } = useAppShell()
 
 const currentYear = computed(() => new Date().getFullYear())
@@ -142,6 +144,15 @@ const longestDayCaption = computed(() => {
   const label = date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   return day.workLocation ? `${label} · ${day.workLocation}` : label
 })
+
+// Same "jump to schedule" pattern TaskDetailModal's own goToSchedule uses -
+// opens the Planner already on the week containing this day.
+function goToLongestDay() {
+  const day = longestDayData.value
+  if (!day) return
+  const monday = getMonday(new Date(`${day.date}T00:00:00`))
+  router.push({ name: 'planner', query: { week: toISODate(monday) } })
+}
 </script>
 
 <template>
@@ -212,13 +223,20 @@ const longestDayCaption = computed(() => {
           <OverviewTrackingStreak :columns="streakColumns" />
         </div>
 
-        <div class="card">
+        <button
+          v-if="longestDayData"
+          type="button"
+          class="card longest-day-card clickable"
+          title="Go to this week in the Planner"
+          @click="goToLongestDay"
+        >
           <h2>Longest day</h2>
-          <template v-if="longestDayData">
-            <p class="longest-value">{{ formatHours(longestDayData.totalHours) }}</p>
-            <p class="longest-caption">{{ longestDayCaption }}</p>
-          </template>
-          <p v-else class="empty-state">No Working entries yet.</p>
+          <p class="longest-value">{{ formatHours(longestDayData.totalHours) }}</p>
+          <p class="longest-caption">{{ longestDayCaption }}</p>
+        </button>
+        <div v-else class="card longest-day-card">
+          <h2>Longest day</h2>
+          <p class="empty-state">No Working entries yet.</p>
         </div>
       </div>
     </div>
@@ -466,6 +484,26 @@ const longestDayCaption = computed(() => {
 .empty-state {
   font-size: 11.5px;
   color: var(--mute);
+}
+
+.longest-day-card {
+  width: 100%;
+}
+
+button.longest-day-card {
+  display: block;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.longest-day-card.clickable {
+  cursor: pointer;
+  transition: border-color 0.16s;
+}
+
+.longest-day-card.clickable:hover {
+  border-color: var(--accent);
 }
 
 .tasks-section {
