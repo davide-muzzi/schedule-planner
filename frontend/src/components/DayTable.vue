@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand } from '@lucide/vue'
-import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
+import { durationHours, timeToDecimalHours, formatHours, toISODate, hoursToTimeString, snapHours } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
@@ -22,6 +22,7 @@ const props = defineProps({
   isRightDragTarget: { type: Boolean, default: false }, // true while a right-click entry drag is hovering this day
   suppressContextMenu: { type: Boolean, default: false }, // true for a brief window right after a right-drag ends
   pasteSuccess: { type: Object, default: null }, // { date, id } - set by the parent right after a successful paste
+  rightDropPreview: { type: Object, default: null }, // { start, end } decimal hours - where a right-click entry drag would drop if released here right now
   tasks: { type: Array, default: () => [] },
 })
 
@@ -335,12 +336,6 @@ function hoursFromClientX(clientX) {
   return props.viewFromHour + fraction * rangeSpan.value
 }
 
-// Ctrl = 15min grid, otherwise 5min.
-function snapHours(hours, ctrlKey) {
-  const grid = ctrlKey ? 15 / 60 : 5 / 60
-  return Math.round(hours / grid) * grid
-}
-
 // Clamps a moving edge so it can never cross past the nearest existing
 // entry lying between `reference` (a fixed point that doesn't move during
 // this drag - the anchor for a create-drag, the entry's own untouched
@@ -401,13 +396,6 @@ function hasOverlap(start, end, excludeId) {
     const r = entryRange(e)
     return start < r.end && end > r.start
   })
-}
-
-function hoursToTimeString(hours) {
-  const totalMinutes = Math.round(hours * 60)
-  const h = Math.floor(totalMinutes / 60)
-  const m = totalMinutes % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 // Bridges the gap between letting go of a drag and the save round-trip
@@ -808,16 +796,31 @@ function blockStyle(entry) {
   }
 }
 
-// Live "start - end" readout for the in-progress create-drag ghost -
-// updates every mousemove same as the ghost's own position/width, since
-// both read off the same dragPreviewStart/End refs.
-const dragRangeLabel = computed(() =>
-  dragMode.value === 'create' ? `${hoursToTimeString(dragPreviewStart.value)} - ${hoursToTimeString(dragPreviewEnd.value)}` : '',
-)
+// The ghost preview shown on this day's track - either this day's own
+// in-progress create-drag, or (when neither is happening locally) an
+// incoming right-click entry drag that's currently hovering this day, drawn
+// from the parent via rightDropPreview. Only one can be active at a time:
+// a right-drag never sets dragMode locally, and a local create-drag means
+// nothing else can be hovering this day's track right now.
+const activeGhostRange = computed(() => {
+  if (dragMode.value === 'create') return { start: dragPreviewStart.value, end: dragPreviewEnd.value }
+  if (props.rightDropPreview) return props.rightDropPreview
+  return null
+})
+
+// Live "start - end" readout for the ghost above - updates every mousemove
+// same as the ghost's own position/width, since both read off the same
+// source.
+const dragRangeLabel = computed(() => {
+  const range = activeGhostRange.value
+  return range ? `${hoursToTimeString(range.start)} - ${hoursToTimeString(range.end)}` : ''
+})
 
 function ghostStyle() {
-  const clippedStart = Math.max(dragPreviewStart.value, props.viewFromHour)
-  const clippedEnd = Math.min(dragPreviewEnd.value, props.viewTillHour)
+  const range = activeGhostRange.value
+  if (!range) return {}
+  const clippedStart = Math.max(range.start, props.viewFromHour)
+  const clippedEnd = Math.min(range.end, props.viewTillHour)
   return {
     left: `${((clippedStart - props.viewFromHour) / rangeSpan.value) * 100}%`,
     width: `${((clippedEnd - clippedStart) / rangeSpan.value) * 100}%`,
@@ -1087,7 +1090,7 @@ const tooltipTimeText = computed(() => {
             </div>
             <StickyNote v-if="entry.notes" class="note-icon" :size="10" :title="entry.notes" />
           </div>
-          <div v-if="dragMode === 'create'" class="drag-ghost" :style="ghostStyle()">
+          <div v-if="activeGhostRange" class="drag-ghost" :style="ghostStyle()">
             <span class="drag-ghost-label">{{ dragRangeLabel }}</span>
           </div>
         </div>

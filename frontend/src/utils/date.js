@@ -54,6 +54,24 @@ export function timeToDecimalHours(timeStr) {
   return h + m / 60 + (s || 0) / 3600
 }
 
+// Decimal hours -> "HH:mm" (e.g. 9.5 -> "09:30") - the inverse of
+// timeToDecimalHours, used wherever a timeline pixel position needs to
+// become a savable time string.
+export function hoursToTimeString(hours) {
+  const totalMinutes = Math.round(hours * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+// Snaps decimal hours to the nearest grid step - 15min with Ctrl held,
+// 5min otherwise. Shared by every timeline drag/drop interaction so they
+// all snap the same way.
+export function snapHours(hours, ctrlKey) {
+  const grid = ctrlKey ? 15 / 60 : 5 / 60
+  return Math.round(hours / grid) * grid
+}
+
 export function durationHours(startTime, endTime) {
   const start = timeToDecimalHours(startTime)
   const end = timeToDecimalHours(endTime)

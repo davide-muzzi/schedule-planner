@@ -5,7 +5,17 @@ import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
-import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend, timeToDecimalHours } from '@/utils/date'
+import {
+  getMonday,
+  addDays,
+  addWeeks,
+  toISODate,
+  durationHours,
+  isWeekend,
+  timeToDecimalHours,
+  hoursToTimeString,
+  snapHours,
+} from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
 import { taskUpdatePayload, enrichTaskForDetail } from '@/utils/taskStats'
 import { showToast } from '@/utils/toast'
@@ -328,12 +338,20 @@ async function handlePasteEntries(date) {
   }
 }
 
-// Right-click-drag an entry onto another day to copy it there at the exact
-// same time - a mouse-driven shortcut for the same copy the right-click menu
-// already offers. RIGHT_DRAG_THRESHOLD_PX is what tells a real drag apart
-// from a plain right click that's just opening that menu instead.
+// Right-click-drag an entry onto another day (or a different time on the
+// same day) to copy it there - a mouse-driven shortcut for the same copy
+// the right-click menu already offers, but with a live preview of exactly
+// where it'll land instead of always reusing the original time.
+// RIGHT_DRAG_THRESHOLD_PX is what tells a real drag apart from a plain
+// right click that's just opening that menu instead.
 const RIGHT_DRAG_THRESHOLD_PX = 6
 const rightDragHoverIso = ref(null)
+// { start, end } decimal hours - where a timed entry would land if dropped
+// right now. Passed down to whichever DayTable is currently hovered so it
+// can render the same drag-ghost preview a create-drag uses. Stays null for
+// an all-day entry (nothing to preview - it just targets a whole day) or
+// while hovering outside any timeline track (e.g. the day-info column).
+const rightDragPreviewRange = ref(null)
 
 // Unlike a native context menu, the browser doesn't suppress its own
 // `contextmenu` event just because a real drag happened - it still fires on
@@ -347,8 +365,16 @@ function dayIsoUnderPoint(x, y) {
   return document.elementFromPoint(x, y)?.closest('[data-date]')?.dataset.date ?? null
 }
 
+// The timeline track element under the point, if any - distinct from
+// dayIsoUnderPoint's `[data-date]` (which also covers the day-info column
+// to its left, where there's no time axis to preview a drop position on).
+function trackElUnderPoint(x, y) {
+  return document.elementFromPoint(x, y)?.closest('.hour-track') ?? null
+}
+
 function handleEntryRightDragStart(entry, startX, startY) {
   let dragging = false
+  const duration = entry.allDay ? 0 : durationHours(entry.startTime, entry.endTime)
 
   function onMove(event) {
     if (!dragging) {
@@ -357,22 +383,45 @@ function handleEntryRightDragStart(entry, startX, startY) {
       document.body.style.cursor = 'copy'
     }
     rightDragHoverIso.value = dayIsoUnderPoint(event.clientX, event.clientY)
+
+    if (entry.allDay) return // no time axis to preview a drop position on
+    const track = trackElUnderPoint(event.clientX, event.clientY)
+    if (!track) {
+      rightDragPreviewRange.value = null
+      return
+    }
+    const rect = track.getBoundingClientRect()
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    const raw = store.viewFromHour + fraction * (store.viewTillHour - store.viewFromHour)
+    const snapped = snapHours(raw, event.ctrlKey)
+    const start = Math.min(Math.max(snapped, store.viewFromHour), store.viewTillHour - duration)
+    rightDragPreviewRange.value = { start, end: start + duration }
   }
 
   async function onUp(event) {
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onUp)
     document.body.style.cursor = ''
+    const targetIso = rightDragHoverIso.value
+    const previewRange = rightDragPreviewRange.value
     rightDragHoverIso.value = null
+    rightDragPreviewRange.value = null
     if (!dragging) return
     suppressNextContextMenu.value = true
     setTimeout(() => {
       suppressNextContextMenu.value = false
     }, 300)
-    const targetIso = dayIsoUnderPoint(event.clientX, event.clientY)
     if (!targetIso) return
     const targetDate = new Date(`${targetIso}T00:00:00`)
-    const { id: _id, date: _date, ...payload } = entry
+    const { id: _id, date: _date, ...rest } = entry
+    // Falls back to the entry's original time when the drop happened
+    // somewhere in the day's row but off the actual timeline track (e.g.
+    // the day-info column) - same as the old fixed-time behavior, so
+    // releasing there still pastes rather than silently doing nothing.
+    const payload =
+      entry.allDay || !previewRange
+        ? rest
+        : { ...rest, startTime: `${hoursToTimeString(previewRange.start)}:00`, endTime: `${hoursToTimeString(previewRange.end)}:00` }
     if (entryOverlapsDate(payload, targetDate)) {
       showToast('This time range overlaps with an existing entry.')
       return
@@ -742,6 +791,7 @@ async function confirmDeleteEntryAndTask() {
         :entry-type-colors="store.entryTypeColors"
         :has-copied-day="!!copiedDayEntries"
         :is-right-drag-target="rightDragHoverIso === toISODate(date)"
+        :right-drop-preview="rightDragHoverIso === toISODate(date) ? rightDragPreviewRange : null"
         :suppress-context-menu="suppressNextContextMenu"
         :paste-success="pasteSuccess"
         :tasks="tasksStore.tasks"
