@@ -624,14 +624,16 @@ async function handleUpdateTags(target, tagIds) {
         </select>
       </label>
 
-      <div class="kanban-board">
+      <div class="kanban-board" :class="{ 'kanban-board-single': isNarrowViewport }">
         <div v-for="status in visibleColumnStatuses" :key="status" class="kanban-column">
+        <template v-if="!isNarrowViewport">
         <header class="kanban-column-header">
           <span class="kanban-dot" :class="'dot-' + status"></span>
           <h2 class="kanban-column-title">{{ STATUS_LABELS[status] }}</h2>
           <span class="kanban-column-count">{{ columnLists[status].length }}</span>
         </header>
         <p class="kanban-column-hint">{{ STATUS_HINTS[status] }}</p>
+        </template>
 
         <div class="kanban-drop-zone">
           <TaskCard
@@ -1021,8 +1023,22 @@ async function handleUpdateTags(target, tagIds) {
      outside the card (right: -8px) - harmless in the old CSS grid, but the
      last column now sits flush against this scroll container's edge, so
      without this the poke itself counted as overflow and tripped the
-     scrollbar for no visible reason. Padding (not content) absorbs it. */
-  padding: 0 12px 8px 0;
+     scrollbar for no visible reason. Only as much as the poke actually
+     needs, and only on the right (it never pokes left) - no reason to
+     shrink the usable card width on both sides for a one-sided badge. */
+  padding: 0 8px 8px 0;
+}
+
+/* On mobile there's only ever one column (visibleColumnStatuses), which
+   already stretches to fill the board's full width with no horizontal
+   overflow ever possible - the board's own right padding above exists
+   purely to protect the *last* of several side-by-side columns from the
+   board's horizontal scrollbar, which doesn't apply here. Left on, it just
+   stacks on top of .kanban-drop-zone's own right padding (needed either
+   way, for that column's vertical scrollbar) and visibly shifts the cards
+   left of where the header controls above them line up. */
+.kanban-board-single {
+  padding-right: 0;
 }
 
 .kanban-column {
@@ -1103,7 +1119,8 @@ async function handleUpdateTags(target, tagIds) {
      (per the CSS Overflow spec), so it needs the same quick-delete-badge
      headroom .kanban-board's own padding comment explains above - every
      card's badge pokes -8px top/right of its own box, not just the last
-     column's edge, once each column is its own scroll boundary. */
+     column's edge, once each column is its own scroll boundary. Only on
+     the right (it never pokes left) - see .kanban-board's own comment. */
   padding: 8px 8px 8px 0;
 }
 
