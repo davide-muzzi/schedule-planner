@@ -6,6 +6,7 @@ import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 import { showToast } from '@/utils/toast'
+import { entriesAreMergeable } from '@/utils/entryMerge'
 import { useAppShell } from '@/composables/useAppShell'
 
 const props = defineProps({
@@ -36,6 +37,8 @@ const emit = defineEmits([
   'entry-right-drag-start',
   'view-task',
   'resize-linked-entries',
+  'split-entry',
+  'merge-entries',
 ])
 
 const { isNarrowViewport } = useAppShell()
@@ -543,6 +546,10 @@ function handleBlockMouseDown(event, entry) {
   }
   if (event.button !== 0) return
   event.preventDefault()
+  if (event.altKey) {
+    handleAltClickSplit(event, entry)
+    return
+  }
   const { start, end } = entryRange(entry)
   dragMode.value = 'move'
   dragEntry.value = entry
@@ -556,6 +563,52 @@ function handleBlockMouseDown(event, entry) {
 
 function handleAllDayBlockMouseDown(event, entry) {
   if (event.button === 2) emit('entry-right-drag-start', entry, event.clientX, event.clientY)
+}
+
+// Alt+click splits the entry at the clicked time instead of starting a
+// move-drag - resolves entirely on mousedown, no drag listeners started.
+// Ctrl still applies its usual 15min-grid snap. Uses the entry's real
+// stored times (timeToDecimalHours on startTime/endTime directly), not
+// entryRange() - that helper's 15-minute visual-floor (so sub-15-min
+// entries stay clickable on the timeline) would let a computed split point
+// land past a genuinely-short entry's real end, growing it instead of
+// splitting it.
+function handleAltClickSplit(event, entry) {
+  const start = timeToDecimalHours(entry.startTime) ?? 0
+  const end = timeToDecimalHours(entry.endTime) ?? start
+  if (end - start < 2 * MIN_DURATION_HOURS) {
+    showToast('This entry is too short to split.')
+    return
+  }
+  const snapped = snapHours(hoursFromClientX(event.clientX), event.ctrlKey)
+  const splitPoint = clamp(snapped, start + MIN_DURATION_HOURS, end - MIN_DURATION_HOURS)
+  emit('split-entry', entry.id, hoursToTimeString(splitPoint))
+}
+
+// Alt+Right-click on an edge attempts a merge with whichever entry touches
+// it; a plain right-click on an edge keeps the normal context menu (falls
+// through to the same handler the block body uses). Touching is checked via
+// exact string equality on the stored time fields, not decimal-hour math -
+// sidesteps entryRange's 15-minute visual-floor entirely, which has no
+// business affecting a real data comparison like this one.
+function handleEdgeContextMenu(event, entry, edge) {
+  if (!event.altKey) {
+    handleEntryContextMenu(event, entry)
+    return
+  }
+  const neighbor = timedEntries.value.find((other) => {
+    if (other.id === entry.id) return false
+    return edge === 'end' ? other.startTime === entry.endTime : other.endTime === entry.startTime
+  })
+  if (!neighbor) {
+    showToast("There's no entry touching this edge.")
+    return
+  }
+  if (!entriesAreMergeable(entry, neighbor)) {
+    showToast("These entries aren't both linked to the same task, so they can't be merged.")
+    return
+  }
+  emit('merge-entries', entry.id, neighbor.id)
 }
 
 function handleEdgeMouseDown(event, entry, edge) {
@@ -1012,11 +1065,13 @@ const tooltipTimeText = computed(() => {
               class="resize-handle left"
               :class="{ active: dragMode === 'resize-start' && dragEntry?.id === entry.id }"
               @mousedown.stop="handleEdgeMouseDown($event, entry, 'start')"
+              @contextmenu.prevent.stop="handleEdgeContextMenu($event, entry, 'start')"
             ></div>
             <div
               class="resize-handle right"
               :class="{ active: dragMode === 'resize-end' && dragEntry?.id === entry.id }"
               @mousedown.stop="handleEdgeMouseDown($event, entry, 'end')"
+              @contextmenu.prevent.stop="handleEdgeContextMenu($event, entry, 'end')"
             ></div>
             <div class="block-content">
               <template v-if="!isNarrowViewport">

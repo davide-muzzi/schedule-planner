@@ -33,25 +33,30 @@ const store = useScheduleStore()
 const tasksStore = useTasksStore()
 const { isNarrowViewport } = useAppShell()
 
-// Visual cue for Ctrl (15min snap) / Shift (linked-edge resize) while
-// dragging on the timeline below - tracked globally via keydown/keyup
-// rather than read off drag events, so it's visible the instant a key goes
-// down even before the pointer moves again. `blur` clears both: alt-tabbing
-// away (or anything else that steals focus) mid-hold never fires a keyup,
-// which would otherwise leave a stuck "held" indicator.
+// Visual cue for Ctrl (15min snap) / Shift (linked-edge resize) / Alt
+// (split a body click, merge an edge right-click) while interacting with
+// the timeline below - tracked globally via keydown/keyup rather than read
+// off drag events, so it's visible the instant a key goes down even before
+// the pointer moves again. `blur` clears all three: alt-tabbing away (or
+// anything else that steals focus) mid-hold never fires a keyup, which
+// would otherwise leave a stuck "held" indicator.
 const ctrlHeld = ref(false)
 const shiftHeld = ref(false)
+const altHeld = ref(false)
 function handleModifierKeydown(event) {
   if (event.key === 'Control') ctrlHeld.value = true
   if (event.key === 'Shift') shiftHeld.value = true
+  if (event.key === 'Alt') altHeld.value = true
 }
 function handleModifierKeyup(event) {
   if (event.key === 'Control') ctrlHeld.value = false
   if (event.key === 'Shift') shiftHeld.value = false
+  if (event.key === 'Alt') altHeld.value = false
 }
 function clearHeldModifiers() {
   ctrlHeld.value = false
   shiftHeld.value = false
+  altHeld.value = false
 }
 onMounted(() => {
   window.addEventListener('keydown', handleModifierKeydown)
@@ -493,6 +498,75 @@ async function handleResizeLinkedEntries(shrink, grow) {
   }
 }
 
+// Alt+click split - guards against a second alt+click landing on the same
+// entry while the first split's two awaited store calls are still in
+// flight, which would otherwise re-read the pre-split entry and could
+// double-split it.
+const splitsInFlight = new Set()
+
+async function handleSplitEntry(id, splitTime) {
+  if (splitsInFlight.has(id)) return
+  splitsInFlight.add(id)
+  const entry = store.entries.find((e) => e.id === id)
+  if (!entry) {
+    splitsInFlight.delete(id)
+    return
+  }
+  const previousPayload = entryPayload(entry)
+  try {
+    const result = await store.splitEntry(id, `${splitTime}:00`)
+    if (!result || !result.second) return // total failure, or partial failure already toasted by the store
+    showToast('Entry split.', {
+      variant: 'warn',
+      duration: 6000,
+      actionLabel: 'Undo',
+      onAction: async () => {
+        try {
+          await store.deleteEntry(result.second.id)
+          await store.updateEntry(result.first.id, previousPayload)
+        } catch {
+          showToast("Couldn't undo that split.")
+        }
+      },
+    })
+  } catch {
+    // store.error is already set; the global error banner picks it up
+  } finally {
+    splitsInFlight.delete(id)
+  }
+}
+
+// Alt+Right-click on a shared edge - manual merge, not automatic.
+async function handleMergeEntries(entryId, neighborId) {
+  const entry = store.entries.find((e) => e.id === entryId)
+  const neighbor = store.entries.find((e) => e.id === neighborId)
+  if (!entry || !neighbor) return
+  const entryPrevious = entryPayload(entry)
+  const neighborPrevious = entryPayload(neighbor)
+  try {
+    await store.mergeEntries(entryId, neighborId)
+    showToast('Entries merged.', {
+      variant: 'warn',
+      duration: 6000,
+      actionLabel: 'Undo',
+      onAction: async () => {
+        try {
+          // Shrink the survivor back to its original range first (safe -
+          // nothing occupies the vacated space yet), then recreate the
+          // deleted neighbor (also safe, exactly touching the now-shrunk
+          // survivor).
+          await store.updateEntry(entryId, entryPrevious)
+          await store.createEntry(neighborPrevious)
+        } catch {
+          showToast("Couldn't undo that merge.")
+        }
+      },
+    })
+  } catch (err) {
+    showToast(err.message || "Couldn't merge those entries.")
+  }
+}
+
 async function handleSubmit(payload) {
   saving.value = true
   modalError.value = null
@@ -682,6 +756,8 @@ async function confirmDeleteEntryAndTask() {
         @entry-right-drag-start="handleEntryRightDragStart"
         @view-task="handleViewTask"
         @resize-linked-entries="handleResizeLinkedEntries"
+        @split-entry="handleSplitEntry"
+        @merge-entries="handleMergeEntries"
       />
     </div>
 
@@ -745,9 +821,10 @@ async function confirmDeleteEntryAndTask() {
       @delete="goToTasksBoard"
     />
 
-    <div v-if="ctrlHeld || shiftHeld" class="modifier-overlay">
+    <div v-if="ctrlHeld || shiftHeld || altHeld" class="modifier-overlay">
       <span v-if="ctrlHeld" class="modifier-chip">Ctrl · 15m snap</span>
       <span v-if="shiftHeld" class="modifier-chip">Shift · Link edges</span>
+      <span v-if="altHeld" class="modifier-chip">Alt · Split / Merge edge</span>
     </div>
   </div>
 </template>
