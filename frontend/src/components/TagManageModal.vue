@@ -2,9 +2,17 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { X, Plus, Pencil, Check } from '@lucide/vue'
 import { useTagsStore } from '@/stores/tagsStore'
+import { useTasksStore } from '@/stores/tasksStore'
 
 const tagsStore = useTagsStore()
+const tasksStore = useTasksStore()
 const emit = defineEmits(['close'])
+
+// How many tasks currently carry this tag - shown so it's clear what
+// deleting a tag would affect before doing it.
+function usageCount(tagId) {
+  return tasksStore.tasks.filter((t) => (t.tags || []).some((tag) => tag.id === tagId)).length
+}
 
 const DEFAULT_COLOR = '#3b82f6'
 
@@ -126,6 +134,7 @@ function handleOverlayClick(event) {
           <template v-else>
             <span class="tag-swatch" :style="{ background: tag.color || 'var(--color-border)' }"></span>
             <span class="tag-name">{{ tag.name }}</span>
+            <span class="tag-usage-count">{{ usageCount(tag.id) }} task{{ usageCount(tag.id) === 1 ? '' : 's' }}</span>
             <button type="button" class="row-btn" title="Rename" aria-label="Rename" @click="startEdit(tag)">
               <Pencil :size="13" />
             </button>
@@ -240,6 +249,14 @@ function handleOverlayClick(event) {
   white-space: nowrap;
   font-size: 0.88rem;
   color: var(--color-text);
+}
+
+.tag-usage-count {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.55;
+  white-space: nowrap;
 }
 
 .tag-name-input {
