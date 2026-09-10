@@ -818,6 +818,7 @@ async function confirmDeleteEntryAndTask() {
         @resize-linked-entries="handleResizeLinkedEntries"
         @split-entry="handleSplitEntry"
         @merge-entries="handleMergeEntries"
+        @delete-entry="handleDelete"
       />
     </div>
 
@@ -839,6 +840,7 @@ async function confirmDeleteEntryAndTask() {
           <li><strong>Shift</strong> while resizing a touching edge - move both entries' shared edge together</li>
           <li><strong>Alt</strong> + click an entry - split it in two at that point</li>
           <li><strong>Alt</strong> + right-click an edge - merge with the entry touching it</li>
+          <li><strong>Middle-click</strong> an entry - delete it</li>
         </ul>
         <span v-if="hiddenWeekendLabel"
           >{{ hiddenWeekendLabel }} hidden in <RouterLink to="/settings" class="info-link">settings</RouterLink>.</span

@@ -41,6 +41,7 @@ const emit = defineEmits([
   'resize-linked-entries',
   'split-entry',
   'merge-entries',
+  'delete-entry',
 ])
 
 const { isNarrowViewport } = useAppShell()
@@ -510,6 +511,11 @@ function handleBlockMouseDown(event, entry) {
     emit('entry-right-drag-start', entry, event.clientX, event.clientY)
     return
   }
+  if (event.button === 1) {
+    event.preventDefault() // stops the browser's native middle-click autoscroll cursor
+    emit('delete-entry', entry.id)
+    return
+  }
   if (event.button !== 0) return
   event.preventDefault()
   if (event.altKey) {
@@ -528,7 +534,14 @@ function handleBlockMouseDown(event, entry) {
 }
 
 function handleAllDayBlockMouseDown(event, entry) {
-  if (event.button === 2) emit('entry-right-drag-start', entry, event.clientX, event.clientY)
+  if (event.button === 2) {
+    emit('entry-right-drag-start', entry, event.clientX, event.clientY)
+    return
+  }
+  if (event.button === 1) {
+    event.preventDefault()
+    emit('delete-entry', entry.id)
+  }
 }
 
 // Alt+click splits the entry at the clicked time instead of starting a
