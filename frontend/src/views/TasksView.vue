@@ -271,6 +271,27 @@ function handleDetailEdit(task) {
   openEdit(task)
 }
 
+// Removes a subtask from its group without opening the group's own edit
+// form - same "keep as standalone task" outcome TaskFormModal's per-subtask
+// remove button already offers, just reachable from the subtask's own
+// detail view too (including nested, when opened from inside its group's).
+// The detail modal(s) don't need to be told to close anything here - their
+// own subtasks-list watcher already does that once parentTaskId changes.
+async function handleDetailUnlink(id) {
+  const task = tasksStore.tasks.find((t) => t.id === id)
+  if (!task) return
+  saving.value = true
+  try {
+    const status = task.status === 'Done' ? 'Done' : 'Backlog'
+    await tasksStore.updateTask(id, taskUpdatePayload(task, { parentTaskId: null, status }))
+    showToast('Removed from group - kept as a standalone task.')
+  } catch {
+    showToast(tasksStore.error || "Couldn't unlink that task.")
+  } finally {
+    saving.value = false
+  }
+}
+
 async function handleSubmit(payload) {
   saving.value = true
   modalError.value = null
@@ -596,6 +617,7 @@ async function handleUpdateTags(target, tagIds) {
       @close="closeDetail"
       @edit="handleDetailEdit"
       @delete="requestDelete"
+      @unlink="handleDetailUnlink"
     />
 
     <TaskFilterModal

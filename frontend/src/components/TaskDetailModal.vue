@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { CalendarClock, CalendarDays, Expand, Pencil, X } from '@lucide/vue'
+import { CalendarClock, CalendarDays, Expand, Pencil, Unlink, X } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { formatHours, getMonday, toISODate } from '@/utils/date'
 import { dueCountdown, isOverdue } from '@/utils/taskStats'
@@ -15,12 +15,16 @@ const props = defineProps({
   subtasks: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['close', 'edit', 'delete'])
+const emit = defineEmits(['close', 'edit', 'delete', 'unlink'])
 
 const router = useRouter()
 const scheduleStore = useScheduleStore()
 
 const isGroup = computed(() => props.task.taskType === 'Group')
+
+// Only an actual subtask (grouped under some other task) has anything to
+// unlink - a Group or a standalone task's parentTaskId is always null.
+const isSubtask = computed(() => props.task.parentTaskId != null)
 
 // Ready/InProgress are the only statuses a linked task can have (Backlog
 // means unlinked, Done's entries are assumed past) - see deriveTaskStatus.
@@ -223,6 +227,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
             <CalendarClock :size="13" />
             {{ runningEntry ? 'View current entry' : upcomingEntry ? 'View next entry' : 'View last entry' }}
           </button>
+          <button v-if="isSubtask" type="button" class="detail-unlink-btn" @click="emit('unlink', task.id)">
+            <Unlink :size="13" /> Unlink
+          </button>
           <button type="button" class="detail-edit-btn" @click="emit('edit', task)"><Pencil :size="13" /> Edit</button>
         </footer>
       </div>
@@ -236,6 +243,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
     @close="nestedSubtask = null"
     @edit="(t) => emit('edit', t)"
     @delete="(id) => emit('delete', id)"
+    @unlink="(id) => emit('unlink', id)"
   />
 </template>
 
@@ -615,6 +623,29 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 .detail-goto-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.detail-unlink-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.detail-unlink-btn:hover {
+  color: var(--bad);
+  border-color: var(--bad);
 }
 
 .priority-dot {

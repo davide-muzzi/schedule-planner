@@ -889,6 +889,7 @@ async function confirmDeleteEntryAndTask() {
       @close="closeViewTask"
       @edit="goToTasksBoard"
       @delete="goToTasksBoard"
+      @unlink="goToTasksBoard"
     />
 
     <div v-if="ctrlHeld || shiftHeld || altHeld" class="modifier-overlay">
