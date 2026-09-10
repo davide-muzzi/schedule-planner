@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X, ChevronDown } from '@lucide/vue'
+import { X, ChevronDown, Unlink } from '@lucide/vue'
 import { toISODate } from '@/utils/date'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { useAppShell } from '@/composables/useAppShell'
@@ -365,7 +365,7 @@ function handleOverlayClick(event) {
               :disabled="form.entryType !== 'Working' || form.taskItemId === null"
               @click="unlinkTask"
             >
-              <X :size="14" />
+              <Unlink :size="14" />
             </button>
           </div>
         </div>
