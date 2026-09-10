@@ -266,11 +266,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 .detail-modal-wide {
   max-width: 46rem;
+  /* Capped well under the plain modal's 90vh - a Group with a long subtask
+     list scrolls that list internally (see .detail-subtask-list below)
+     instead of growing the whole modal to fit it. */
+  max-height: min(90vh, 44rem);
 }
 
 @media (max-width: 900px) {
   .detail-modal-wide {
     max-width: 30rem;
+    max-height: 90vh;
   }
 
   .detail-body-split {
@@ -452,11 +457,25 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   list-style: none;
   padding: 0;
   margin: 0;
+  /* Its own scroll boundary, independent of the rest of the modal - same
+     technique TaskFormModal's Group-editing view already uses for this same
+     column, rather than trying to make the grid row stretch to fill the
+     modal (which doesn't reliably resolve to a definite height when the
+     modal itself only has a max-height, not a fixed height - that's what
+     caused rows to collapse and overlap in an earlier pass at this). */
+  max-height: 24rem;
+  overflow-y: auto;
 }
 
 .detail-subtask-row {
   display: flex;
   align-items: stretch;
+  /* Refuses to shrink below its natural size - without this, a flex column
+     with a capped max-height (like .detail-subtask-list's) shrinks its
+     children to cram all of them in rather than letting the list overflow
+     and scroll, since this row's own overflow:hidden below removes the
+     default min-content protection that would normally stop that shrink. */
+  flex-shrink: 0;
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface2);
