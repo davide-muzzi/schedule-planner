@@ -831,17 +831,19 @@ async function confirmDeleteEntryAndTask() {
       </span>
     </div>
 
-    <div class="info-hint">
+    <div v-if="!isNarrowViewport || hiddenWeekendLabel" class="info-hint">
       <Info :size="14" class="info-hint-icon" />
       <div class="info-hint-body">
-        <span>Drag inside a track to sketch a new entry.</span>
-        <ul class="info-hint-shortcuts">
-          <li><strong>Ctrl</strong> while dragging - snap to 15 minutes instead of 5</li>
-          <li><strong>Shift</strong> while resizing a touching edge - move both entries' shared edge together</li>
-          <li><strong>Alt</strong> + click an entry - split it in two at that point</li>
-          <li><strong>Alt</strong> + right-click an edge - merge with the entry touching it</li>
-          <li><strong>Middle-click</strong> an entry - delete it</li>
-        </ul>
+        <template v-if="!isNarrowViewport">
+          <span>Drag inside a track to sketch a new entry.</span>
+          <ul class="info-hint-shortcuts">
+            <li><strong>Ctrl</strong> while dragging - snap to 15 minutes instead of 5</li>
+            <li><strong>Shift</strong> while resizing a touching edge - move both entries' shared edge together</li>
+            <li><strong>Alt</strong> + click an entry - split it in two at that point</li>
+            <li><strong>Alt</strong> + right-click an edge - merge with the entry touching it</li>
+            <li><strong>Middle-click</strong> an entry - delete it</li>
+          </ul>
+        </template>
         <span v-if="hiddenWeekendLabel"
           >{{ hiddenWeekendLabel }} hidden in <RouterLink to="/settings" class="info-link">settings</RouterLink>.</span
         >
