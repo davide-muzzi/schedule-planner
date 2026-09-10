@@ -22,6 +22,8 @@ import {
   overdueTaskCount,
   taskTimeByPriority,
   taskEstimateAccuracy,
+  tasksCreatedThisWeek,
+  tasksCompletedThisWeek,
 } from '@/utils/taskOverviewStats'
 import { taskAccuracyStatus } from '@/utils/status'
 import WeeklyBalanceModal from '@/components/WeeklyBalanceModal.vue'
@@ -85,6 +87,8 @@ const totalTasks = computed(
   () => taskCounts.value.backlog + taskCounts.value.ready + taskCounts.value.inProgress + taskCounts.value.done,
 )
 const overdueCount = computed(() => overdueTaskCount(tasksStore.tasks))
+const createdThisWeekCount = computed(() => tasksCreatedThisWeek(tasksStore.tasks))
+const completedThisWeekCount = computed(() => tasksCompletedThisWeek(tasksStore.tasks))
 const taskTimeByPriorityData = computed(() => taskTimeByPriority(tasksStore.tasks, store.entries))
 const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries))
 const taskDiffMinutes = computed(() =>
@@ -106,6 +110,8 @@ const taskStats = computed(() => {
   const cells = [
     { value: String(totalTasks.value), label: 'total tasks' },
     { value: String(taskCounts.value.done), label: 'completed tasks' },
+    { value: String(createdThisWeekCount.value), label: 'created this week' },
+    { value: String(completedThisWeekCount.value), label: 'completed this week' },
     { value: String(overdueCount.value), label: 'overdue tasks', status: overdueCount.value > 0 ? 'bad' : 'ok' },
   ]
   // Omitted rather than shown as "on target" until at least one task has

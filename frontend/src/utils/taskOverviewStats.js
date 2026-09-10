@@ -1,4 +1,5 @@
 import { realMinutesForTask, plannedMinutesForGroup } from './taskStats'
+import { getMonday } from './date'
 
 // Every card on the Tasks board is one countable "task" - a standalone task
 // or a Group. Subtasks live inside a card rather than being cards of their
@@ -37,6 +38,24 @@ export function overdueTaskCount(tasks) {
   return topLevelTasks(tasks).filter(
     (t) => t.dueDate && t.status !== 'Done' && new Date(`${t.dueDate}T00:00:00`) < today,
   ).length
+}
+
+// Monday 00:00 of the current week - same week-start convention as
+// everywhere else in this app (WeekSummary, weekly balance, etc.).
+function startOfThisWeek() {
+  const monday = getMonday(new Date())
+  monday.setHours(0, 0, 0, 0)
+  return monday
+}
+
+export function tasksCreatedThisWeek(tasks) {
+  const since = startOfThisWeek()
+  return topLevelTasks(tasks).filter((t) => t.createdAt && new Date(t.createdAt) >= since).length
+}
+
+export function tasksCompletedThisWeek(tasks) {
+  const since = startOfThisWeek()
+  return topLevelTasks(tasks).filter((t) => t.completedAt && new Date(t.completedAt) >= since).length
 }
 
 const PRIORITY_SEVERITY_ORDER = ['High', 'Medium', 'Low', 'None']

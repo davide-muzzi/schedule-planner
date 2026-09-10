@@ -3,7 +3,12 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Plus, SlidersHorizontal, X } from '@lucide/vue'
 import { useTagsStore } from '@/stores/tagsStore'
 import { formatHours } from '@/utils/date'
-import { buildTaskFilterCategories, defaultTaskFilters, taskMatchesFilters } from '@/utils/taskFilters'
+import {
+  buildTaskFilterCategories,
+  defaultTaskFilters,
+  taskMatchesFilters,
+  activeFilterCount as computeActiveFilterCount,
+} from '@/utils/taskFilters'
 import TaskFilterModal from './TaskFilterModal.vue'
 
 // Same search+filter picker TaskFormModal's "Add existing task" (subtask
@@ -22,13 +27,7 @@ const search = ref('')
 const showFilterModal = ref(false)
 const filterCategories = computed(() => buildTaskFilterCategories(tagsStore.tags))
 const filters = ref(defaultTaskFilters(filterCategories.value))
-const activeFilterCount = computed(
-  () =>
-    filterCategories.value.filter((c) => {
-      const v = filters.value[c.key]
-      return c.multiSelect ? Array.isArray(v) && v.length > 0 : (v ?? 'all') !== 'all'
-    }).length,
-)
+const activeFilterCount = computed(() => computeActiveFilterCount(filterCategories.value, filters.value))
 
 // Done tasks are finished work, not something a new link should point at -
 // but if this entry is already linked to one (marked Done after the link
@@ -39,8 +38,13 @@ const eligibleTasks = computed(() =>
   props.tasks.filter((t) => t.parentTaskId == null && (t.status !== 'Done' || t.id === props.selectedId)),
 )
 
+// The currently-linked task always stays visible regardless of filters -
+// same reasoning as eligibleTasks already keeping a Done one selectable
+// above: if it got filtered out here too (e.g. the new "hide old Done
+// tasks" default), reopening this picker would show a blank/missing
+// selection instead of what's actually linked.
 const filteredTasks = computed(() =>
-  eligibleTasks.value.filter((t) => taskMatchesFilters(t, filters.value, search.value)),
+  eligibleTasks.value.filter((t) => t.id === props.selectedId || taskMatchesFilters(t, filters.value, search.value)),
 )
 
 function hoursFor(minutes) {
@@ -112,6 +116,7 @@ function handleOverlayClick(event) {
       v-if="showFilterModal"
       :categories="filterCategories"
       :model-value="filters"
+      :tags="tagsStore.tags"
       @update:model-value="(v) => (filters = v)"
       @close="showFilterModal = false"
     />

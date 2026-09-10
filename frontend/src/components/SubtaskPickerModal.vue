@@ -5,7 +5,12 @@ import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { formatHours } from '@/utils/date'
-import { buildTaskFilterCategories, defaultTaskFilters, taskMatchesFilters } from '@/utils/taskFilters'
+import {
+  buildTaskFilterCategories,
+  defaultTaskFilters,
+  taskMatchesFilters,
+  activeFilterCount as computeActiveFilterCount,
+} from '@/utils/taskFilters'
 import TaskFilterModal from './TaskFilterModal.vue'
 import ChoiceDialog from './ChoiceDialog.vue'
 
@@ -28,13 +33,7 @@ const error = ref(null)
 const showFilterModal = ref(false)
 const filterCategories = computed(() => buildTaskFilterCategories(tagsStore.tags))
 const filters = ref(defaultTaskFilters(filterCategories.value))
-const activeFilterCount = computed(
-  () =>
-    filterCategories.value.filter((c) => {
-      const v = filters.value[c.key]
-      return c.multiSelect ? Array.isArray(v) && v.length > 0 : (v ?? 'all') !== 'all'
-    }).length,
-)
+const activeFilterCount = computed(() => computeActiveFilterCount(filterCategories.value, filters.value))
 
 // Plain, unattached tasks only - a Group can't itself become a subtask, and
 // anything already in a group needs removing from there first.
@@ -200,6 +199,7 @@ function handleOverlayClick(event) {
       v-if="showFilterModal"
       :categories="filterCategories"
       :model-value="filters"
+      :tags="tagsStore.tags"
       @update:model-value="(v) => (filters = v)"
       @close="showFilterModal = false"
     />

@@ -1,12 +1,18 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Plus, X, SlidersHorizontal, Tags, Search } from '@lucide/vue'
+import { Plus, X, SlidersHorizontal, Tags, Search, ListSortAscending, ListSortDescending } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { useAppShell } from '@/composables/useAppShell'
 import { subtasksOf, deriveTaskStatus, taskUpdatePayload, enrichTaskForDetail } from '@/utils/taskStats'
-import { buildTaskFilterCategories, taskMatchesFilters } from '@/utils/taskFilters'
+import {
+  buildTaskFilterCategories,
+  taskMatchesFilters,
+  activeFilterCount as computeActiveFilterCount,
+  DATE_FILTER_FIELDS,
+  defaultDateFilter,
+} from '@/utils/taskFilters'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import TaskFilterModal from '@/components/TaskFilterModal.vue'
@@ -32,11 +38,14 @@ const SORT_OPTIONS = [
   { value: 'name', label: 'Alphabetical' },
   { value: 'dueDate', label: 'Due date' },
   { value: 'priority', label: 'Priority' },
+  { value: 'createdAt', label: 'Created' },
+  { value: 'lastUpdatedAt', label: 'Last updated' },
 ]
 // Most urgent first - same severity ordering used for the priority
 // donut/chart on the Overview page.
 const PRIORITY_RANK = { High: 0, Medium: 1, Low: 2, None: 3 }
 const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
+const SORT_REVERSED_STORAGE_KEY = 'schedulePlanner.taskSortReversed'
 
 const FILTERS_STORAGE_KEY = 'schedulePlanner.taskFilters'
 
@@ -45,12 +54,27 @@ function loadSortBy() {
   return SORT_OPTIONS.some((o) => o.value === stored) ? stored : 'id'
 }
 
+function loadSortReversed() {
+  return localStorage.getItem(SORT_REVERSED_STORAGE_KEY) === 'true'
+}
+
 const scheduleStore = useScheduleStore()
 const tasksStore = useTasksStore()
 const tagsStore = useTagsStore()
 const { isNarrowViewport } = useAppShell()
 
 const FILTER_CATEGORIES = computed(() => buildTaskFilterCategories(tagsStore.tags))
+
+// Sanity-checks a stored dateFilter blob before trusting it (localStorage
+// content could predate this field, or just be corrupted) - anything that
+// doesn't look right falls back to "no date filter" rather than throwing.
+function validDateFilter(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const fieldOk = raw.field === '' || DATE_FILTER_FIELDS.some((f) => f.value === raw.field)
+  const comparisonOk = ['before', 'on', 'after'].includes(raw.comparison)
+  if (!fieldOk || !comparisonOk || typeof raw.value !== 'string') return null
+  return { field: raw.field, comparison: raw.comparison, value: raw.value }
+}
 
 function loadFiltersFrom(categories, existing = {}) {
   let stored
@@ -69,14 +93,25 @@ function loadFiltersFrom(categories, existing = {}) {
     } else if (validValues.includes(storedValue)) {
       result[category.key] = storedValue
     } else {
-      result[category.key] = 'all'
+      result[category.key] = category.default ?? 'all'
     }
+  }
+  if (!('dateFilter' in result)) {
+    result.dateFilter = validDateFilter(stored?.dateFilter) ?? defaultDateFilter()
   }
   return result
 }
 
 const sortBy = ref(loadSortBy())
 watch(sortBy, (value) => localStorage.setItem(SORT_STORAGE_KEY, value))
+
+// One toggle that flips whichever sort is currently active, rather than a
+// separate Asc/Desc entry per field in SORT_OPTIONS above.
+const sortReversed = ref(loadSortReversed())
+watch(sortReversed, (value) => localStorage.setItem(SORT_REVERSED_STORAGE_KEY, String(value)))
+function toggleSortReversed() {
+  sortReversed.value = !sortReversed.value
+}
 
 const filters = ref(loadFiltersFrom(FILTER_CATEGORIES.value))
 watch(filters, (value) => localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(value)), { deep: true })
@@ -91,13 +126,7 @@ watch(FILTER_CATEGORIES, (categories) => {
 
 const showFilterModal = ref(false)
 const showTagManageModal = ref(false)
-const activeFilterCount = computed(
-  () =>
-    FILTER_CATEGORIES.value.filter((c) => {
-      const v = filters.value[c.key]
-      return c.multiSelect ? Array.isArray(v) && v.length > 0 : (v ?? 'all') !== 'all'
-    }).length,
-)
+const activeFilterCount = computed(() => computeActiveFilterCount(FILTER_CATEGORIES.value, filters.value))
 
 // Free-text search by name/id - deliberately not persisted (unlike
 // sort/filters) since a search is a one-off "find this" action, not a
@@ -170,7 +199,7 @@ function taskCard(task) {
 // after every dated one, regardless of which field is active. priority uses
 // PRIORITY_RANK so High sorts first (severity, not alphabetical). Used to
 // order every column's cards (see columnLists below).
-function compareTasks(a, b) {
+function compareTasksAscending(a, b) {
   if (sortBy.value === 'name') return a.name.localeCompare(b.name) || a.id - b.id
   if (sortBy.value === 'dueDate') {
     if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate) || a.id - b.id
@@ -181,7 +210,19 @@ function compareTasks(a, b) {
   if (sortBy.value === 'priority') {
     return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.id - b.id
   }
+  // createdAt/lastUpdatedAt are full ISO datetime strings - plain string
+  // comparison already sorts them chronologically, same as dueDate above.
+  if (sortBy.value === 'createdAt') return a.createdAt.localeCompare(b.createdAt) || a.id - b.id
+  if (sortBy.value === 'lastUpdatedAt') return a.lastUpdatedAt.localeCompare(b.lastUpdatedAt) || a.id - b.id
   return a.id - b.id
+}
+
+// One shared reversal (see sortReversed above) instead of a separate Asc/Desc
+// pair per field - flips the whole comparison, tiebreakers included, which
+// is simpler to reason about than reversing only the primary key.
+function compareTasks(a, b) {
+  const result = compareTasksAscending(a, b)
+  return sortReversed.value ? -result : result
 }
 
 function matchesFilters(task) {
@@ -195,38 +236,14 @@ const taskCards = computed(() =>
 )
 
 // --- Kanban board: per-column lists ---
-
-// Done tasks pile up forever otherwise - old ones are hidden by default
-// (not deleted, not even a separate "archived" state, just a display
-// filter, same as hidden weekend days elsewhere in this app) once they've
-// sat Done for a while, with a toggle to bring them back into view.
-// completedAt is null for anything not currently Done (or Done from before
-// this field existed), which reads as "not old enough to hide" rather than
-// "ancient" - see TaskItem.CompletedAt's own comment on the backend.
-const HIDE_DONE_AFTER_DAYS = 30
-const showOldDone = ref(false)
-
-function daysSinceCompleted(task) {
-  if (!task.completedAt) return 0
-  return (Date.now() - new Date(task.completedAt).getTime()) / 86400000
-}
-
-function isOldDone(task) {
-  return task.status === 'Done' && daysSinceCompleted(task) > HIDE_DONE_AFTER_DAYS
-}
-
-const oldDoneCount = computed(() => taskCards.value.filter(isOldDone).length)
-
 // No manual reordering (drag-and-drop) any more - each column is just its
-// matching cards in the live sort order.
+// matching cards in the live sort order. Old Done tasks are already
+// excluded upstream by taskCards (the "doneAge" filter, on by default - see
+// taskFilters.js), not handled specially here.
 const columnLists = computed(() => {
   const result = {}
   for (const status of COLUMN_STATUSES) {
-    let list = taskCards.value.filter((t) => t.status === status)
-    if (status === 'Done' && !showOldDone.value) {
-      list = list.filter((t) => !isOldDone(t))
-    }
-    result[status] = list.sort(compareTasks)
+    result[status] = taskCards.value.filter((t) => t.status === status).sort(compareTasks)
   }
   return result
 })
@@ -502,6 +519,15 @@ async function handleUpdateTags(target, tagIds) {
             <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </label>
+        <button
+          type="button"
+          class="sort-reverse-btn"
+          :title="sortReversed ? 'Descending - click for ascending' : 'Ascending - click for descending'"
+          :aria-label="sortReversed ? 'Sort descending, click to sort ascending' : 'Sort ascending, click to sort descending'"
+          @click="toggleSortReversed"
+        >
+          <component :is="sortReversed ? ListSortDescending : ListSortAscending" :size="15" />
+        </button>
         <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
           <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
           <span v-if="activeFilterCount > 0" class="filter-dot" aria-hidden="true"></span>
@@ -561,12 +587,23 @@ async function handleUpdateTags(target, tagIds) {
           </button>
         </div>
 
-        <label class="sort-control mobile-sort-control">
-          Sort by
-          <select v-model="sortBy">
-            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
+        <div class="mobile-sort-row">
+          <label class="sort-control mobile-sort-control">
+            Sort by
+            <select v-model="sortBy">
+              <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            class="sort-reverse-btn"
+            :title="sortReversed ? 'Descending - click for ascending' : 'Ascending - click for descending'"
+            :aria-label="sortReversed ? 'Sort descending, click to sort ascending' : 'Sort ascending, click to sort descending'"
+            @click="toggleSortReversed"
+          >
+            <component :is="sortReversed ? ListSortDescending : ListSortAscending" :size="15" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -595,15 +632,6 @@ async function handleUpdateTags(target, tagIds) {
           <span class="kanban-column-count">{{ columnLists[status].length }}</span>
         </header>
         <p class="kanban-column-hint">{{ STATUS_HINTS[status] }}</p>
-        <button
-          v-if="status === 'Done' && oldDoneCount > 0"
-          type="button"
-          class="kanban-old-done-toggle"
-          @click="showOldDone = !showOldDone"
-        >
-          {{ showOldDone ? 'Hide' : 'Show' }} {{ oldDoneCount }} done {{ oldDoneCount === 1 ? 'task' : 'tasks' }} older than
-          {{ HIDE_DONE_AFTER_DAYS }} days
-        </button>
 
         <div class="kanban-drop-zone">
           <TaskCard
@@ -659,6 +687,7 @@ async function handleUpdateTags(target, tagIds) {
       v-if="showFilterModal"
       :categories="FILTER_CATEGORIES"
       :model-value="filters"
+      :tags="tagsStore.tags"
       @update:model-value="(v) => (filters = v)"
       @close="showFilterModal = false"
     />
@@ -775,6 +804,34 @@ async function handleUpdateTags(target, tagIds) {
   white-space: nowrap;
 }
 
+.sort-reverse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--dim);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.sort-reverse-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mobile-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sort-control select {
   padding: 6px 8px;
   border-radius: var(--r);
@@ -875,7 +932,8 @@ async function handleUpdateTags(target, tagIds) {
 }
 
 .mobile-sort-control {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .mobile-sort-control select {
@@ -1030,24 +1088,6 @@ async function handleUpdateTags(target, tagIds) {
   font-size: 11px;
   color: var(--mute);
   margin: 3px 0 10px;
-}
-
-.kanban-old-done-toggle {
-  display: block;
-  width: 100%;
-  text-align: left;
-  margin: -4px 0 12px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-family: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.kanban-old-done-toggle:hover {
-  text-decoration: underline;
 }
 
 .kanban-drop-zone {
