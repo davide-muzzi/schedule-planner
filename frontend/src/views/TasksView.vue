@@ -646,6 +646,14 @@ async function handleUpdateTags(target, tagIds) {
 
 <style scoped>
 .page {
+  display: flex;
+  flex-direction: column;
+  /* Fills .shell-main's own (definite, since it comes from .shell's
+     height:100vh via flexbox) height - this is what lets the board below
+     be capped to "whatever's left" instead of growing forever, pushing the
+     scroll down into each column individually rather than the whole page. */
+  height: 100%;
+  min-height: 0;
   animation: fadeUp 0.34s var(--ease) both;
 }
 
@@ -908,8 +916,13 @@ async function handleUpdateTags(target, tagIds) {
 
 .kanban-board {
   display: flex;
-  align-items: flex-start;
+  /* Each column now stretches to the board's own (flexed, bounded) height
+     instead of only ever being as tall as its own cards - see
+     .kanban-drop-zone, the part of a column that actually scrolls. */
+  align-items: stretch;
   gap: 16px;
+  flex: 1;
+  min-height: 0;
   overflow-x: auto;
   /* Room for TaskCard's quick-delete badge, which deliberately pokes 7-8px
      outside the card (right: -8px) - harmless in the old CSS grid, but the
@@ -927,6 +940,7 @@ async function handleUpdateTags(target, tagIds) {
      two (gap/box-sizing rounding) and trip overflow-x:auto for no reason. */
   flex: 1 1 calc(25% - 12px);
   min-width: 280px;
+  min-height: 0;
 }
 
 .kanban-column-header {
@@ -982,7 +996,17 @@ async function handleUpdateTags(target, tagIds) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* This is the part of a column that actually scrolls - the header, hint,
+     and "Add task" button below all stay put (see .kanban-column). */
+  flex: 1;
   min-height: 40px;
+  overflow-y: auto;
+  /* Setting overflow-y here makes overflow-x resolve to non-visible too
+     (per the CSS Overflow spec), so it needs the same quick-delete-badge
+     headroom .kanban-board's own padding comment explains above - every
+     card's badge pokes -8px top/right of its own box, not just the last
+     column's edge, once each column is its own scroll boundary. */
+  padding: 8px 8px 8px 0;
 }
 
 .kanban-empty {
