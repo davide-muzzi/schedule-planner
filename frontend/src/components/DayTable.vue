@@ -7,6 +7,7 @@ import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 import { showToast } from '@/utils/toast'
 import { entriesAreMergeable } from '@/utils/entryMerge'
+import { entryRange, moveMagnetTarget } from '@/utils/timelineDrag'
 import { useAppShell } from '@/composables/useAppShell'
 
 const props = defineProps({
@@ -126,12 +127,6 @@ function hourLabelLeft(h) {
 
 const allDayEntries = computed(() => props.entries.filter((e) => e.allDay))
 const timedEntries = computed(() => props.entries.filter((e) => !e.allDay))
-
-function entryRange(entry) {
-  const start = timeToDecimalHours(entry.startTime) ?? 0
-  const rawEnd = timeToDecimalHours(entry.endTime) ?? start
-  return { start, end: Math.max(rawEnd, start + 0.25) } // same visual minimum-width floor as before
-}
 
 function overlapsView(entry) {
   const { start, end } = entryRange(entry)
@@ -367,23 +362,6 @@ function clampToNearestEntry(target, reference, excludeId) {
     return limit
   }
   return target
-}
-
-// Whole-entry move: which half of a hovered neighbor the cursor is over
-// decides which of the dragged entry's edges gets pinned to that neighbor's
-// boundary - left half pins the dragged entry's end to the neighbor's
-// start, right half pins its start to the neighbor's end. Returns null when
-// the cursor isn't currently over any neighbor.
-function moveMagnetTarget(rawHours, duration, excludeId) {
-  for (const other of timedEntries.value) {
-    if (other.id === excludeId) continue
-    const { start, end } = entryRange(other)
-    if (rawHours > start && rawHours < end) {
-      const mid = (start + end) / 2
-      return rawHours < mid ? { start: start - duration, end: start } : { start: end, end: end + duration }
-    }
-  }
-  return null
 }
 
 // An All Day entry blocks (and is blocked by) everything else on its day -
@@ -668,7 +646,7 @@ function handleDragMove(event) {
   } else if (dragMode.value === 'move') {
     const { start: origStart, end: origEnd } = entryRange(dragEntry.value)
     const duration = origEnd - origStart
-    const magnet = moveMagnetTarget(raw, duration, dragEntry.value.id)
+    const magnet = moveMagnetTarget(raw, duration, dragEntry.value.id, timedEntries.value)
     let newStart = magnet ? magnet.start : snapHours(raw - dragGrabOffsetHours.value, event.ctrlKey)
     newStart = clamp(newStart, props.viewFromHour, props.viewTillHour - duration)
     dragPreviewStart.value = newStart

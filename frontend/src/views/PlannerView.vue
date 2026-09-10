@@ -18,6 +18,7 @@ import {
 } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
 import { taskUpdatePayload, enrichTaskForDetail } from '@/utils/taskStats'
+import { moveMagnetTarget } from '@/utils/timelineDrag'
 import { showToast } from '@/utils/toast'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
@@ -393,8 +394,17 @@ function handleEntryRightDragStart(entry, startX, startY) {
     const rect = track.getBoundingClientRect()
     const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
     const raw = store.viewFromHour + fraction * (store.viewTillHour - store.viewFromHour)
-    const snapped = snapHours(raw, event.ctrlKey)
-    const start = Math.min(Math.max(snapped, store.viewFromHour), store.viewTillHour - duration)
+    // Same magnet DayTable's own whole-entry move already uses: hovering
+    // over an existing entry snaps to touch its near edge instead of
+    // landing wherever the raw cursor position happens to be. No excludeId
+    // here (unlike DayTable's own call, which excludes the entry actually
+    // being moved) - this drag creates a brand new copy, so the original
+    // entry it started from is a real, valid neighbor to snap against too,
+    // not a "self" to skip.
+    const dayEntries = store.entries.filter((e) => e.date === rightDragHoverIso.value && !e.allDay)
+    const magnet = moveMagnetTarget(raw, duration, null, dayEntries)
+    let start = magnet ? magnet.start : snapHours(raw, event.ctrlKey)
+    start = Math.min(Math.max(start, store.viewFromHour), store.viewTillHour - duration)
     rightDragPreviewRange.value = { start, end: start + duration }
   }
 
