@@ -1,4 +1,5 @@
 import { durationHours } from './date'
+import { taskDiffStatus } from './status'
 
 function linkedWorkingEntries(entries, taskId) {
   return entries.filter((e) => e.taskItemId === taskId && e.entryType === 'Working' && !e.allDay)
@@ -108,4 +109,23 @@ export function dueCountdown(dueDate) {
 // server-side.
 export function plannedMinutesForGroup(tasks, groupId) {
   return subtasksOf(tasks, groupId).reduce((sum, t) => sum + t.estimatedMinutes, 0)
+}
+
+// The full stat-enriched shape TaskDetailModal/TaskCard expect (Planned,
+// Real, Diff, subtasks) - built fresh from raw task/entry data wherever a
+// task needs to be shown outside the Tasks board itself, which otherwise
+// only builds this once per card via its own local taskCard().
+export function enrichTaskForDetail(task, tasks, entries) {
+  const isGroup = task.taskType === 'Group'
+  const estimatedMinutes = isGroup ? plannedMinutesForGroup(tasks, task.id) : task.estimatedMinutes
+  const realMinutes = Math.round(realMinutesForTask(entries, task.id))
+  const diffMinutes = realMinutes - estimatedMinutes
+  return {
+    ...task,
+    estimatedMinutes,
+    realMinutes,
+    diffMinutes,
+    diffStatus: realMinutes === 0 ? null : taskDiffStatus(diffMinutes),
+    subtasks: isGroup ? subtasksOf(tasks, task.id) : [],
+  }
 }

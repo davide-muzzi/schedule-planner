@@ -5,15 +5,8 @@ import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { useAppShell } from '@/composables/useAppShell'
-import {
-  realMinutesForTask,
-  plannedMinutesForGroup,
-  subtasksOf,
-  deriveTaskStatus,
-  taskUpdatePayload,
-} from '@/utils/taskStats'
+import { subtasksOf, deriveTaskStatus, taskUpdatePayload, enrichTaskForDetail } from '@/utils/taskStats'
 import { buildTaskFilterCategories, taskMatchesFilters } from '@/utils/taskFilters'
-import { taskDiffStatus } from '@/utils/status'
 import { showToast } from '@/utils/toast'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import TaskFilterModal from '@/components/TaskFilterModal.vue'
@@ -168,24 +161,7 @@ onMounted(() => {
 })
 
 function taskCard(task) {
-  const isGroup = task.taskType === 'Group'
-  // A Group's own estimatedMinutes is never meaningful (always 0 in the
-  // backend) - its "Planned" is always the live sum of its subtasks instead.
-  const estimatedMinutes = isGroup ? plannedMinutesForGroup(tasksStore.tasks, task.id) : task.estimatedMinutes
-  const realMinutes = Math.round(realMinutesForTask(scheduleStore.entries, task.id))
-  const diffMinutes = realMinutes - estimatedMinutes
-  return {
-    ...task,
-    estimatedMinutes,
-    realMinutes,
-    diffMinutes,
-    // No diff color (or diff claim at all - see formatDiff) until some real
-    // time has actually been logged - otherwise every fresh task would show
-    // a misleading "-2h, on target" derived purely from the negative of its
-    // own estimate.
-    diffStatus: realMinutes === 0 ? null : taskDiffStatus(diffMinutes),
-    subtasks: isGroup ? subtasksOf(tasksStore.tasks, task.id) : [],
-  }
+  return enrichTaskForDetail(task, tasksStore.tasks, scheduleStore.entries)
 }
 
 // Each non-id ordering is ascending, per-field, with id as the tiebreaker.

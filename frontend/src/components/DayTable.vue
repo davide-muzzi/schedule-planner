@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check } from '@lucide/vue'
+import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
@@ -34,6 +34,7 @@ const emit = defineEmits([
   'copy-entry',
   'paste-entries',
   'entry-right-drag-start',
+  'view-task',
 ])
 
 const { isNarrowViewport } = useAppShell()
@@ -252,6 +253,11 @@ function handleTrackContextMenu(event) {
 
 function handleContextCopy() {
   emit('copy-entry', contextMenuEntry.value)
+  showContextMenu.value = false
+}
+
+function handleContextGoToTask() {
+  emit('view-task', contextMenuEntry.value.taskItemId)
   showContextMenu.value = false
 }
 
@@ -956,9 +962,19 @@ const tooltipTimeText = computed(() => {
 
     <Teleport to="body">
       <div v-if="showContextMenu" class="context-menu" :style="contextMenuStyle" @click.stop>
-        <button v-if="contextMenuEntry" type="button" class="context-menu-item" @click="handleContextCopy">
-          <Copy :size="13" /> Copy
-        </button>
+        <template v-if="contextMenuEntry">
+          <button type="button" class="context-menu-item" @click="handleContextCopy">
+            <Copy :size="13" /> Copy
+          </button>
+          <button
+            v-if="contextMenuEntry.taskItemId != null"
+            type="button"
+            class="context-menu-item"
+            @click="handleContextGoToTask"
+          >
+            <Expand :size="13" /> Go to Task
+          </button>
+        </template>
         <button
           v-else
           type="button"

@@ -1,19 +1,20 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useAppShell } from '@/composables/useAppShell'
 import { getMonday, addDays, addWeeks, toISODate, durationHours, isWeekend, timeToDecimalHours } from '@/utils/date'
 import { ENTRY_TYPES, colorStyleForType } from '@/utils/entryTypeColors'
-import { taskUpdatePayload } from '@/utils/taskStats'
+import { taskUpdatePayload, enrichTaskForDetail } from '@/utils/taskStats'
 import { showToast } from '@/utils/toast'
 import DayTable from '@/components/DayTable.vue'
 import WeekSummary from '@/components/WeekSummary.vue'
 import EntryFormModal from '@/components/EntryFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import UnlinkOrDeleteTaskDialog from '@/components/UnlinkOrDeleteTaskDialog.vue'
+import TaskDetailModal from '@/components/TaskDetailModal.vue'
 
 // Fields that make up an entry's "content" (everything except its id) -
 // what gets snapshotted for an undo and what a create/update payload needs.
@@ -43,6 +44,7 @@ const hiddenWeekendLabel = computed(() => {
 })
 
 const route = useRoute()
+const router = useRouter()
 // A ?week=YYYY-MM-DD query param (e.g. from the task detail modal's "jump
 // to schedule" button) opens straight into that week instead of the
 // current one - read once at mount, not kept in sync afterward, since
@@ -60,6 +62,27 @@ const visibleWeekDates = computed(() =>
 const showModal = ref(false)
 const editingEntry = ref(null)
 const modalDefaultDate = ref(new Date())
+
+// Right-click "Go to Task" on an entry - opens the same expanded task view
+// the Tasks board uses, stat-enriched via enrichTaskForDetail since this
+// isn't one of that board's own already-enriched cards.
+const viewTaskId = ref(null)
+const viewTask = computed(() => {
+  const task = tasksStore.tasks.find((t) => t.id === viewTaskId.value)
+  return task ? enrichTaskForDetail(task, tasksStore.tasks, store.entries) : null
+})
+function handleViewTask(taskId) {
+  viewTaskId.value = taskId
+}
+function closeViewTask() {
+  viewTaskId.value = null
+}
+// Full edit/delete for a task lives on the Tasks board - hand off there
+// rather than duplicating that flow (undo toast, Group cascade dialog) here.
+function goToTasksBoard() {
+  viewTaskId.value = null
+  router.push({ name: 'tasks' })
+}
 const modalPrefillTimes = ref(null) // { startTime, endTime } from a timeline drag-to-create
 const modalError = ref(null)
 const saving = ref(false)
@@ -589,6 +612,7 @@ async function confirmDeleteEntryAndTask() {
         @copy-entry="handleCopyEntry"
         @paste-entries="handlePasteEntries"
         @entry-right-drag-start="handleEntryRightDragStart"
+        @view-task="handleViewTask"
       />
     </div>
 
@@ -640,6 +664,15 @@ async function confirmDeleteEntryAndTask() {
       @unlink="confirmUnlinkEntry"
       @delete="confirmDeleteEntryAndTask"
       @cancel="cancelUnlinkOrDelete"
+    />
+
+    <TaskDetailModal
+      v-if="viewTask"
+      :task="viewTask"
+      :subtasks="viewTask.subtasks || []"
+      @close="closeViewTask"
+      @edit="goToTasksBoard"
+      @delete="goToTasksBoard"
     />
   </div>
 </template>
