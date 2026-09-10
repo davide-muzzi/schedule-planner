@@ -771,13 +771,20 @@ async function confirmDeleteEntryAndTask() {
     </div>
 
     <div class="info-hint">
-      <Info :size="14" />
-      <span
-        >Drag inside a track to sketch a new entry · hold Ctrl to snap to 15min, Shift to resize touching entries
-        together<template v-if="hiddenWeekendLabel">
-          · {{ hiddenWeekendLabel }} hidden in <RouterLink to="/settings" class="info-link">settings</RouterLink></template
-        ></span
-      >
+      <Info :size="14" class="info-hint-icon" />
+      <div class="info-hint-body">
+        <span
+          >Drag inside a track to sketch a new entry.<template v-if="hiddenWeekendLabel">
+            {{ hiddenWeekendLabel }} hidden in <RouterLink to="/settings" class="info-link">settings</RouterLink>.</template
+          ></span
+        >
+        <ul class="info-hint-shortcuts">
+          <li><strong>Ctrl</strong> while dragging - snap to 15 minutes instead of 5</li>
+          <li><strong>Shift</strong> while resizing a touching edge - move both entries' shared edge together</li>
+          <li><strong>Alt</strong> + click an entry - split it in two at that point</li>
+          <li><strong>Alt</strong> + right-click an edge - merge with the entry touching it</li>
+        </ul>
+      </div>
     </div>
 
     <EntryFormModal
@@ -895,11 +902,39 @@ async function confirmDeleteEntryAndTask() {
 
 .info-hint {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 18px 2px;
   font-size: 11.5px;
   color: var(--mute);
+}
+
+.info-hint-icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.info-hint-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-hint-shortcuts {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.info-hint-shortcuts li {
+  line-height: 1.4;
+}
+
+.info-hint-shortcuts strong {
+  color: var(--dim);
+  font-weight: 600;
 }
 
 .info-link {
