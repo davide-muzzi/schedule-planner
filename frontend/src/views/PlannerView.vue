@@ -697,7 +697,8 @@ async function confirmDeleteEntryAndTask() {
     <div class="info-hint">
       <Info :size="14" />
       <span
-        >Drag inside a track to sketch a new entry<template v-if="hiddenWeekendLabel">
+        >Drag inside a track to sketch a new entry · hold Ctrl to snap to 15min, Shift to resize touching entries
+        together<template v-if="hiddenWeekendLabel">
           · {{ hiddenWeekendLabel }} hidden in <RouterLink to="/settings" class="info-link">settings</RouterLink></template
         ></span
       >
