@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { X, Info } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
@@ -32,6 +32,37 @@ function formatEntryTypeLabel(type) {
 const store = useScheduleStore()
 const tasksStore = useTasksStore()
 const { isNarrowViewport } = useAppShell()
+
+// Visual cue for Ctrl (15min snap) / Shift (linked-edge resize) while
+// dragging on the timeline below - tracked globally via keydown/keyup
+// rather than read off drag events, so it's visible the instant a key goes
+// down even before the pointer moves again. `blur` clears both: alt-tabbing
+// away (or anything else that steals focus) mid-hold never fires a keyup,
+// which would otherwise leave a stuck "held" indicator.
+const ctrlHeld = ref(false)
+const shiftHeld = ref(false)
+function handleModifierKeydown(event) {
+  if (event.key === 'Control') ctrlHeld.value = true
+  if (event.key === 'Shift') shiftHeld.value = true
+}
+function handleModifierKeyup(event) {
+  if (event.key === 'Control') ctrlHeld.value = false
+  if (event.key === 'Shift') shiftHeld.value = false
+}
+function clearHeldModifiers() {
+  ctrlHeld.value = false
+  shiftHeld.value = false
+}
+onMounted(() => {
+  window.addEventListener('keydown', handleModifierKeydown)
+  window.addEventListener('keyup', handleModifierKeyup)
+  window.addEventListener('blur', clearHeldModifiers)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleModifierKeydown)
+  window.removeEventListener('keyup', handleModifierKeyup)
+  window.removeEventListener('blur', clearHeldModifiers)
+})
 
 // "Sat", "Sun", or "Sat & Sun" - whichever weekend days are currently
 // hidden. Empty when neither is, so the info-hint line can drop the clause
@@ -712,6 +743,11 @@ async function confirmDeleteEntryAndTask() {
       @edit="goToTasksBoard"
       @delete="goToTasksBoard"
     />
+
+    <div v-if="ctrlHeld || shiftHeld" class="modifier-overlay">
+      <span v-if="ctrlHeld" class="modifier-chip">Ctrl · 15m snap</span>
+      <span v-if="shiftHeld" class="modifier-chip">Shift · Link edges</span>
+    </div>
   </div>
 </template>
 
@@ -822,5 +858,29 @@ async function confirmDeleteEntryAndTask() {
   border: none;
   color: inherit;
   cursor: pointer;
+}
+
+.modifier-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.modifier-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 </style>
