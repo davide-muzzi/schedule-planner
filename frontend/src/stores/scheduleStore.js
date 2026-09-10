@@ -14,8 +14,47 @@ import {
 import { DEFAULT_ENTRY_TYPE_COLORS } from '@/utils/entryTypeColors'
 import { extractErrorMessage } from '@/utils/apiError'
 import { askRetryOrSkip } from '@/utils/retryPrompt'
+import { showToast } from '@/utils/toast'
 import { useTasksStore } from './tasksStore'
 import { useTagsStore } from './tagsStore'
+
+// Two entries are merge candidates when they're back-to-back on the same
+// day with the same linked task - same date, same non-null taskItemId (only
+// Working entries can have one, so entryType always matches too), neither
+// all-day, and one's end time lands exactly on the other's start time. An
+// exact touch rather than any gap, since overlap is already rejected
+// elsewhere - "neighbouring" here means zero gap, not "close".
+function entriesAreMergeable(a, b) {
+  return (
+    !a.allDay &&
+    !b.allDay &&
+    a.date === b.date &&
+    a.taskItemId != null &&
+    a.taskItemId === b.taskItemId &&
+    a.entryType === b.entryType &&
+    (a.endTime === b.startTime || b.endTime === a.startTime)
+  )
+}
+
+// The combined entry two mergeable entries collapse into - spans both time
+// ranges, keeps whichever title/work location is set (the just-saved side
+// wins a real conflict), and concatenates notes instead of dropping either.
+function mergedEntryPayload(a, b) {
+  const notesA = (a.notes || '').trim()
+  const notesB = (b.notes || '').trim()
+  const notes = !notesA ? notesB || null : !notesB || notesA === notesB ? notesA : `${notesA}\n${notesB}`
+  return {
+    title: (a.title || '').trim() || (b.title || '').trim() || null,
+    date: a.date,
+    allDay: false,
+    startTime: a.startTime < b.startTime ? a.startTime : b.startTime,
+    endTime: a.endTime > b.endTime ? a.endTime : b.endTime,
+    entryType: a.entryType,
+    workLocation: a.workLocation || b.workLocation || null,
+    taskItemId: a.taskItemId,
+    notes,
+  }
+}
 
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
 const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
@@ -271,7 +310,7 @@ export const useScheduleStore = defineStore('schedule', {
       try {
         const res = await api.create(entry)
         this.entries.push(res.data)
-        return res.data
+        return await this.mergeIntoNeighbors(res.data)
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err
@@ -284,10 +323,46 @@ export const useScheduleStore = defineStore('schedule', {
         const res = await api.update(id, entry)
         const idx = this.entries.findIndex((e) => e.id === id)
         if (idx !== -1) this.entries[idx] = res.data
-        return res.data
+        return await this.mergeIntoNeighbors(res.data)
       } catch (err) {
         this.error = extractErrorMessage(err)
         throw err
+      }
+    },
+
+    // Repeatedly absorbs whichever neighbor entriesAreMergeable finds
+    // (there can be one on each side, e.g. an edit that fills the exact gap
+    // between two same-task entries) until nothing touches anymore.
+    async mergeIntoNeighbors(savedEntry) {
+      let current = savedEntry
+      for (;;) {
+        const neighbor = this.entries.find((e) => e.id !== current.id && entriesAreMergeable(current, e))
+        if (!neighbor) return current
+        const merged = mergedEntryPayload(current, neighbor)
+        // The neighbor has to go first: the backend's overlap check would
+        // reject expanding `current` over the neighbor's own time range
+        // while that (still-unmerged) row is still sitting in it - touching
+        // is allowed, covering isn't.
+        try {
+          await api.delete(neighbor.id)
+        } catch {
+          return current // couldn't remove the neighbor - leave both entries as they were
+        }
+        this.entries = this.entries.filter((e) => e.id !== neighbor.id)
+        try {
+          const res = await api.update(current.id, merged)
+          const idx = this.entries.findIndex((e) => e.id === current.id)
+          if (idx !== -1) this.entries[idx] = res.data
+          current = res.data
+        } catch {
+          // The neighbor's gone but `current` didn't expand into its slot -
+          // that time range would otherwise silently vanish from the
+          // schedule, so this needs to surface rather than fail quietly.
+          showToast("Merged entries but couldn't extend the remaining one - please check that time range.", {
+            duration: 8000,
+          })
+          return current
+        }
       }
     },
 
