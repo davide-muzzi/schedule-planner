@@ -1,12 +1,13 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { X, ChevronDown, Plus } from '@lucide/vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { X, ChevronDown } from '@lucide/vue'
 import { toISODate } from '@/utils/date'
 import { ENTRY_TYPES } from '@/utils/entryTypeColors'
 import { useAppShell } from '@/composables/useAppShell'
 import { useTasksStore } from '@/stores/tasksStore'
 import TimePartInput from './TimePartInput.vue'
 import TaskFormModal from './TaskFormModal.vue'
+import TaskLinkPickerModal from './TaskLinkPickerModal.vue'
 
 const { isNarrowViewport } = useAppShell()
 const tasksStore = useTasksStore()
@@ -118,96 +119,24 @@ const canToggleAllDay = computed(
   () => ALL_DAY_ALLOWED_TYPES.includes(form.value.entryType) && !AUTO_ALL_DAY_TYPES.includes(form.value.entryType),
 )
 
-// Done tasks are finished work, not something a new entry should still get
-// linked to - but if this entry is already linked to one (marked Done after
-// the link was made), it stays in the list so opening this entry doesn't
-// silently show a blank/missing selection. Subtasks are never linkable
-// directly - only their Group is (the group is what tracks real time).
-const selectableTasks = computed(() =>
-  props.tasks.filter((t) => t.parentTaskId == null && (t.status !== 'Done' || t.id === form.value.taskItemId)),
-)
-
-// Custom dropdown instead of a native <select> - Android renders <select> as
-// its own full-screen OS picker rather than an inline list, which looks and
-// behaves nothing like the rest of this form (or its desktop counterpart).
-const showTaskDropdown = ref(false)
-const taskSelectTriggerEl = ref(null)
-
-// The dropdown itself is teleported to <body> and positioned fixed (below),
-// rather than living inside .task-select. It used to be position:absolute
-// inside the scrolling .modal - which meant a long task list got clipped/
-// squished by the modal's own overflow-y:auto, and its off-screen portion
-// counted toward the modal's scrollable area, producing a phantom scrollbar
-// on a form that otherwise has nothing to scroll.
-const dropdownPosition = ref({ top: 0, left: 0, width: 0, maxHeight: 192 })
-
-function updateDropdownPosition() {
-  const el = taskSelectTriggerEl.value
-  if (!el) return
-  const rect = el.getBoundingClientRect()
-  const gap = 4
-  const margin = 8
-  const preferredMax = 192 // 12rem, same cap the dropdown always had
-  const spaceBelow = window.innerHeight - rect.bottom - gap - margin
-  const spaceAbove = rect.top - gap - margin
-  const openUp = spaceBelow < 120 && spaceAbove > spaceBelow
-  const maxHeight = Math.round(Math.max(80, Math.min(preferredMax, openUp ? spaceAbove : spaceBelow)))
-  dropdownPosition.value = {
-    left: Math.round(rect.left),
-    width: Math.round(rect.width),
-    top: Math.round(openUp ? rect.top - gap - maxHeight : rect.bottom + gap),
-    maxHeight,
-  }
-}
-
-function handleViewportChange() {
-  if (showTaskDropdown.value) updateDropdownPosition()
-}
-
+// Label for the trigger button - whatever's currently linked, regardless of
+// its status (Done or not, the label should still show what's selected).
 const selectedTaskLabel = computed(() => {
-  const match = selectableTasks.value.find((t) => t.id === form.value.taskItemId)
+  const match = props.tasks.find((t) => t.id === form.value.taskItemId)
   return match ? `#${match.id} - ${match.name}` : '(none)'
 })
 
-const taskSearchQuery = ref('')
-const taskSearchInputEl = ref(null)
-
-const filteredSelectableTasks = computed(() => {
-  const q = taskSearchQuery.value.trim().toLowerCase()
-  if (!q) return selectableTasks.value
-  return selectableTasks.value.filter((t) => t.name.toLowerCase().includes(q) || String(t.id).includes(q))
-})
-
-function toggleTaskDropdown() {
-  if (showTaskDropdown.value) {
-    showTaskDropdown.value = false
-    return
-  }
-  updateDropdownPosition()
-  showTaskDropdown.value = true
-  taskSearchQuery.value = ''
-  nextTick(() => taskSearchInputEl.value?.focus())
-}
+// Full-modal picker (search + filters, same as the Group task's "Add
+// existing task") instead of the small inline dropdown this used to be -
+// makes a long task list much easier to search, and picking a row applies
+// it immediately. selectableTasks/Done-filtering now lives in the picker
+// itself, since that's the only place it's needed.
+const showTaskPicker = ref(false)
 
 function selectTask(id) {
   form.value.taskItemId = id
-  showTaskDropdown.value = false
+  showTaskPicker.value = false
 }
-
-function closeTaskDropdown() {
-  showTaskDropdown.value = false
-}
-
-onMounted(() => {
-  document.addEventListener('click', closeTaskDropdown)
-  window.addEventListener('resize', handleViewportChange)
-  window.addEventListener('scroll', handleViewportChange, true)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('click', closeTaskDropdown)
-  window.removeEventListener('resize', handleViewportChange)
-  window.removeEventListener('scroll', handleViewportChange, true)
-})
 
 // "Create new Task" - opens TaskFormModal stacked on top of this one,
 // prefilled with this entry's own length as the estimate. Saving it creates
@@ -225,9 +154,14 @@ const newTaskEstimatedMinutes = computed(() => {
 })
 
 function openCreateTask() {
-  showTaskDropdown.value = false
+  showTaskPicker.value = false
   createTaskError.value = null
   showCreateTaskModal.value = true
+}
+
+// The picker's own Unlink-equivalent: clears the link without opening it.
+function unlinkTask() {
+  form.value.taskItemId = null
 }
 
 async function handleCreateTaskSubmit(payload) {
@@ -292,11 +226,11 @@ function handleDeleteClick() {
 }
 
 function handleKeydown(event) {
-  // The nested "Create new Task" modal has its own document-level Escape/Enter
-  // handling - without this, both would fire for the same keypress, closing
-  // or submitting this entry form out from under the task modal the user is
-  // actually looking at.
-  if (showCreateTaskModal.value) return
+  // The nested "Create new Task"/task-picker modals have their own
+  // document-level Escape handling - without this, both would fire for the
+  // same keypress, closing or submitting this entry form out from under
+  // whichever nested modal the user is actually looking at.
+  if (showCreateTaskModal.value || showTaskPicker.value) return
   if (event.key === 'Escape') {
     emit('close')
     return
@@ -414,16 +348,24 @@ function handleOverlayClick(event) {
           <label>Linked task</label>
           <div class="task-select">
             <button
-              ref="taskSelectTriggerEl"
               type="button"
               class="task-select-trigger"
               :disabled="form.entryType !== 'Working'"
               :title="form.entryType !== 'Working' ? 'Only Working entries can be linked to a task' : ''"
-              @click.stop="toggleTaskDropdown"
-              @keydown.escape.stop="showTaskDropdown = false"
+              @click="showTaskPicker = true"
             >
               <span class="task-select-value">{{ selectedTaskLabel }}</span>
               <ChevronDown :size="14" />
+            </button>
+            <button
+              type="button"
+              class="task-unlink-btn"
+              title="Unlink task"
+              aria-label="Unlink task"
+              :disabled="form.entryType !== 'Working' || form.taskItemId === null"
+              @click="unlinkTask"
+            >
+              <X :size="14" />
             </button>
           </div>
         </div>
@@ -445,47 +387,14 @@ function handleOverlayClick(event) {
     </div>
   </div>
 
-  <div
-    v-if="showTaskDropdown"
-    class="task-select-dropdown"
-    :style="{
-      top: dropdownPosition.top + 'px',
-      left: dropdownPosition.left + 'px',
-      width: dropdownPosition.width + 'px',
-      maxHeight: dropdownPosition.maxHeight + 'px',
-    }"
-    @click.stop
-  >
-    <div class="task-select-search-wrap">
-      <input
-        ref="taskSearchInputEl"
-        v-model="taskSearchQuery"
-        type="text"
-        placeholder="Search tasks..."
-        class="task-select-search"
-        @keydown.escape.stop="closeTaskDropdown"
-      />
-    </div>
-    <div class="task-select-options">
-      <button type="button" class="task-select-option" :class="{ active: form.taskItemId === null }" @click="selectTask(null)">
-        (none)
-      </button>
-      <button
-        v-for="t in filteredSelectableTasks"
-        :key="t.id"
-        type="button"
-        class="task-select-option"
-        :class="{ active: t.id === form.taskItemId }"
-        @click="selectTask(t.id)"
-      >
-        #{{ t.id }} - {{ t.name }}
-      </button>
-      <p v-if="filteredSelectableTasks.length === 0" class="task-select-empty">No matching tasks.</p>
-      <button type="button" class="task-select-option task-select-create" @click="openCreateTask">
-        <Plus :size="13" /> Create new Task
-      </button>
-    </div>
-  </div>
+  <TaskLinkPickerModal
+    v-if="showTaskPicker"
+    :tasks="props.tasks"
+    :selected-id="form.taskItemId"
+    @select="selectTask"
+    @create-new="openCreateTask"
+    @close="showTaskPicker = false"
+  />
 
   <TaskFormModal
     v-if="showCreateTaskModal"
@@ -627,7 +536,8 @@ input[type='date'] {
 }
 
 .task-select {
-  position: relative;
+  display: flex;
+  gap: 0.4rem;
 }
 
 .task-select-trigger {
@@ -635,7 +545,8 @@ input[type='date'] {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);
@@ -658,99 +569,27 @@ input[type='date'] {
   white-space: nowrap;
 }
 
-.task-select-dropdown {
-  position: fixed;
-  z-index: 60;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.task-select-search-wrap {
-  flex-shrink: 0;
-  padding: 0.4rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.task-select-search {
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border-radius: 5px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background-soft);
-  color: var(--color-text);
-  font-size: 0.83rem;
-  font-family: inherit;
-}
-
-.task-select-options {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
-}
-
-.task-select-options::-webkit-scrollbar {
-  width: 6px;
-}
-
-.task-select-options::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.task-select-options::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-
-.task-select-empty {
-  flex-shrink: 0;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.83rem;
-  color: var(--color-text);
-  opacity: 0.6;
-}
-
-.task-select-option {
-  display: block;
-  flex-shrink: 0;
-  width: 100%;
-  padding: 0.4rem 0.6rem;
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  font-size: 0.85rem;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.task-select-option:hover {
-  background: var(--color-background-soft);
-}
-
-.task-select-option.active {
-  color: var(--color-heading);
-  font-weight: 600;
-}
-
-.task-select-create {
+.task-unlink-btn {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  border-top: 1px solid var(--color-border);
-  color: var(--color-heading);
-  font-weight: 600;
+  justify-content: center;
+  width: 2.2rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.task-unlink-btn:hover:not(:disabled) {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.task-unlink-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .time-select {
