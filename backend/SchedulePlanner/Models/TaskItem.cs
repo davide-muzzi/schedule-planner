@@ -40,6 +40,21 @@ public class TaskItem
     // logic reads this anywhere.
     public DateOnly? DueDate { get; set; }
 
+    // Server-managed - never accepted from the client (see TaskItemDto).
+    // Set once at creation, never touched again.
+    public DateTime CreatedAt { get; set; }
+
+    // Server-managed - refreshed on every update (TaskItemService.UpdateAsync).
+    public DateTime LastUpdatedAt { get; set; }
+
+    // Server-managed - set the moment Status transitions into Done, cleared
+    // back to null if it's ever reopened. Null means either "never
+    // completed" or "completed before this field existed" (pre-migration
+    // rows where we genuinely don't know the real date) - either way,
+    // "unknown age" should be treated as not-old-enough-to-hide by any
+    // feature that reads this, not assumed to be ancient.
+    public DateTime? CompletedAt { get; set; }
+
     // Not Include()d anywhere the API returns a TaskItem, so this stays an
     // empty list on every response - excluded from JSON rather than left to
     // serialize as misleadingly-always-empty.

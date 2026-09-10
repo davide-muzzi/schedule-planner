@@ -195,12 +195,38 @@ const taskCards = computed(() =>
 )
 
 // --- Kanban board: per-column lists ---
+
+// Done tasks pile up forever otherwise - old ones are hidden by default
+// (not deleted, not even a separate "archived" state, just a display
+// filter, same as hidden weekend days elsewhere in this app) once they've
+// sat Done for a while, with a toggle to bring them back into view.
+// completedAt is null for anything not currently Done (or Done from before
+// this field existed), which reads as "not old enough to hide" rather than
+// "ancient" - see TaskItem.CompletedAt's own comment on the backend.
+const HIDE_DONE_AFTER_DAYS = 30
+const showOldDone = ref(false)
+
+function daysSinceCompleted(task) {
+  if (!task.completedAt) return 0
+  return (Date.now() - new Date(task.completedAt).getTime()) / 86400000
+}
+
+function isOldDone(task) {
+  return task.status === 'Done' && daysSinceCompleted(task) > HIDE_DONE_AFTER_DAYS
+}
+
+const oldDoneCount = computed(() => taskCards.value.filter(isOldDone).length)
+
 // No manual reordering (drag-and-drop) any more - each column is just its
 // matching cards in the live sort order.
 const columnLists = computed(() => {
   const result = {}
   for (const status of COLUMN_STATUSES) {
-    result[status] = taskCards.value.filter((t) => t.status === status).sort(compareTasks)
+    let list = taskCards.value.filter((t) => t.status === status)
+    if (status === 'Done' && !showOldDone.value) {
+      list = list.filter((t) => !isOldDone(t))
+    }
+    result[status] = list.sort(compareTasks)
   }
   return result
 })
@@ -569,6 +595,15 @@ async function handleUpdateTags(target, tagIds) {
           <span class="kanban-column-count">{{ columnLists[status].length }}</span>
         </header>
         <p class="kanban-column-hint">{{ STATUS_HINTS[status] }}</p>
+        <button
+          v-if="status === 'Done' && oldDoneCount > 0"
+          type="button"
+          class="kanban-old-done-toggle"
+          @click="showOldDone = !showOldDone"
+        >
+          {{ showOldDone ? 'Hide' : 'Show' }} {{ oldDoneCount }} done {{ oldDoneCount === 1 ? 'task' : 'tasks' }} older than
+          {{ HIDE_DONE_AFTER_DAYS }} days
+        </button>
 
         <div class="kanban-drop-zone">
           <TaskCard
@@ -981,15 +1016,38 @@ async function handleUpdateTags(target, tagIds) {
 
 .kanban-column-count {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--mute);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
   margin-left: auto;
 }
 
 .kanban-column-hint {
   font-size: 11px;
   color: var(--mute);
-  margin: 3px 0 14px;
+  margin: 3px 0 10px;
+}
+
+.kanban-old-done-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: -4px 0 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.kanban-old-done-toggle:hover {
+  text-decoration: underline;
 }
 
 .kanban-drop-zone {

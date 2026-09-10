@@ -28,6 +28,11 @@ public class TaskItemService : ITaskItemService
         await Validate(task, id: null);
         task.Tags = await ResolveTags(tagIds);
 
+        var now = DateTime.UtcNow;
+        task.CreatedAt = now;
+        task.LastUpdatedAt = now;
+        task.CompletedAt = task.Status == TaskItemStatus.Done ? now : null;
+
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
         return task;
@@ -43,6 +48,20 @@ public class TaskItemService : ITaskItemService
 
         await Validate(task, id);
 
+        // CompletedAt only moves on an actual Backlog/Ready/InProgress <-> Done
+        // transition, not on every save - otherwise editing an already-Done
+        // task's name would keep bumping its completion date forever.
+        var wasDone = existing.Status == TaskItemStatus.Done;
+        var willBeDone = task.Status == TaskItemStatus.Done;
+        if (!wasDone && willBeDone)
+        {
+            existing.CompletedAt = DateTime.UtcNow;
+        }
+        else if (wasDone && !willBeDone)
+        {
+            existing.CompletedAt = null;
+        }
+
         existing.Name = task.Name;
         existing.EstimatedMinutes = task.EstimatedMinutes;
         existing.Status = task.Status;
@@ -52,6 +71,7 @@ public class TaskItemService : ITaskItemService
         existing.Color = task.Color;
         existing.Notes = task.Notes;
         existing.DueDate = task.DueDate;
+        existing.LastUpdatedAt = DateTime.UtcNow;
 
         existing.Tags.Clear();
         foreach (var tag in await ResolveTags(tagIds))
