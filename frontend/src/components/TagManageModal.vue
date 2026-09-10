@@ -8,10 +8,13 @@ const tagsStore = useTagsStore()
 const tasksStore = useTasksStore()
 const emit = defineEmits(['close'])
 
-// How many tasks currently carry this tag - shown so it's clear what
-// deleting a tag would affect before doing it.
+// How many top-level tasks/Groups currently carry this tag - shown so it's
+// clear what deleting a tag would affect before doing it. Subtasks are
+// excluded: they live inside their Group's card rather than being
+// independently countable items, same as everywhere else "tasks" are counted.
 function usageCount(tagId) {
-  return tasksStore.tasks.filter((t) => (t.tags || []).some((tag) => tag.id === tagId)).length
+  return tasksStore.tasks.filter((t) => t.parentTaskId == null && (t.tags || []).some((tag) => tag.id === tagId))
+    .length
 }
 
 const DEFAULT_COLOR = '#3b82f6'
