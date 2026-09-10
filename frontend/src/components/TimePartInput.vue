@@ -192,21 +192,6 @@ function enableCustomEdit() {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
-}
-
-.time-part-dropdown::-webkit-scrollbar {
-  width: 6px;
-}
-
-.time-part-dropdown::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.time-part-dropdown::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
 }
 
 .time-part-option {

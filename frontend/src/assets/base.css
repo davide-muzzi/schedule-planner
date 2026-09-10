@@ -108,3 +108,34 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Theme-matched scrollbar everywhere EXCEPT the main page scroll -
+   .shell-main (App.vue) is the element that actually scrolls page content,
+   and keeps the native browser scrollbar; every other scrollable region
+   (modals, dropdowns, nested lists/panels) gets this one instead. A couple
+   of components deliberately hide their scrollbar entirely (mobile swipe
+   strips, via `scrollbar-width: none`) - their own scoped rule always wins
+   here regardless of source order, since Vue's scoped attribute selector
+   outranks this plain, unscoped one. */
+*:not(.shell-main, html, body) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) var(--track);
+}
+
+*:not(.shell-main, html, body)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*:not(.shell-main, html, body)::-webkit-scrollbar-track {
+  background: var(--track);
+}
+
+*:not(.shell-main, html, body)::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: var(--r2);
+}
+
+*:not(.shell-main, html, body)::-webkit-scrollbar-thumb:hover {
+  background: var(--mute);
+}
