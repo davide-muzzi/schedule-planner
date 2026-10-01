@@ -57,3 +57,7 @@ export const BREAK_RULES = [
   { minWorkHours: 7, requiredBreakMinutes: 30 },
   { minWorkHours: 5.5, requiredBreakMinutes: 15 },
 ]
+
+// Swiss law (ArGV 1 Art. 18 Abs. 3): a continuous stretch of work longer than
+// this needs its own break, regardless of breaks elsewhere in the day.
+export const MAX_CONTINUOUS_WORK_HOURS = 5.5

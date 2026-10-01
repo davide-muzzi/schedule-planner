@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate, hoursToTimeString, snapHours } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
-import { DAILY_RED_THRESHOLD_HOURS } from '@/utils/constants'
+import { DAILY_RED_THRESHOLD_HOURS, MAX_CONTINUOUS_WORK_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 import { showToast } from '@/utils/toast'
 import { entriesAreMergeable } from '@/utils/entryMerge'
@@ -195,8 +195,20 @@ const breakWarning = computed(() => computeBreakWarning(props.entries))
 
 const breakWarningTitle = computed(() => {
   if (!breakWarning.value) return ''
-  const { workHours, actualBreakMinutes, requiredBreakMinutes } = breakWarning.value
-  return `Worked ${formatHours(workHours)} with only ${actualBreakMinutes}min break planned — Swiss law requires at least ${requiredBreakMinutes}min.`
+  const { daily, longStretches } = breakWarning.value
+  const messages = []
+  if (daily) {
+    const { workHours, actualBreakMinutes, requiredBreakMinutes } = daily
+    messages.push(
+      `Worked ${formatHours(workHours)} with only ${actualBreakMinutes}min break planned — Swiss law requires at least ${requiredBreakMinutes}min.`,
+    )
+  }
+  for (const s of longStretches) {
+    messages.push(
+      `Worked ${formatHours(s.hours)} without a break (${hoursToTimeString(s.start)}–${hoursToTimeString(s.end)}) — Swiss law requires a break after at most ${formatHours(MAX_CONTINUOUS_WORK_HOURS)} of continuous work.`,
+    )
+  }
+  return messages.join('\n')
 })
 
 const showBreakPopup = ref(false)
@@ -1313,7 +1325,7 @@ const tooltipTimeText = computed(() => {
   font-weight: 400;
   color: var(--dim);
   text-align: left;
-  white-space: normal;
+  white-space: pre-line;
   cursor: default;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -1413,6 +1425,7 @@ const tooltipTimeText = computed(() => {
   gap: 0.3rem;
   padding: 0.4rem;
   border-color: var(--line-2);
+  white-space: normal;
 }
 
 .hidden-entry-item {
