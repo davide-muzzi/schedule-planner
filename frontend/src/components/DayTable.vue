@@ -10,6 +10,7 @@ import { showToast } from '@/utils/toast'
 import { entriesAreMergeable } from '@/utils/entryMerge'
 import { entryRange, moveMagnetTarget } from '@/utils/timelineDrag'
 import { useAppShell } from '@/composables/useAppShell'
+import DaySummaryModal from '@/components/DaySummaryModal.vue'
 
 const props = defineProps({
   date: { type: Date, required: true },
@@ -326,6 +327,25 @@ function closePopups() {
 function handleHiddenEntryClick(entry) {
   closePopups()
   emit('edit', entry)
+}
+
+// Clicking any non-interactive part of the card opens the day summary. The
+// mousedown has to land there too - otherwise a drag that starts on the
+// timeline and releases over the card would count as a card click.
+const showDaySummary = ref(false)
+const PASSIVE_EXCLUDE = '.hour-track, button, a, input'
+let cardMouseDownPassive = false
+
+function handleCardMouseDown(event) {
+  cardMouseDownPassive = !event.target.closest(PASSIVE_EXCLUDE)
+}
+
+function handleCardClick(event) {
+  if (!cardMouseDownPassive || event.target.closest(PASSIVE_EXCLUDE)) return
+  // A click that's just dismissing an open popup/menu shouldn't also open the modal.
+  if (showBreakPopup.value || showHiddenPopup.value || showContextMenu.value) return
+  if (window.getSelection()?.toString()) return
+  showDaySummary.value = true
 }
 
 onMounted(() => document.addEventListener('click', closePopups))
@@ -1009,6 +1029,8 @@ const tooltipTimeText = computed(() => {
     :class="{ 'is-today': isToday, 'drop-target': isRightDragTarget }"
     :data-date="toISODate(date)"
     :style="{ animationDelay: rowIndex * 55 + 'ms' }"
+    @mousedown="handleCardMouseDown"
+    @click="handleCardClick"
   >
     <div class="day-info">
       <div class="day-weekday-row">
@@ -1152,6 +1174,15 @@ const tooltipTimeText = computed(() => {
         </div>
       </div>
     </div>
+
+    <DaySummaryModal
+      v-if="showDaySummary"
+      :date="date"
+      :entries="entries"
+      :tasks="tasks"
+      :entry-type-colors="entryTypeColors"
+      @close="showDaySummary = false"
+    />
 
     <Teleport to="body">
       <div v-if="showContextMenu" class="context-menu" :style="contextMenuStyle" @click.stop>
