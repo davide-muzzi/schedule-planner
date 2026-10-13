@@ -1,5 +1,5 @@
 import { timeToDecimalHours } from './date'
-import { BLOCKZEITEN } from './constants'
+import { BLOCKZEITEN, BETRIEBSZEIT } from './constants'
 
 // Absences that excuse a Blockzeit entirely - touching it at all is enough.
 const EXEMPT_TYPES = ['Vacation', 'PublicHoliday', 'OvertimeCompensation']
@@ -50,4 +50,24 @@ export function computeBlockzeitWarnings(date, entries) {
     warnings.push({ block, gaps, hasAppointment })
   }
   return warnings
+}
+
+// Returns the Working time ranges that fall outside Betriebszeit - on a
+// weekend that's the whole entry. Empty array if everything's fine.
+export function computeBetriebszeitViolations(date, entries) {
+  const day = date.getDay()
+  const isWeekend = day === 0 || day === 6
+  const violations = []
+  for (const e of entries) {
+    if (e.entryType !== 'Working' || e.allDay) continue
+    const range = rangeOf(e)
+    if (!range) continue
+    if (isWeekend) {
+      violations.push(range)
+      continue
+    }
+    if (range.start < BETRIEBSZEIT.start) violations.push({ start: range.start, end: Math.min(range.end, BETRIEBSZEIT.start) })
+    if (range.end > BETRIEBSZEIT.end) violations.push({ start: Math.max(range.start, BETRIEBSZEIT.end), end: range.end })
+  }
+  return violations.sort((a, b) => a.start - b.start)
 }

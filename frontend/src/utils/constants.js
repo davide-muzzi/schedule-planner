@@ -68,3 +68,6 @@ export const BLOCKZEITEN = [
   { start: 9, end: 11.5 },
   { start: 14, end: 16 },
 ]
+
+// Betriebszeit - working is only allowed Mon-Fri within these hours (decimal).
+export const BETRIEBSZEIT = { start: 6, end: 20 }

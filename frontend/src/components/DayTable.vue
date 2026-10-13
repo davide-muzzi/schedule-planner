@@ -3,9 +3,9 @@ import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate, hoursToTimeString, snapHours } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
-import { DAILY_RED_THRESHOLD_HOURS, MAX_CONTINUOUS_WORK_HOURS } from '@/utils/constants'
+import { DAILY_RED_THRESHOLD_HOURS, MAX_CONTINUOUS_WORK_HOURS, BETRIEBSZEIT } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
-import { computeBlockzeitWarnings } from '@/utils/blockzeitRules'
+import { computeBlockzeitWarnings, computeBetriebszeitViolations } from '@/utils/blockzeitRules'
 import { showToast } from '@/utils/toast'
 import { entriesAreMergeable } from '@/utils/entryMerge'
 import { entryRange, moveMagnetTarget } from '@/utils/timelineDrag'
@@ -195,6 +195,7 @@ const dailyStatus = computed(() => {
 const breakWarning = computed(() => computeBreakWarning(props.entries))
 
 const blockzeitWarnings = computed(() => computeBlockzeitWarnings(props.date, props.entries))
+const betriebszeitViolations = computed(() => computeBetriebszeitViolations(props.date, props.entries))
 
 function formatRange({ start, end }) {
   return `${hoursToTimeString(start)}–${hoursToTimeString(end)}`
@@ -234,6 +235,12 @@ const dayWarnings = computed(() => {
             message: `Blockzeit ${formatRange(block)} not fully covered by work (gap ${gapList}) — you need to be working during this time.`,
           },
     )
+  }
+  if (betriebszeitViolations.value.length > 0) {
+    warnings.push({
+      severity: 'bad',
+      message: `Working outside Betriebszeit (Mon–Fri ${formatRange(BETRIEBSZEIT)}): ${betriebszeitViolations.value.map(formatRange).join(', ')}.`,
+    })
   }
   return warnings
 })
