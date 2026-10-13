@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { Eye, EyeOff } from '@lucide/vue'
 import { useAuthStore } from '@/stores/authStore'
 import { extractErrorMessage } from '@/utils/apiError'
 
@@ -12,6 +13,8 @@ const username = ref('')
 const password = ref('')
 const error = ref(null)
 const loading = ref(false)
+// Only true while the eye button is held down - deliberately not a toggle.
+const showPassword = ref(false)
 
 async function submit() {
   error.value = null
@@ -41,7 +44,26 @@ async function submit() {
 
       <label class="field">
         <span>Password</span>
-        <input v-model="password" type="password" autocomplete="current-password" required />
+        <span class="password-wrap">
+          <input v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" required />
+          <button
+            type="button"
+            class="reveal-btn"
+            aria-label="Hold to show password"
+            title="Hold to show password"
+            @mousedown.prevent
+            @pointerdown="showPassword = true"
+            @pointerup="showPassword = false"
+            @pointerleave="showPassword = false"
+            @pointercancel="showPassword = false"
+            @contextmenu.prevent
+            @keydown.space.prevent="showPassword = true"
+            @keyup.space="showPassword = false"
+            @blur="showPassword = false"
+          >
+            <component :is="showPassword ? EyeOff : Eye" :size="16" />
+          </button>
+        </span>
       </label>
 
       <p v-if="error" class="error">{{ error }}</p>
@@ -116,6 +138,38 @@ button {
 button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.password-wrap {
+  position: relative;
+  display: flex;
+}
+
+.password-wrap input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 36px;
+}
+
+.password-wrap .reveal-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--mute);
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.password-wrap .reveal-btn:hover {
+  color: var(--fg);
 }
 
 .error {
