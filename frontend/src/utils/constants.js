@@ -61,3 +61,10 @@ export const BREAK_RULES = [
 // Swiss law (ArGV 1 Art. 18 Abs. 3): a continuous stretch of work longer than
 // this needs its own break, regardless of breaks elsewhere in the day.
 export const MAX_CONTINUOUS_WORK_HOURS = 5.5
+
+// Blockzeiten - core hours (decimal) that must be fully covered by Working
+// entries on weekdays.
+export const BLOCKZEITEN = [
+  { start: 9, end: 11.5 },
+  { start: 14, end: 16 },
+]

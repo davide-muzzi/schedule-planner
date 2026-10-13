@@ -5,6 +5,7 @@ import { durationHours, timeToDecimalHours, formatHours, toISODate, hoursToTimeS
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import { DAILY_RED_THRESHOLD_HOURS, MAX_CONTINUOUS_WORK_HOURS } from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
+import { computeBlockzeitWarnings } from '@/utils/blockzeitRules'
 import { showToast } from '@/utils/toast'
 import { entriesAreMergeable } from '@/utils/entryMerge'
 import { entryRange, moveMagnetTarget } from '@/utils/timelineDrag'
@@ -193,23 +194,52 @@ const dailyStatus = computed(() => {
 
 const breakWarning = computed(() => computeBreakWarning(props.entries))
 
-const breakWarningTitle = computed(() => {
-  if (!breakWarning.value) return ''
-  const { daily, longStretches } = breakWarning.value
-  const messages = []
-  if (daily) {
-    const { workHours, actualBreakMinutes, requiredBreakMinutes } = daily
-    messages.push(
-      `Worked ${formatHours(workHours)} with only ${actualBreakMinutes}min break planned — Swiss law requires at least ${requiredBreakMinutes}min.`,
+const blockzeitWarnings = computed(() => computeBlockzeitWarnings(props.date, props.entries))
+
+function formatRange({ start, end }) {
+  return `${hoursToTimeString(start)}–${hoursToTimeString(end)}`
+}
+
+// Break and Blockzeit issues share one icon - each becomes its own line in
+// the hover/popup text. A Blockzeit gap with no appointment to explain it is
+// the only hard error (red); everything else is a softer heads-up (amber).
+const dayWarnings = computed(() => {
+  const warnings = []
+  if (breakWarning.value) {
+    const { daily, longStretches } = breakWarning.value
+    if (daily) {
+      const { workHours, actualBreakMinutes, requiredBreakMinutes } = daily
+      warnings.push({
+        severity: 'warn',
+        message: `Worked ${formatHours(workHours)} with only ${actualBreakMinutes}min break planned — Swiss law requires at least ${requiredBreakMinutes}min.`,
+      })
+    }
+    for (const s of longStretches) {
+      warnings.push({
+        severity: 'warn',
+        message: `Worked ${formatHours(s.hours)} without a break (${formatRange(s)}) — Swiss law requires a break after at most ${formatHours(MAX_CONTINUOUS_WORK_HOURS)} of continuous work.`,
+      })
+    }
+  }
+  for (const { block, gaps, hasAppointment } of blockzeitWarnings.value) {
+    const gapList = gaps.map(formatRange).join(', ')
+    warnings.push(
+      hasAppointment
+        ? {
+            severity: 'warn',
+            message: `Blockzeit ${formatRange(block)} not fully covered by work (gap ${gapList}) — might be fine since an appointment falls into it.`,
+          }
+        : {
+            severity: 'bad',
+            message: `Blockzeit ${formatRange(block)} not fully covered by work (gap ${gapList}) — you need to be working during this time.`,
+          },
     )
   }
-  for (const s of longStretches) {
-    messages.push(
-      `Worked ${formatHours(s.hours)} without a break (${hoursToTimeString(s.start)}–${hoursToTimeString(s.end)}) — Swiss law requires a break after at most ${formatHours(MAX_CONTINUOUS_WORK_HOURS)} of continuous work.`,
-    )
-  }
-  return messages.join('\n')
+  return warnings
 })
+
+const dayWarningSeverity = computed(() => (dayWarnings.value.some((w) => w.severity === 'bad') ? 'bad' : 'warn'))
+const dayWarningTitle = computed(() => dayWarnings.value.map((w) => w.message).join('\n\n'))
 
 const showBreakPopup = ref(false)
 const showHiddenPopup = ref(false)
@@ -979,8 +1009,14 @@ const tooltipTimeText = computed(() => {
         <span v-if="isToday" class="today-dot"></span>
       </div>
       <span class="day-date">{{ monthDayLabel }}</span>
-      <span v-if="breakWarning" class="break-warning-wrap">
-        <button type="button" class="break-warning" :title="breakWarningTitle" @click.stop="toggleBreakPopup($event)">
+      <span v-if="dayWarnings.length > 0" class="break-warning-wrap">
+        <button
+          type="button"
+          class="break-warning"
+          :class="{ 'is-bad': dayWarningSeverity === 'bad' }"
+          :title="dayWarningTitle"
+          @click.stop="toggleBreakPopup($event)"
+        >
           <TriangleAlert :size="12" />
         </button>
       </span>
@@ -991,7 +1027,13 @@ const tooltipTimeText = computed(() => {
       </span>
 
       <Teleport to="body">
-        <div v-if="showBreakPopup" class="break-popup" :style="breakPopupStyle" @click.stop>{{ breakWarningTitle }}</div>
+        <div
+          v-if="showBreakPopup"
+          class="break-popup"
+          :class="{ 'is-bad': dayWarningSeverity === 'bad' }"
+          :style="breakPopupStyle"
+          @click.stop
+        >{{ dayWarningTitle }}</div>
       </Teleport>
       <Teleport to="body">
         <div v-if="showHiddenPopup" class="break-popup hidden-popup" :style="hiddenPopupStyle" @click.stop>
@@ -1312,6 +1354,11 @@ const tooltipTimeText = computed(() => {
   font-family: inherit;
 }
 
+.break-warning.is-bad {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
 .break-popup {
   position: fixed;
   z-index: 300;
@@ -1328,6 +1375,10 @@ const tooltipTimeText = computed(() => {
   white-space: pre-line;
   cursor: default;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.break-popup.is-bad {
+  border-color: var(--bad);
 }
 
 .context-menu {
