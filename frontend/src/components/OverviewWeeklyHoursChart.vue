@@ -37,29 +37,19 @@ onMounted(() => {
 // 0, so a run of weeks that are all within a few hours of each other doesn't
 // get flattened into near-identical bar heights. Untracked weeks (0h, most
 // of a 52-week window) are excluded from that range - they'd otherwise pin
-// the floor back to 0 and defeat the zoom entirely. The target is folded
-// into both ends so the dashed target line always stays on-screen even if
-// every tracked week is well above or below it. The floor is rounded down to
-// the nearest 5h; the top is fixed at the legal weekly max (45h) - a week
-// above that is already red and just fills the full height.
-const ROUND_STEP = 5
-
-// Once the lowest week is comfortably above 0, flooring it straight to the
-// nearest 5h still puts the floor right under the bars, leaving little room
-// to read a dip. Pulling it down another 5h first (only once it's at least
-// 40h - below that there isn't the headroom to spare) gives the low end of
-// the chart some breathing room too, not just the top.
-function roundedMin(rawMin) {
-  const base = rawMin >= 40 ? rawMin - 5 : rawMin
-  return Math.max(0, Math.floor(base / ROUND_STEP) * ROUND_STEP)
-}
+// the floor back to 0 and defeat the zoom entirely. The floor is the lowest
+// tracked week minus 5h, rounded to the nearest full hour; the top is fixed
+// at the legal weekly max (45h) - a week above that is already red and just
+// fills the full height.
+const MIN_PADDING_HOURS = 5
 
 const axisRange = computed(() => {
   // Only outgrows 45h if the target itself is set above it.
-  const max = Math.max(MAX_WEEKLY_WORK_HOURS, Math.ceil(props.targetHours / ROUND_STEP) * ROUND_STEP)
+  const max = Math.max(MAX_WEEKLY_WORK_HOURS, Math.ceil(props.targetHours))
   const tracked = props.series.map((w) => w.hours).filter((h) => h > 0)
   if (tracked.length === 0) return { min: 0, max }
-  const min = Math.min(roundedMin(Math.min(...tracked, props.targetHours)), max - ROUND_STEP)
+  // Kept at least 1h under the top so the axis never collapses.
+  const min = Math.max(0, Math.min(Math.round(Math.min(...tracked) - MIN_PADDING_HOURS), max - 1))
   return { min, max }
 })
 
