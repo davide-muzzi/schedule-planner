@@ -1,7 +1,10 @@
 # Deploying to the Pi
 
 One-time setup, then a repeatable update sequence. Run everything below directly
-on the Pi (over SSH), not on your dev PC - see the main conversation for why.
+on the Pi (over SSH), not on your dev PC - building on the Pi itself produces
+output for its ARM CPU without any cross-compilation setup. For a generic
+(non-Pi, non-Tailscale) version of this guide, see the main README's
+**Self-hosting** section.
 
 ## One-time setup
 
@@ -48,7 +51,8 @@ sudo systemctl restart schedule-planner
 ```
 
 The first time you run this, the app creates its own database schema on
-startup (see the auto-migration change) - no separate migration step needed.
+startup (pending EF Core migrations are applied automatically in `Program.cs`) -
+no separate migration step needed.
 
 ## Moving your existing data over
 
