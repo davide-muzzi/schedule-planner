@@ -15,11 +15,13 @@ export const YELLOW_THRESHOLD_HOURS = 10
 export const OVERALL_BALANCE_GREEN_MAX_OVER_HOURS = 5
 export const OVERALL_BALANCE_RED_THRESHOLD_HOURS = 10
 
-// "Worked this week" coloring: green is target to +2h over. Yellow for a
-// shortfall up to 2h, or +2h to +5h over. Red beyond either of those.
-export const WEEKLY_WORKED_GREEN_MAX_OVER_HOURS = 2
+// Swiss law (ArG Art. 9): maximum weekly working time.
+export const MAX_WEEKLY_WORK_HOURS = 45
+
+// "Worked this week" coloring: green from target up to the legal weekly max
+// (42-45h). Yellow for a shortfall up to 2h (40-42h). Red below that or
+// above the max.
 export const WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS = 2
-export const WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS = 5
 
 // "Upcoming appointments" coloring: green once the overall balance already
 // covers them. Yellow while they'd only push you up to 2h further behind,

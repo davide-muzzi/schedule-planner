@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { formatHours } from '@/utils/date'
-import { RED_THRESHOLD_HOURS, YELLOW_THRESHOLD_HOURS } from '@/utils/constants'
+import { MAX_WEEKLY_WORK_HOURS } from '@/utils/constants'
+import { weeklyWorkedStatus } from '@/utils/status'
 
 const props = defineProps({
   weeklyTotalHours: { type: Number, required: true },
@@ -19,20 +20,19 @@ const barMaxHours = computed(() => props.weeklyTargetHours * BUFFER_RATIO)
 const fillPercent = computed(() => Math.min(100, (props.weeklyTotalHours / barMaxHours.value) * 100))
 const goalPercent = computed(() => Math.min(100, (props.weeklyTargetHours / barMaxHours.value) * 100))
 
-const diff = computed(() => props.weeklyTotalHours - props.weeklyTargetHours)
-
-// Same shape/thresholds as the Weekly Balance modal's per-row coloring:
-// any overage is green, shortfall severity determines yellow vs red.
-const status = computed(() => {
-  if (diff.value >= 0) return 'green'
-  const shortfall = Math.abs(diff.value)
-  if (shortfall > RED_THRESHOLD_HOURS) return 'red'
-  if (shortfall > YELLOW_THRESHOLD_HOURS) return 'yellow'
-  return 'green'
+// The legal weekly max, marked on the bar - only when it actually falls
+// inside the bar's scale (always true for a full-time 42h target).
+const maxPercent = computed(() => {
+  const p = (MAX_WEEKLY_WORK_HOURS / barMaxHours.value) * 100
+  return p < 100 ? p : null
 })
 
+// Same coloring as the "Worked this week" value next to it.
+const status = computed(() => weeklyWorkedStatus(props.weeklyTotalHours, props.weeklyTargetHours))
+
 const tooltip = computed(
-  () => `${formatHours(props.weeklyTotalHours)} worked of ${formatHours(props.weeklyTargetHours)} target this week`,
+  () =>
+    `${formatHours(props.weeklyTotalHours)} worked of ${formatHours(props.weeklyTargetHours)} target this week (legal max ${MAX_WEEKLY_WORK_HOURS}h)`,
 )
 
 // A subtle scale reference every 5h, stopping short of the bar's own edge.
@@ -51,6 +51,7 @@ const hourMarks = computed(() => {
       <div class="progress-fill" :class="'status-' + status" :style="{ width: fillPercent + '%' }"></div>
       <span v-for="mark in hourMarks" :key="mark" class="hour-mark" :style="{ left: mark + '%' }"></span>
       <div class="goal-tick" :style="{ left: goalPercent + '%' }"></div>
+      <div v-if="maxPercent !== null" class="max-tick" :style="{ left: maxPercent + '%' }"></div>
     </div>
   </div>
 </template>
@@ -106,6 +107,15 @@ const hourMarks = computed(() => {
   bottom: -0.2rem;
   width: 2px;
   background: var(--fg);
+  transform: translateX(-1px);
+}
+
+.max-tick {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  width: 2px;
+  background: var(--bad);
   transform: translateX(-1px);
 }
 </style>

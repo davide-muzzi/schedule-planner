@@ -1,16 +1,15 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { ChevronLeft, ChevronRight, CalendarDays } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, CalendarDays, TriangleAlert } from '@lucide/vue'
 import { formatWeekRange, formatHours, getMonday, toISODate, getISOWeekNumber } from '@/utils/date'
 import {
   OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
   OVERALL_BALANCE_RED_THRESHOLD_HOURS,
-  WEEKLY_WORKED_GREEN_MAX_OVER_HOURS,
-  WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS,
-  WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
+  MAX_WEEKLY_WORK_HOURS,
   UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS,
   BUSINESS_DAYS_PER_WEEK,
 } from '@/utils/constants'
+import { weeklyWorkedStatus } from '@/utils/status'
 import { useAppShell } from '@/composables/useAppShell'
 import WeeklyProgressBar from './WeeklyProgressBar.vue'
 import MiniCalendar from './MiniCalendar.vue'
@@ -97,13 +96,9 @@ const appointmentsStatus = computed(() => {
 
 const weeklyDiff = computed(() => props.weeklyTotalHours - props.weeklyTargetHours)
 
-const weeklyStatus = computed(() => {
-  if (weeklyDiff.value < -WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS) return 'red' // over 2h too little
-  if (weeklyDiff.value < 0) return 'yellow' // up to 2h too little
-  if (weeklyDiff.value <= WEEKLY_WORKED_GREEN_MAX_OVER_HOURS) return 'green' // target to +2h over
-  if (weeklyDiff.value <= WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS) return 'yellow' // +2h to +5h over
-  return 'red' // over 5h too much
-})
+const weeklyStatus = computed(() => weeklyWorkedStatus(props.weeklyTotalHours, props.weeklyTargetHours))
+const isOverWeeklyMax = computed(() => props.weeklyTotalHours > MAX_WEEKLY_WORK_HOURS)
+const weeklyMaxWarning = `Over the legal maximum of ${MAX_WEEKLY_WORK_HOURS}h per week (Art. 9 ArG) — compensate the overtime with time off.`
 
 // Same "+36m" / "on target" convention as DayTable's per-day goal-diff.
 function formatDiff(hours) {
@@ -352,6 +347,9 @@ onBeforeUnmount(() => {
           <span class="cell-value" :class="'status-' + weeklyStatus">{{ formatHours(weeklyTotalHours) }}</span>
           <span class="cell-value-target">/ {{ formatHours(weeklyTargetHours) }}</span>
           <span class="cell-value-diff" :class="'status-' + weeklyStatus">{{ weeklyDiffLabel }}</span>
+          <span v-if="isOverWeeklyMax" class="weekly-max-warning" :title="weeklyMaxWarning">
+            <TriangleAlert :size="12" /> Over {{ MAX_WEEKLY_WORK_HOURS }}h max
+          </span>
         </span>
         <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
       </div>
@@ -369,6 +367,9 @@ onBeforeUnmount(() => {
           <span class="cell-value" :class="'status-' + weeklyStatus">{{ formatHours(weeklyTotalHours) }}</span>
           <span class="cell-value-target">/ {{ formatHours(weeklyTargetHours) }}</span>
           <span class="cell-value-diff" :class="'status-' + weeklyStatus">{{ weeklyDiffLabel }}</span>
+          <span v-if="isOverWeeklyMax" class="weekly-max-warning" :title="weeklyMaxWarning">
+            <TriangleAlert :size="12" /> Over {{ MAX_WEEKLY_WORK_HOURS }}h max
+          </span>
         </span>
         <WeeklyProgressBar :weekly-total-hours="weeklyTotalHours" :weekly-target-hours="weeklyTargetHours" />
       </div>
@@ -641,6 +642,18 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   font-size: 10.5px;
   margin-left: auto;
+}
+
+.weekly-max-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--bad);
+  white-space: nowrap;
+  cursor: help;
 }
 
 .cell-value-diff.status-green {

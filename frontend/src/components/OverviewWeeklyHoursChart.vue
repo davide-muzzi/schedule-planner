@@ -2,6 +2,7 @@
 import { computed, watch, onMounted } from 'vue'
 import { formatHours, formatWeekRange, getISOWeekNumber } from '@/utils/date'
 import { weeklyWorkedStatus } from '@/utils/status'
+import { MAX_WEEKLY_WORK_HOURS } from '@/utils/constants'
 import { useChartTooltip } from '@/composables/useChartTooltip'
 import { useAppShell } from '@/composables/useAppShell'
 import { useLinkedScroll } from '@/composables/useLinkedScroll'
@@ -38,10 +39,9 @@ onMounted(() => {
 // of a 52-week window) are excluded from that range - they'd otherwise pin
 // the floor back to 0 and defeat the zoom entirely. The target is folded
 // into both ends so the dashed target line always stays on-screen even if
-// every tracked week is well above or below it. Rounded to the nearest 5h
-// (floor for the bottom, ceil for the top) rather than padded further, so
-// the tallest/shortest bar sits close to the chart's edge instead of
-// leaving empty headroom.
+// every tracked week is well above or below it. The floor is rounded down to
+// the nearest 5h; the top is fixed at the legal weekly max (45h) - a week
+// above that is already red and just fills the full height.
 const ROUND_STEP = 5
 
 // Once the lowest week is comfortably above 0, flooring it straight to the
@@ -55,15 +55,12 @@ function roundedMin(rawMin) {
 }
 
 const axisRange = computed(() => {
+  // Only outgrows 45h if the target itself is set above it.
+  const max = Math.max(MAX_WEEKLY_WORK_HOURS, Math.ceil(props.targetHours / ROUND_STEP) * ROUND_STEP)
   const tracked = props.series.map((w) => w.hours).filter((h) => h > 0)
-  if (tracked.length === 0) {
-    return { min: 0, max: Math.ceil((props.targetHours * 1.15) / ROUND_STEP) * ROUND_STEP }
-  }
-  const rawMin = Math.min(...tracked, props.targetHours)
-  const rawMax = Math.max(...tracked, props.targetHours)
-  const min = roundedMin(rawMin)
-  const max = Math.ceil(rawMax / ROUND_STEP) * ROUND_STEP
-  return { min, max: max > min ? max : min + ROUND_STEP }
+  if (tracked.length === 0) return { min: 0, max }
+  const min = Math.min(roundedMin(Math.min(...tracked, props.targetHours)), max - ROUND_STEP)
+  return { min, max }
 })
 
 const axisSpan = computed(() => axisRange.value.max - axisRange.value.min || 1)

@@ -7,9 +7,8 @@
 import {
   OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
   OVERALL_BALANCE_RED_THRESHOLD_HOURS,
-  WEEKLY_WORKED_GREEN_MAX_OVER_HOURS,
+  MAX_WEEKLY_WORK_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS,
-  WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS,
   TASK_DIFF_YELLOW_THRESHOLD_MINUTES,
   TASK_DIFF_RED_THRESHOLD_MINUTES,
   TASK_ACCURACY_YELLOW_MAX_OVER_PERCENT,
@@ -25,14 +24,14 @@ export function overallBalanceStatus(diffHours) {
   return 'red'
 }
 
-// Same thresholds as WeekSummary's "Worked this week" cell.
+// WeekSummary's "Worked this week" cell and its progress bar, plus
+// Overview's hours-per-week chart.
 export function weeklyWorkedStatus(workedHours, targetHours) {
+  if (workedHours > MAX_WEEKLY_WORK_HOURS) return 'red'
   const diff = workedHours - targetHours
   if (diff < -WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS) return 'red'
   if (diff < 0) return 'yellow'
-  if (diff <= WEEKLY_WORKED_GREEN_MAX_OVER_HOURS) return 'green'
-  if (diff <= WEEKLY_WORKED_YELLOW_MAX_OVER_HOURS) return 'yellow'
-  return 'red'
+  return 'green'
 }
 
 // Task planned-vs-real coloring - inverted from the two above: those reward
