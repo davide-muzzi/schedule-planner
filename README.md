@@ -250,3 +250,26 @@ copy that file while the service is stopped, or use **Settings → Export
 data** in the app for a JSON backup, which **Settings → Import data** can
 restore on any instance — this is also the easiest way to move your data
 to a new server.
+
+### Good to know
+
+- **Built around one person's job.** The day and week warnings follow
+  Swiss labour law (ArG: 45h weekly maximum, break rules, 14h daily span,
+  11h rest) plus one specific employer's core hours (Blockzeiten
+  09:00–11:30 and 14:00–16:00 on weekdays, Betriebszeit Mon–Fri
+  06:00–20:00). These are hardcoded, not settings — if they don't fit your
+  situation, change the constants in
+  [`frontend/src/utils/constants.js`](frontend/src/utils/constants.js) and
+  rebuild.
+- **Weather location needs HTTPS.** Browsers only allow geolocation on
+  HTTPS (or `localhost`). Over plain HTTP — e.g. a Tailscale IP — the
+  Weather view always falls back to the hardcoded default location
+  (Rotkreuz, CH), set in
+  [`frontend/src/composables/useWeather.js`](frontend/src/composables/useWeather.js).
+- **One user per instance.** Self-hosting is meant for a single person, the
+  same as the original setup — there's one account and no way to add more.
+  Related: login attempts are rate-limited per client IP (5 per minute),
+  but the app doesn't read forwarded headers, so behind a reverse proxy or
+  Tailscale Funnel every request appears to come from `127.0.0.1`. With one
+  user that just means failed attempts from anywhere count toward the same
+  limit.
