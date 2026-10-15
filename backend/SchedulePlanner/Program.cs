@@ -138,6 +138,63 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Password recovery: there's no "forgot password" flow (no email, no
+// registration), so a lost password is reset the same way the account was
+// created - from config on the server, which only someone with access to the
+// server can set. No-op unless ADMIN_RESET_PASSWORD is set.
+var resetPassword = builder.Configuration["ADMIN_RESET_PASSWORD"];
+if (!string.IsNullOrEmpty(resetPassword))
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+        // ADMIN_USERNAME picks the account if set; otherwise fall back to the
+        // only account there is, since this app only ever has one.
+        var resetUsername = builder.Configuration["ADMIN_USERNAME"];
+        var user = !string.IsNullOrEmpty(resetUsername)
+            ? await userManager.FindByNameAsync(resetUsername)
+            : userManager.Users.Count() == 1 ? userManager.Users.Single() : null;
+
+        if (user == null)
+        {
+            logger.LogError(
+                "ADMIN_RESET_PASSWORD is set but no matching user was found - " +
+                "set ADMIN_USERNAME to the account's username.");
+        }
+        else if (await userManager.CheckPasswordAsync(user, resetPassword))
+        {
+            // Already reset on an earlier start. Resetting again would change
+            // the security stamp and log every session out on each restart.
+            logger.LogWarning(
+                "ADMIN_RESET_PASSWORD is still set - remove it from the config, " +
+                "the password for {Username} has already been reset.", user.UserName);
+        }
+        else
+        {
+            var token = await userManager.GeneratePasswordResetTokenAsync(user);
+            var result = await userManager.ResetPasswordAsync(user, token, resetPassword);
+            if (result.Succeeded)
+            {
+                // Also lifts a lockout from too many failed logins, so the new
+                // password works straight away.
+                await userManager.SetLockoutEndDateAsync(user, null);
+                await userManager.ResetAccessFailedCountAsync(user);
+                logger.LogWarning(
+                    "Password for {Username} was reset from ADMIN_RESET_PASSWORD - " +
+                    "remove it from the config now.", user.UserName);
+            }
+            else
+            {
+                logger.LogError(
+                    "Failed to reset password for {Username}: {Errors}",
+                    user.UserName, string.Join("; ", result.Errors.Select(e => e.Description)));
+            }
+        }
+    }
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler(errorApp =>

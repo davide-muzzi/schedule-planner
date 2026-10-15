@@ -188,6 +188,7 @@ Everything is configured through environment variables:
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First start only | Creates the one login account when the user table is empty. Ignored once an account exists — there's no registration page, so this is the only way in. Password rules as described under **Getting started**. |
+| `ADMIN_RESET_PASSWORD` | No | Sets a new password on the next start — see **Locked out?** below. |
 | `ASPNETCORE_URLS` | Yes | Address(es) to listen on, e.g. `http://127.0.0.1:5000` behind a reverse proxy. Separate multiple addresses with `;`. |
 | `ASPNETCORE_ENVIRONMENT` | Recommended | Set to `Production`. |
 | `ConnectionStrings__DefaultConnection` | No | SQLite connection string. Defaults to `Data Source=schedule.db`, i.e. a file in the process's working directory. |
@@ -241,6 +242,31 @@ git pull
 # then repeat step 3, and:
 sudo systemctl restart schedule-planner
 ```
+
+### Locked out?
+
+There's no "forgot password" link — instead, a lost password is reset from
+the server, the same way the account was created:
+
+1. Add `Environment=ADMIN_RESET_PASSWORD=<new password>` to your unit file
+   (`sudo nano /etc/systemd/system/schedule-planner.service`).
+2. `sudo systemctl daemon-reload && sudo systemctl restart schedule-planner`
+3. Check `journalctl -u schedule-planner` for "Password for … was reset".
+4. Log in with the new password, then **remove that line** again and
+   reload/restart once more.
+
+Notes:
+
+- The new password follows the same rules as `ADMIN_PASSWORD`. If it's too
+  weak, nothing changes and the log says why.
+- It also lifts a lockout from too many failed logins (5 wrong passwords
+  lock the account for 5 minutes).
+- Browsers still logged in with the old password are signed out within
+  about 30 minutes.
+- If the line is left in, later restarts don't reset anything again — they
+  just log a reminder to remove it. Your schedule data is never touched.
+- It resets the account named in `ADMIN_USERNAME`; if that isn't set, it
+  resets the only account there is.
 
 ### Backups
 
