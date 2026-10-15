@@ -3,9 +3,16 @@ import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate, hoursToTimeString, snapHours } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
-import { DAILY_RED_THRESHOLD_HOURS, MAX_CONTINUOUS_WORK_HOURS, BETRIEBSZEIT } from '@/utils/constants'
+import {
+  DAILY_RED_THRESHOLD_HOURS,
+  MAX_CONTINUOUS_WORK_HOURS,
+  BETRIEBSZEIT,
+  MAX_DAILY_SPAN_HOURS,
+  MIN_REST_HOURS,
+} from '@/utils/constants'
 import { computeBreakWarning } from '@/utils/breakRules'
 import { computeBlockzeitWarnings, computeBetriebszeitViolations } from '@/utils/blockzeitRules'
+import { computeDailySpanViolation, computeRestViolation } from '@/utils/dayFrameRules'
 import { showToast } from '@/utils/toast'
 import { entriesAreMergeable } from '@/utils/entryMerge'
 import { entryRange, moveMagnetTarget } from '@/utils/timelineDrag'
@@ -16,6 +23,7 @@ const props = defineProps({
   date: { type: Date, required: true },
   rowIndex: { type: Number, default: 0 }, // position within the visible week - staggers this row's own enter and its blocks' reveal
   entries: { type: Array, default: () => [] },
+  previousDayEntries: { type: Array, default: () => [] }, // for the rest-time check against yesterday's last Working end
   showGoalDiff: { type: Boolean, default: false },
   dailyTargetHours: { type: Number, required: true },
   viewFromHour: { type: Number, required: true },
@@ -197,6 +205,8 @@ const breakWarning = computed(() => computeBreakWarning(props.entries))
 
 const blockzeitWarnings = computed(() => computeBlockzeitWarnings(props.date, props.entries))
 const betriebszeitViolations = computed(() => computeBetriebszeitViolations(props.date, props.entries))
+const dailySpanViolation = computed(() => computeDailySpanViolation(props.entries))
+const restViolation = computed(() => computeRestViolation(props.entries, props.previousDayEntries))
 
 function formatRange({ start, end }) {
   return `${hoursToTimeString(start)}–${hoursToTimeString(end)}`
@@ -241,6 +251,20 @@ const dayWarnings = computed(() => {
     warnings.push({
       severity: 'bad',
       message: `Working outside Betriebszeit (Mon–Fri ${formatRange(BETRIEBSZEIT)}): ${betriebszeitViolations.value.map(formatRange).join(', ')}.`,
+    })
+  }
+  if (dailySpanViolation.value) {
+    const span = dailySpanViolation.value
+    warnings.push({
+      severity: 'bad',
+      message: `Workday spans ${formatHours(span.hours)} (${formatRange(span)}) including breaks — Swiss law allows at most ${MAX_DAILY_SPAN_HOURS}h.`,
+    })
+  }
+  if (restViolation.value) {
+    const rest = restViolation.value
+    warnings.push({
+      severity: 'bad',
+      message: `Only ${formatHours(rest.hours)} rest since yesterday (ended ${hoursToTimeString(rest.previousEnd)}, starting ${hoursToTimeString(rest.start)}) — Swiss law requires at least ${MIN_REST_HOURS}h.`,
     })
   }
   return warnings

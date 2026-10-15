@@ -16,6 +16,13 @@ export const OVERALL_BALANCE_YELLOW_MAX_OVER_HOURS = 40
 // Swiss law (ArG Art. 9): maximum weekly working time.
 export const MAX_WEEKLY_WORK_HOURS = 45
 
+// Swiss law (ArG Art. 10 Abs. 3): first start to last end of work in a day,
+// breaks included, may span at most this long.
+export const MAX_DAILY_SPAN_HOURS = 14
+
+// Swiss law (ArG Art. 15a): minimum rest between two working days.
+export const MIN_REST_HOURS = 11
+
 // "Worked this week" coloring: green from target up to the legal weekly max
 // (42-45h). Yellow for a shortfall up to 2h (40-42h). Red below that or
 // above the max.

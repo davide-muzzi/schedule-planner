@@ -794,6 +794,7 @@ async function confirmDeleteEntryAndTask() {
         :date="date"
         :row-index="index"
         :entries="entriesForDate(date)"
+        :previous-day-entries="entriesForDate(addDays(date, -1))"
         :show-goal-diff="showGoalDiffFor(date)"
         :daily-target-hours="store.dailyTargetHours"
         :view-from-hour="store.viewFromHour"
