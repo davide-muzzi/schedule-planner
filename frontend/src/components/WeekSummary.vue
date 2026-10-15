@@ -3,13 +3,11 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { ChevronLeft, ChevronRight, CalendarDays, TriangleAlert } from '@lucide/vue'
 import { formatWeekRange, formatHours, getMonday, toISODate, getISOWeekNumber } from '@/utils/date'
 import {
-  OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
-  OVERALL_BALANCE_RED_THRESHOLD_HOURS,
   MAX_WEEKLY_WORK_HOURS,
   UPCOMING_APPOINTMENTS_YELLOW_MAX_GAP_HOURS,
   BUSINESS_DAYS_PER_WEEK,
 } from '@/utils/constants'
-import { weeklyWorkedStatus } from '@/utils/status'
+import { weeklyWorkedStatus, overallBalanceStatus } from '@/utils/status'
 import { useAppShell } from '@/composables/useAppShell'
 import WeeklyProgressBar from './WeeklyProgressBar.vue'
 import MiniCalendar from './MiniCalendar.vue'
@@ -70,13 +68,7 @@ const weekKicker = computed(() => `Calendar week ${getISOWeekNumber(props.monday
 
 const diff = computed(() => props.overallBalance.diffHours)
 
-const status = computed(() => {
-  if (diff.value <= -OVERALL_BALANCE_RED_THRESHOLD_HOURS) return 'red' // 10h or more under
-  if (diff.value < 0) return 'yellow' // shortfall under 10h
-  if (diff.value <= OVERALL_BALANCE_GREEN_MAX_OVER_HOURS) return 'green' // target up to +5h over
-  if (diff.value < OVERALL_BALANCE_RED_THRESHOLD_HOURS) return 'yellow' // +5h to +10h over
-  return 'red' // +10h or more over
-})
+const status = computed(() => overallBalanceStatus(diff.value))
 
 const diffLabel = computed(() => {
   if (Math.abs(diff.value) < 0.01) return 'right on target'

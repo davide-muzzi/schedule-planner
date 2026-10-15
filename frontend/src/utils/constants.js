@@ -8,12 +8,10 @@ export const DEFAULT_WEEKLY_TARGET_MINUTES = 42 * 60
 export const RED_THRESHOLD_HOURS = 40
 export const YELLOW_THRESHOLD_HOURS = 10
 
-// "Overall balance" coloring (WeekSummary only): green is the
-// target-to-+5h "sweet spot". Yellow on either side of that (any shortfall
-// under 10h, or +5h to +10h over). Red once you're 10h+ away from target in
-// either direction - excessive overtime and excessive shortfall both flag.
-export const OVERALL_BALANCE_GREEN_MAX_OVER_HOURS = 5
-export const OVERALL_BALANCE_RED_THRESHOLD_HOURS = 10
+// "Overall balance" coloring: green from 0 up to +10h. Yellow for +10h to
+// +40h. Red for any shortfall or more than +40h over.
+export const OVERALL_BALANCE_GREEN_MAX_OVER_HOURS = 10
+export const OVERALL_BALANCE_YELLOW_MAX_OVER_HOURS = 40
 
 // Swiss law (ArG Art. 9): maximum weekly working time.
 export const MAX_WEEKLY_WORK_HOURS = 45

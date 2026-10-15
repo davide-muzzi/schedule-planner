@@ -6,7 +6,7 @@
 // their own.
 import {
   OVERALL_BALANCE_GREEN_MAX_OVER_HOURS,
-  OVERALL_BALANCE_RED_THRESHOLD_HOURS,
+  OVERALL_BALANCE_YELLOW_MAX_OVER_HOURS,
   MAX_WEEKLY_WORK_HOURS,
   WEEKLY_WORKED_YELLOW_MAX_UNDER_HOURS,
   TASK_DIFF_YELLOW_THRESHOLD_MINUTES,
@@ -15,12 +15,11 @@ import {
   TASK_ACCURACY_RED_THRESHOLD_PERCENT,
 } from './constants'
 
-// Same thresholds as WeekSummary's "Overall balance" cell.
+// WeekSummary's "Overall balance" cell.
 export function overallBalanceStatus(diffHours) {
-  if (diffHours <= -OVERALL_BALANCE_RED_THRESHOLD_HOURS) return 'red'
-  if (diffHours < 0) return 'yellow'
+  if (diffHours < 0) return 'red'
   if (diffHours <= OVERALL_BALANCE_GREEN_MAX_OVER_HOURS) return 'green'
-  if (diffHours < OVERALL_BALANCE_RED_THRESHOLD_HOURS) return 'yellow'
+  if (diffHours <= OVERALL_BALANCE_YELLOW_MAX_OVER_HOURS) return 'yellow'
   return 'red'
 }
 
