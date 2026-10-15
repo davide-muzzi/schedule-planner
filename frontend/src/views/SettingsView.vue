@@ -10,6 +10,11 @@ import { showToast } from '@/utils/toast'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const store = useScheduleStore()
+
+const statsCutoffMode = computed({
+  get: () => store.statsCutoffMode,
+  set: (mode) => store.setStatsCutoffMode(mode),
+})
 const { theme, setTheme, respectReducedMotion, setRespectReducedMotion, sidebarWidth, setSidebarWidth } = useAppShell()
 
 // Inline error message for the two fields that hit the backend (weekly
@@ -353,6 +358,19 @@ async function saveWeeklyGoal() {
 
       <div class="row">
         <div class="row-label">
+          <div class="row-title">Stats cutoff without future weeks</div>
+          <div class="row-desc">Where the planner's overall balance and upcoming appointments stop while "Include future weeks" is off.</div>
+        </div>
+        <div class="row-control">
+          <select v-model="statsCutoffMode" class="select-input select-input-wide">
+            <option value="week">End of current week</option>
+            <option value="day">Today</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">
           <div class="row-title">Weekly worktime goal</div>
           <div class="row-desc">= {{ formatHours(dailyPreviewHours) }} / day (over {{ BUSINESS_DAYS_PER_WEEK }} business days)</div>
         </div>
@@ -663,6 +681,12 @@ async function saveWeeklyGoal() {
   width: 6.5rem;
   padding-right: 16px;
   font-family: var(--font-mono);
+}
+
+/* The hour selects above only need 6.5rem; text options need to fit. */
+.select-input.select-input-wide {
+  width: auto;
+  min-width: 13rem;
 }
 
 .range-inputs {

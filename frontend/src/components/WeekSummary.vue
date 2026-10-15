@@ -22,6 +22,8 @@ const props = defineProps({
   nextAppointment: { type: Object, default: null },
   holidaysRemaining: { type: Number, required: true },
   holidayAdjustmentDays: { type: Number, required: true },
+  includeFutureWeeks: { type: Boolean, required: true },
+  statsCutoffMode: { type: String, required: true }, // 'week' | 'day' - only matters while includeFutureWeeks is off
 })
 
 const emit = defineEmits([
@@ -32,7 +34,14 @@ const emit = defineEmits([
   'apply-adjustment',
   'apply-holiday-adjustment',
   'view-next-appointment',
+  'toggle-include-future-weeks',
 ])
+
+const futureWeeksTitle = computed(() =>
+  props.includeFutureWeeks
+    ? 'ON: overall balance and upcoming appointments include future weeks. Click to turn off.'
+    : `OFF: overall balance and upcoming appointments only count up to ${props.statsCutoffMode === 'day' ? 'today' : 'the end of the current week'}. Click to turn on.`,
+)
 
 const { isNarrowViewport } = useAppShell()
 
@@ -243,6 +252,16 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="header-nav">
+        <button
+          type="button"
+          class="future-weeks-btn"
+          :class="includeFutureWeeks ? 'is-on' : 'is-off'"
+          :aria-pressed="includeFutureWeeks"
+          :title="futureWeeksTitle"
+          @click="emit('toggle-include-future-weeks')"
+        >
+          <span class="future-weeks-prefix">Include </span>future weeks
+        </button>
         <button type="button" class="icon-btn" @click="emit('prev')" aria-label="Previous week"><ChevronLeft :size="16" /></button>
         <button type="button" class="icon-btn" @click="emit('next')" aria-label="Next week"><ChevronRight :size="16" /></button>
         <button type="button" class="today-btn" :class="{ 'is-current': isCurrentWeek }" @click="emit('today')">Today</button>
@@ -514,6 +533,72 @@ onBeforeUnmount(() => {
   border-color: var(--accent);
 }
 
+/* Not a slider/checkbox - the button's own background is the state:
+   green while future weeks are included, red while they're cut off. */
+.future-weeks-btn {
+  margin-right: 8px;
+  padding: 7px 13px;
+  border-radius: var(--r);
+  border: 1px solid;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  /* Flat at rest; slight 3D (a thin darker ledge it sinks into while
+     pressed) on hover - or always, on touch devices without hover. See the
+     hover media queries below. --ledge is set per state. */
+  box-shadow: 0 0 0 var(--ledge);
+  transition:
+    background-color 0.16s,
+    border-color 0.16s,
+    color 0.16s,
+    transform 0.08s,
+    box-shadow 0.08s;
+}
+
+.future-weeks-btn.is-on {
+  --ledge: color-mix(in srgb, var(--ok) 45%, black);
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.future-weeks-btn.is-off {
+  --ledge: color-mix(in srgb, var(--bad) 45%, black);
+  background: color-mix(in srgb, var(--bad) 22%, transparent);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Hover lifts the button onto its ledge (bottom edge stays put), a press
+   pushes it back down flat. */
+@media (hover: hover) {
+  .future-weeks-btn:hover {
+    filter: brightness(1.15);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 0 var(--ledge);
+  }
+
+  .future-weeks-btn:hover:active {
+    transform: translateY(0);
+    box-shadow: 0 0 0 var(--ledge);
+  }
+}
+
+/* No hover on touch - stay 3D, a tap presses it down. */
+@media (hover: none) {
+  .future-weeks-btn {
+    box-shadow: 0 2px 0 var(--ledge);
+  }
+
+  .future-weeks-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 var(--ledge);
+  }
+}
+
 .today-btn {
   padding: 7px 13px;
   border-radius: var(--r);
@@ -781,6 +866,19 @@ onBeforeUnmount(() => {
 
   .header-nav {
     justify-content: flex-end;
+  }
+
+  /* The nav row is right-aligned on mobile, leaving its left side empty -
+     the toggle claims that space instead of crowding the arrow buttons,
+     with a shorter label and the same 30px height as the icon buttons. */
+  .future-weeks-btn {
+    margin-right: auto;
+    height: 30px;
+    padding: 0 11px;
+  }
+
+  .future-weeks-prefix {
+    display: none;
   }
 
   .strip-cell {

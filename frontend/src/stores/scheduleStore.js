@@ -3,7 +3,7 @@ import api from '@/services/api'
 import balanceAdjustmentApi from '@/services/balanceAdjustmentApi'
 import workGoalSettingsApi from '@/services/workGoalSettingsApi'
 import holidaySettingsApi from '@/services/holidaySettingsApi'
-import { getMonday, toISODate, durationHours } from '@/utils/date'
+import { getMonday, addDays, toISODate, durationHours } from '@/utils/date'
 import {
   DEFAULT_WEEKLY_TARGET_MINUTES,
   BUSINESS_DAYS_PER_WEEK,
@@ -22,6 +22,32 @@ import { useTagsStore } from './tagsStore'
 const VIEW_RANGE_STORAGE_KEY = 'schedulePlanner.viewRange'
 const ENTRY_TYPE_COLORS_STORAGE_KEY = 'schedulePlanner.entryTypeColors'
 const VISIBLE_WEEKDAYS_STORAGE_KEY = 'schedulePlanner.visibleWeekdays'
+const INCLUDE_FUTURE_WEEKS_STORAGE_KEY = 'schedulePlanner.includeFutureWeeks'
+const STATS_CUTOFF_MODE_STORAGE_KEY = 'schedulePlanner.statsCutoffMode'
+
+// Where the planner's stats stop while "Include future weeks" is off: the end
+// of the current week (Sunday) or today.
+const STATS_CUTOFF_MODES = ['week', 'day']
+
+function loadIncludeFutureWeeks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(INCLUDE_FUTURE_WEEKS_STORAGE_KEY))
+    if (typeof raw === 'boolean') return raw
+  } catch {
+    // fall through to default
+  }
+  return true
+}
+
+function loadStatsCutoffMode() {
+  try {
+    const raw = localStorage.getItem(STATS_CUTOFF_MODE_STORAGE_KEY)
+    if (STATS_CUTOFF_MODES.includes(raw)) return raw
+  } catch {
+    // fall through to default
+  }
+  return 'week'
+}
 
 // Date.getDay() convention: 0=Sun, 1=Mon, ..., 6=Sat. Mon-Fri visible by
 // default, matching the previous hardcoded behavior.
@@ -81,6 +107,9 @@ export const useScheduleStore = defineStore('schedule', {
       // preference. Hiding a day never affects totals/goal-diff/break-law
       // math, which always considers the full week regardless.
       visibleWeekdays: loadVisibleWeekdays(),
+      // Planner header toggle + its Settings rule - see statsCutoffIso.
+      includeFutureWeeks: loadIncludeFutureWeeks(),
+      statsCutoffMode: loadStatsCutoffMode(),
       // { [year]: { allotmentDays, adjustmentDays } } - backend-backed (real
       // data, not a display preference), fetched lazily per year as needed.
       holidayYearSettings: {},
@@ -90,6 +119,23 @@ export const useScheduleStore = defineStore('schedule', {
   getters: {
     weeklyTargetHours: (state) => state.weeklyTargetMinutes / 60,
     dailyTargetHours: (state) => state.weeklyTargetMinutes / 60 / BUSINESS_DAYS_PER_WEEK,
+
+    // Last date (inclusive, ISO) the planner's header stats count, or null
+    // for no cutoff. Off = "Include future weeks" off, so you can see where
+    // you stand right now while still planning ahead.
+    statsCutoffIso(state) {
+      if (state.includeFutureWeeks) return null
+      const today = new Date()
+      return toISODate(state.statsCutoffMode === 'day' ? today : addDays(getMonday(today), 6))
+    },
+
+    // Entries the planner's header stats (overall balance, upcoming
+    // appointments) are computed from. Overview's per-week stats deliberately
+    // keep using every entry.
+    statsEntries(state) {
+      const cutoff = this.statsCutoffIso
+      return cutoff ? state.entries.filter((e) => e.date <= cutoff) : state.entries
+    },
 
     // Running balance across every individual day that has a Working entry:
     // each such day contributes +dailyTargetHours to "expected", and its
@@ -105,10 +151,11 @@ export const useScheduleStore = defineStore('schedule', {
     // subtracted from the diff directly - independent of dayCount/expected,
     // since taking it doesn't newly "demand" that day's target the way a
     // Working day does.
+    // Respects the "Include future weeks" cutoff (see statsEntries).
     overallBalance(state) {
       const days = new Map()
       let compensationHours = 0
-      for (const entry of state.entries) {
+      for (const entry of this.statsEntries) {
         if (entry.allDay) continue
         if (entry.entryType === 'Working') {
           days.set(entry.date, (days.get(entry.date) || 0) + durationHours(entry.startTime, entry.endTime))
@@ -180,9 +227,10 @@ export const useScheduleStore = defineStore('schedule', {
     // same as overallBalance, so it's directly comparable to it: "how much
     // time will future appointments cost me" vs. "how much of a buffer have
     // I already built up".
-    futureAppointmentHours(state) {
+    // Also respects the "Include future weeks" cutoff, same as overallBalance.
+    futureAppointmentHours() {
       const todayIso = toISODate(new Date())
-      return state.entries
+      return this.statsEntries
         .filter((e) => e.entryType === 'Appointment' && !e.allDay && e.date >= todayIso)
         .reduce((sum, e) => sum + durationHours(e.startTime, e.endTime), 0)
     },
@@ -191,9 +239,9 @@ export const useScheduleStore = defineStore('schedule', {
     // futureAppointmentHours, just sorted to pick out the first one instead
     // of summing all of them. Backs the "Upcoming appointments" cell's
     // click-to-view shortcut. Null once there's nothing left to jump to.
-    nextAppointment(state) {
+    nextAppointment() {
       const todayIso = toISODate(new Date())
-      const upcoming = state.entries
+      const upcoming = this.statsEntries
         .filter((e) => e.entryType === 'Appointment' && !e.allDay && e.date >= todayIso)
         .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
       return upcoming[0] ?? null
@@ -249,6 +297,8 @@ export const useScheduleStore = defineStore('schedule', {
         viewTillHour: state.viewTillHour,
         entryTypeColors: state.entryTypeColors,
         visibleWeekdays: state.visibleWeekdays,
+        includeFutureWeeks: state.includeFutureWeeks,
+        statsCutoffMode: state.statsCutoffMode,
       }
     },
   },
@@ -426,6 +476,17 @@ export const useScheduleStore = defineStore('schedule', {
       if (next.length === 0) return // always keep at least one day visible
       this.visibleWeekdays = next
       localStorage.setItem(VISIBLE_WEEKDAYS_STORAGE_KEY, JSON.stringify(next))
+    },
+
+    setIncludeFutureWeeks(value) {
+      this.includeFutureWeeks = value
+      localStorage.setItem(INCLUDE_FUTURE_WEEKS_STORAGE_KEY, JSON.stringify(value))
+    },
+
+    setStatsCutoffMode(mode) {
+      if (!STATS_CUTOFF_MODES.includes(mode)) return
+      this.statsCutoffMode = mode
+      localStorage.setItem(STATS_CUTOFF_MODE_STORAGE_KEY, mode)
     },
 
     async fetchHolidayYearSetting(year) {
@@ -664,6 +725,8 @@ export const useScheduleStore = defineStore('schedule', {
           this.visibleWeekdays = data.visibleWeekdays
           localStorage.setItem(VISIBLE_WEEKDAYS_STORAGE_KEY, JSON.stringify(data.visibleWeekdays))
         }
+        if (typeof data.includeFutureWeeks === 'boolean') this.setIncludeFutureWeeks(data.includeFutureWeeks)
+        if (data.statsCutoffMode) this.setStatsCutoffMode(data.statsCutoffMode)
 
         return { skipped }
       } catch (err) {
