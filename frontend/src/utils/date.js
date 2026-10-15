@@ -9,8 +9,12 @@ export function getMonday(date) {
   return d
 }
 
+// Calendar days, not days * 24h - a DST switch makes one day 23h or 25h long,
+// and fixed-ms math would land Monday 00:00 on Sunday 23:00 (or Monday 01:00).
 export function addDays(date, days) {
-  return new Date(date.getTime() + days * DAY_MS)
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
 }
 
 export function addWeeks(date, weeks) {
