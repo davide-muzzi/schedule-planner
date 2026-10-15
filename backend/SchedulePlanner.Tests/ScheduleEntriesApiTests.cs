@@ -23,10 +23,9 @@ public class ScheduleEntriesApiTests : IAsyncLifetime
     private readonly TestWebApplicationFactory _factory = new();
     private HttpClient _client = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        _client = _factory.CreateClient();
-        return Task.CompletedTask;
+        _client = await _factory.CreateAuthenticatedClientAsync();
     }
 
     public Task DisposeAsync()
