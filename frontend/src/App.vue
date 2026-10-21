@@ -74,10 +74,13 @@ onBeforeUnmount(stopStatusSync)
 </template>
 
 <style scoped>
+/* Always exactly the viewport's height - no min-height floor, since that
+   made the whole shell (sidebar included) taller than the window on short
+   or zoomed-in viewports. Only .shell-main scrolls; the sidebar stays put. */
 .shell {
   display: flex;
   height: 100vh;
-  min-height: 640px;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -88,15 +91,7 @@ onBeforeUnmount(stopStatusSync)
   padding: 38px 44px 60px;
 }
 
-/* A phone held sideways rarely clears the 640px floor below, and it must
-   never force the whole shell (sidebar included) to scroll as one block -
-   only .shell-main should scroll, so the sidebar stays put. */
 @media (max-width: 900px) {
-  .shell {
-    height: 100dvh;
-    min-height: 0;
-  }
-
   .shell-main {
     padding: 18px 16px 36px;
   }

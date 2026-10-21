@@ -271,6 +271,11 @@ function isActive(to) {
   gap: 4px;
   padding: 18px 14px;
   flex: 1;
+  /* On a very short window the nav scrolls on its own rather than pushing
+     the footer buttons out of view. */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nav-item {
