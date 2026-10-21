@@ -61,6 +61,34 @@ const targetPercent = computed(() =>
 )
 const targetTopPercent = computed(() => 100 - targetPercent.value)
 
+// Average over the tracked (non-zero) weeks in view - untracked weeks would
+// otherwise drag it toward 0. Null when nothing's tracked yet (no line).
+const averageHours = computed(() => {
+  const tracked = props.series.map((w) => w.hours).filter((h) => h > 0)
+  if (tracked.length === 0) return null
+  return tracked.reduce((sum, h) => sum + h, 0) / tracked.length
+})
+const averagePercent = computed(() =>
+  averageHours.value === null
+    ? 0
+    : Math.min(100, Math.max(0, ((averageHours.value - axisRange.value.min) / axisSpan.value) * 100)),
+)
+
+// Labels sit centred on their line by default. When the average is within
+// 1h of the target, the two labels are pushed to opposite sides so they
+// don't overlap (the higher line's label above it, the lower one's below);
+// within 1h of the top, the average's label goes below so it clears the
+// max label.
+const labelPlacement = computed(() => {
+  const avg = averageHours.value
+  if (avg === null) return { target: 'center', average: 'center' }
+  const diff = avg - props.targetHours
+  if (diff >= 0 && diff <= 1) return { target: 'below', average: 'above' }
+  if (diff < 0 && diff >= -1) return { target: 'above', average: 'below' }
+  if (avg >= axisRange.value.max - 1) return { target: 'center', average: 'below' }
+  return { target: 'center', average: 'center' }
+})
+
 const STATUS_COLOR = { green: 'var(--ok)', yellow: 'var(--warn)', red: 'var(--bad)' }
 
 const bars = computed(() =>
@@ -105,12 +133,24 @@ const tooltipRows = computed(() => {
     <div class="plot-row">
       <div class="y-axis">
         <span class="y-label max">{{ formatHours(axisRange.max) }}</span>
-        <span class="y-label target" :style="{ top: targetTopPercent + '%' }">{{ formatHours(targetHours) }}</span>
+        <span
+          class="y-label target"
+          :class="'place-' + labelPlacement.target"
+          :style="{ top: targetTopPercent + '%' }"
+        >{{ formatHours(targetHours) }}</span>
+        <span
+          v-if="averageHours !== null"
+          class="y-label average"
+          :class="'place-' + labelPlacement.average"
+          :style="{ top: 100 - averagePercent + '%' }"
+          title="Average per tracked week"
+        >{{ formatHours(averageHours) }}</span>
         <span class="y-label min">{{ formatHours(axisRange.min) }}</span>
       </div>
       <div class="plot" ref="plotEl" @scroll="onPrimaryScroll">
         <div class="plot-content">
           <div class="target-line" :style="{ bottom: targetPercent + '%' }"></div>
+          <div v-if="averageHours !== null" class="average-line" :style="{ bottom: averagePercent + '%' }"></div>
           <!-- The full-height slot (not just the bar) is the click target, so
                a short or empty week is just as easy to hit. -->
           <div
@@ -186,9 +226,25 @@ const tooltipRows = computed(() => {
   bottom: 0;
 }
 
-.y-label.target {
-  transform: translateY(-50%);
+.y-label.target,
+.y-label.average {
   background: var(--surface);
+}
+
+.y-label.average {
+  color: var(--accent);
+}
+
+.y-label.place-center {
+  transform: translateY(-50%);
+}
+
+.y-label.place-above {
+  transform: translateY(-100%);
+}
+
+.y-label.place-below {
+  transform: translateY(0);
 }
 
 .plot {
@@ -222,7 +278,18 @@ const tooltipRows = computed(() => {
   left: 0;
   right: 0;
   z-index: 1;
+  pointer-events: none;
   border-top: 1px dashed var(--line-2);
+}
+
+.average-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-top: 1px dotted var(--accent);
+  opacity: 0.8;
 }
 
 .bar-slot {
