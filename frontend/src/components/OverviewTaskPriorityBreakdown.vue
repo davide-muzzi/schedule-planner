@@ -7,7 +7,7 @@ const props = defineProps({
 
 // Most severe first, with "none" last - same visual weighting as the
 // priority dots elsewhere in the app (High = red, ... None = grey).
-const PRIORITY_ORDER = ['high', 'medium', 'low', 'none']
+const PRIORITY_ORDER = ['none', 'low', 'medium', 'high']
 const PRIORITY_LABELS = { high: 'High', medium: 'Medium', low: 'Low', none: 'None' }
 // Reuses the same priority-dot colors used across TaskCard/TaskFormModal.
 const PRIORITY_COLORS = {
