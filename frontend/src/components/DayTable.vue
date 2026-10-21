@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand } from '@lucide/vue'
+import { TriangleAlert, StickyNote, Briefcase, House, Eraser, Plus, Copy, ClipboardPaste, Check, Expand, Trash2 } from '@lucide/vue'
 import { durationHours, timeToDecimalHours, formatHours, toISODate, hoursToTimeString, snapHours } from '@/utils/date'
 import { colorStyleForType } from '@/utils/entryTypeColors'
 import {
@@ -313,7 +313,7 @@ function openContextMenu(event, entry) {
   contextMenuEntry.value = entry
   // Clamp so the menu never renders partly off-screen near a viewport edge.
   const x = Math.min(event.clientX, window.innerWidth - 160)
-  const y = Math.min(event.clientY, window.innerHeight - 90)
+  const y = Math.min(event.clientY, window.innerHeight - 120)
   contextMenuStyle.value = { left: `${x}px`, top: `${y}px` }
   showContextMenu.value = true
 }
@@ -333,6 +333,13 @@ function handleContextCopy() {
 
 function handleContextGoToTask() {
   emit('view-task', contextMenuEntry.value.taskItemId)
+  showContextMenu.value = false
+}
+
+// Same path as middle-click delete - PlannerView handles the linked-task
+// prompt and the undo toast.
+function handleContextDelete() {
+  emit('delete-entry', contextMenuEntry.value.id)
   showContextMenu.value = false
 }
 
@@ -1222,6 +1229,9 @@ const tooltipTimeText = computed(() => {
           >
             <Expand :size="13" /> Go to Task
           </button>
+          <button type="button" class="context-menu-item danger" @click="handleContextDelete">
+            <Trash2 :size="13" /> Delete
+          </button>
         </template>
         <button
           v-else
@@ -1472,6 +1482,10 @@ const tooltipTimeText = computed(() => {
 
 .context-menu-item:hover:not(:disabled) {
   background: var(--surface2);
+}
+
+.context-menu-item.danger {
+  color: var(--bad);
 }
 
 .context-menu-item:disabled {
