@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Plus, X, SlidersHorizontal, Tags, Search, ListSortAscending, ListSortDescending } from '@lucide/vue'
+import { Plus, X, SlidersHorizontal, Tags, Search, ArrowDownUp } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
@@ -14,6 +14,8 @@ import {
   defaultDateFilter,
 } from '@/utils/taskFilters'
 import { showToast } from '@/utils/toast'
+import { compareTasksByLevels, defaultSortLevels, normalizeSortLevels } from '@/utils/taskSort'
+import TaskSortModal from '@/components/TaskSortModal.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import TaskFilterModal from '@/components/TaskFilterModal.vue'
 import TaskCard from '@/components/TaskCard.vue'
@@ -33,29 +35,20 @@ const STATUS_HINTS = {
   Done: 'Finished',
 }
 
-const SORT_OPTIONS = [
-  { value: 'id', label: 'ID' },
-  { value: 'name', label: 'Alphabetical' },
-  { value: 'dueDate', label: 'Due date' },
-  { value: 'priority', label: 'Priority' },
-  { value: 'createdAt', label: 'Created' },
-  { value: 'lastUpdatedAt', label: 'Last updated' },
-]
-// Most urgent first - same severity ordering used for the priority
-// donut/chart on the Overview page.
-const PRIORITY_RANK = { High: 0, Medium: 1, Low: 2, None: 3 }
-const SORT_STORAGE_KEY = 'schedulePlanner.taskSortBy'
-const SORT_REVERSED_STORAGE_KEY = 'schedulePlanner.taskSortReversed'
+const SORT_LEVELS_STORAGE_KEY = 'schedulePlanner.taskSortLevels'
+// Pre-multi-level sort settings - superseded, just cleared out on load.
+const LEGACY_SORT_STORAGE_KEYS = ['schedulePlanner.taskSortBy', 'schedulePlanner.taskSortReversed']
 
 const FILTERS_STORAGE_KEY = 'schedulePlanner.taskFilters'
 
-function loadSortBy() {
-  const stored = localStorage.getItem(SORT_STORAGE_KEY)
-  return SORT_OPTIONS.some((o) => o.value === stored) ? stored : 'id'
-}
-
-function loadSortReversed() {
-  return localStorage.getItem(SORT_REVERSED_STORAGE_KEY) === 'true'
+function loadSortLevels() {
+  for (const key of LEGACY_SORT_STORAGE_KEYS) localStorage.removeItem(key)
+  try {
+    const stored = localStorage.getItem(SORT_LEVELS_STORAGE_KEY)
+    return stored ? normalizeSortLevels(JSON.parse(stored)) : defaultSortLevels()
+  } catch {
+    return defaultSortLevels()
+  }
 }
 
 const scheduleStore = useScheduleStore()
@@ -102,15 +95,13 @@ function loadFiltersFrom(categories, existing = {}) {
   return result
 }
 
-const sortBy = ref(loadSortBy())
-watch(sortBy, (value) => localStorage.setItem(SORT_STORAGE_KEY, value))
+// Sort priority list ("Due date, else Priority, else ...") - see utils/taskSort.js.
+const sortLevels = ref(loadSortLevels())
+watch(sortLevels, (value) => localStorage.setItem(SORT_LEVELS_STORAGE_KEY, JSON.stringify(value)), { deep: true })
+const showSortModal = ref(false)
 
-// One toggle that flips whichever sort is currently active, rather than a
-// separate Asc/Desc entry per field in SORT_OPTIONS above.
-const sortReversed = ref(loadSortReversed())
-watch(sortReversed, (value) => localStorage.setItem(SORT_REVERSED_STORAGE_KEY, String(value)))
-function toggleSortReversed() {
-  sortReversed.value = !sortReversed.value
+function handleSortLevelsUpdate(levels) {
+  sortLevels.value = normalizeSortLevels(levels)
 }
 
 const filters = ref(loadFiltersFrom(FILTER_CATEGORIES.value))
@@ -193,36 +184,9 @@ function taskCard(task) {
   return enrichTaskForDetail(task, tasksStore.tasks, scheduleStore.entries)
 }
 
-// Each non-id ordering is ascending, per-field, with id as the tiebreaker.
-// dueDate is a "YYYY-MM-DD" string (or null) - plain string comparison
-// already sorts it chronologically; tasks with no due date always sort
-// after every dated one, regardless of which field is active. priority uses
-// PRIORITY_RANK so High sorts first (severity, not alphabetical). Used to
-// order every column's cards (see columnLists below).
-function compareTasksAscending(a, b) {
-  if (sortBy.value === 'name') return a.name.localeCompare(b.name) || a.id - b.id
-  if (sortBy.value === 'dueDate') {
-    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate) || a.id - b.id
-    if (a.dueDate) return -1
-    if (b.dueDate) return 1
-    return a.id - b.id
-  }
-  if (sortBy.value === 'priority') {
-    return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.id - b.id
-  }
-  // createdAt/lastUpdatedAt are full ISO datetime strings - plain string
-  // comparison already sorts them chronologically, same as dueDate above.
-  if (sortBy.value === 'createdAt') return a.createdAt.localeCompare(b.createdAt) || a.id - b.id
-  if (sortBy.value === 'lastUpdatedAt') return a.lastUpdatedAt.localeCompare(b.lastUpdatedAt) || a.id - b.id
-  return a.id - b.id
-}
-
-// One shared reversal (see sortReversed above) instead of a separate Asc/Desc
-// pair per field - flips the whole comparison, tiebreakers included, which
-// is simpler to reason about than reversing only the primary key.
+// Orders every column's cards (see columnLists below).
 function compareTasks(a, b) {
-  const result = compareTasksAscending(a, b)
-  return sortReversed.value ? -result : result
+  return compareTasksByLevels(sortLevels.value, a, b)
 }
 
 function matchesFilters(task) {
@@ -513,20 +477,8 @@ async function handleUpdateTags(target, tagIds) {
         <h1 class="title">Tasks</h1>
       </div>
       <div v-if="!isNarrowViewport" class="header-actions">
-        <label class="sort-control">
-          Sort by
-          <select v-model="sortBy">
-            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          class="sort-reverse-btn"
-          :title="sortReversed ? 'Descending - click for ascending' : 'Ascending - click for descending'"
-          :aria-label="sortReversed ? 'Sort descending, click to sort ascending' : 'Sort ascending, click to sort descending'"
-          @click="toggleSortReversed"
-        >
-          <component :is="sortReversed ? ListSortDescending : ListSortAscending" :size="15" />
+        <button type="button" class="filter-btn" @click="showSortModal = true">
+          <ArrowDownUp :size="14" /> Sort by
         </button>
         <button type="button" class="filter-btn" :class="{ active: activeFilterCount > 0 }" @click="showFilterModal = true">
           <SlidersHorizontal :size="14" /> Filters<span v-if="activeFilterCount"> ({{ activeFilterCount }})</span>
@@ -587,23 +539,9 @@ async function handleUpdateTags(target, tagIds) {
           </button>
         </div>
 
-        <div class="mobile-sort-row">
-          <label class="sort-control mobile-sort-control">
-            Sort by
-            <select v-model="sortBy">
-              <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            class="sort-reverse-btn"
-            :title="sortReversed ? 'Descending - click for ascending' : 'Ascending - click for descending'"
-            :aria-label="sortReversed ? 'Sort descending, click to sort ascending' : 'Sort ascending, click to sort descending'"
-            @click="toggleSortReversed"
-          >
-            <component :is="sortReversed ? ListSortDescending : ListSortAscending" :size="15" />
-          </button>
-        </div>
+        <button type="button" class="filter-btn mobile-sort-btn" @click="showSortModal = true">
+          <ArrowDownUp :size="14" /> Sort by
+        </button>
       </div>
     </div>
 
@@ -692,6 +630,13 @@ async function handleUpdateTags(target, tagIds) {
       :tags="tagsStore.tags"
       @update:model-value="(v) => (filters = v)"
       @close="showFilterModal = false"
+    />
+
+    <TaskSortModal
+      v-if="showSortModal"
+      :model-value="sortLevels"
+      @update:model-value="handleSortLevelsUpdate"
+      @close="showSortModal = false"
     />
 
     <ChoiceDialog
@@ -797,51 +742,8 @@ async function handleUpdateTags(target, tagIds) {
   border: 1.5px solid var(--bg);
 }
 
-.sort-control {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--mute);
-  white-space: nowrap;
-}
-
-.sort-reverse-btn {
-  display: flex;
-  align-items: center;
+.mobile-sort-btn {
   justify-content: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r);
-  border: 1px solid var(--line-2);
-  background: var(--surface);
-  color: var(--dim);
-  cursor: pointer;
-  transition:
-    color 0.16s,
-    border-color 0.16s;
-}
-
-.sort-reverse-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.mobile-sort-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sort-control select {
-  padding: 6px 8px;
-  border-radius: var(--r);
-  border: 1px solid var(--line-2);
-  background: var(--surface);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 12px;
 }
 
 .search-control {
@@ -931,15 +833,6 @@ async function handleUpdateTags(target, tagIds) {
   color: var(--fg);
   font-family: inherit;
   font-size: 13px;
-}
-
-.mobile-sort-control {
-  flex: 1;
-  min-width: 0;
-}
-
-.mobile-sort-control select {
-  flex: 1;
 }
 
 .kanban-mobile-switcher {
