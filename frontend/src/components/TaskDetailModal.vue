@@ -5,6 +5,7 @@ import { CalendarClock, CalendarDays, Expand, Pencil, Unlink, X } from '@lucide/
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { formatHours, getMonday, toISODate } from '@/utils/date'
 import { dueCountdown, isOverdue } from '@/utils/taskStats'
+import { renderMarkdown } from '@/utils/markdown'
 
 const STATUS_LABELS = { Backlog: 'Backlog', Ready: 'Ready', InProgress: 'In Progress', Done: 'Done' }
 
@@ -177,7 +178,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
               </span>
             </div>
 
-            <p v-if="task.notes" class="detail-notes">{{ task.notes }}</p>
+            <div v-if="task.notes" class="detail-notes md-content" v-html="renderMarkdown(task.notes)"></div>
 
             <div class="detail-stats">
               <div class="detail-stat">
@@ -390,8 +391,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--dim);
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
 }
 
 .detail-stats {

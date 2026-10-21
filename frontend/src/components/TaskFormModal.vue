@@ -1,14 +1,17 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X, Plus, ListPlus } from '@lucide/vue'
+import { X, Plus, ListPlus, NotebookPen, Pencil } from '@lucide/vue'
 import { useAppShell } from '@/composables/useAppShell'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
+import { useMediaQuery } from '@/composables/useMediaQuery'
+import { renderMarkdown } from '@/utils/markdown'
 import { useTasksStore } from '@/stores/tasksStore'
 import { useTagsStore } from '@/stores/tagsStore'
 import { formatHours } from '@/utils/date'
 import ChoiceDialog from './ChoiceDialog.vue'
 import TimePartInput from './TimePartInput.vue'
 import SubtaskPickerModal from './SubtaskPickerModal.vue'
+import NotesEditorModal from './NotesEditorModal.vue'
 
 const { isNarrowViewport } = useAppShell()
 const tasksStore = useTasksStore()
@@ -126,6 +129,26 @@ const subtasks = computed(() =>
   props.task ? tasksStore.tasks.filter((t) => t.parentTaskId === props.task.id) : [],
 )
 const groupPlannedMinutes = computed(() => subtasks.value.reduce((sum, t) => sum + t.estimatedMinutes, 0))
+
+// --- Notes editor ---
+
+const showNotesEditor = ref(false)
+const renderedNotes = computed(() => renderMarkdown(form.value.notes))
+
+// The editor docks beside this modal when both fit side by side (this
+// modal's width + the editor's 34rem + gap + overlay padding), otherwise
+// it stacks on top. A group's edit modal is twice as wide, so it needs a
+// wider window to dock.
+const fitsDockedNotes = useMediaQuery('(min-width: 1024px)')
+const fitsDockedNotesWide = useMediaQuery('(min-width: 1440px)')
+const notesDocked = computed(() =>
+  isEdit.value && isGroup.value ? fitsDockedNotesWide.value : fitsDockedNotes.value,
+)
+
+function handleNotesSave(text) {
+  form.value.notes = text
+  showNotesEditor.value = false
+}
 
 function tagIdsOf(task) {
   return (task.tags || []).map((t) => t.id)
@@ -363,7 +386,7 @@ function handleKeydown(event) {
   // The nested "Create new subtask" / relink-confirm / remove-subtask-confirm
   // dialogs have their own Escape/Enter handling - same reasoning as
   // EntryFormModal's guard.
-  if (showCreateSubtask.value || showSubtaskPicker.value || pendingRemoveSubtask.value) return
+  if (showCreateSubtask.value || showSubtaskPicker.value || pendingRemoveSubtask.value || showNotesEditor.value) return
   if (event.key === 'Escape') {
     if (openSubtaskPriorityMenu.value) {
       closeSubtaskPriorityMenu()
@@ -397,6 +420,9 @@ function handleOverlayMouseDown(event) {
 }
 
 function handleOverlayClick(event) {
+  // Not while the notes editor is open - a stray click beside it shouldn't
+  // throw away the task form along with an in-progress note.
+  if (showNotesEditor.value) return
   if (overlayMouseDownOnSelf.value && event.target === event.currentTarget) emit('close')
 }
 </script>
@@ -537,7 +563,21 @@ function handleOverlayClick(event) {
 
         <div class="field">
           <label>Notes</label>
-          <textarea v-model="form.notes" rows="3" placeholder="Details for this task..."></textarea>
+          <div v-if="form.notes.trim()" class="notes-preview">
+            <div class="md-content notes-preview-body" v-html="renderedNotes"></div>
+            <button
+              type="button"
+              class="notes-edit-btn"
+              title="Edit notes"
+              aria-label="Edit notes"
+              @click="showNotesEditor = true"
+            >
+              <Pencil :size="13" />
+            </button>
+          </div>
+          <button v-else type="button" class="notes-add-btn" @click="showNotesEditor = true">
+            <NotebookPen :size="13" /> Add notes
+          </button>
         </div>
 
         <div class="field">
@@ -645,6 +685,16 @@ function handleOverlayClick(event) {
         </footer>
       </form>
     </div>
+
+    <Transition :name="notesDocked ? 'notes-slide' : 'notes-fade'">
+      <NotesEditorModal
+        v-if="showNotesEditor"
+        :initial-text="form.notes"
+        :docked="notesDocked"
+        @save="handleNotesSave"
+        @cancel="showNotesEditor = false"
+      />
+    </Transition>
   </div>
 
   <TaskFormModal
@@ -1156,6 +1206,64 @@ input[type='date'] {
 }
 
 .subtask-action-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.notes-add-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-heading);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notes-add-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.notes-preview {
+  position: relative;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background-soft);
+}
+
+.notes-preview-body {
+  max-height: 14rem;
+  overflow-y: auto;
+  /* Right padding leaves room for the edit button in the corner */
+  padding: 0.45rem 2.2rem 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.notes-edit-btn {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.notes-edit-btn:hover {
   border-color: #3b82f6;
   color: #3b82f6;
 }

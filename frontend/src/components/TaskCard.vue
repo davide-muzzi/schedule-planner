@@ -5,6 +5,7 @@ import { formatHours } from '@/utils/date'
 import { dueCountdown, isOverdue } from '@/utils/taskStats'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
 import { useCtrlHeld } from '@/composables/useCtrlHeld'
+import { markdownToPlainText, renderMarkdown } from '@/utils/markdown'
 import TagPopup from './TagPopup.vue'
 
 const PRIORITIES = ['None', 'Low', 'Medium', 'High']
@@ -29,6 +30,10 @@ const emit = defineEmits([
   'update-subtask-priority',
   'update-tags',
 ])
+
+// Notes are Markdown - the card's clamped 2-line snippet shows them as plain
+// text, since rendered headings/lists would break the clamp.
+const notesPlainText = computed(() => markdownToPlainText(props.task.notes))
 
 const expanded = ref(false)
 
@@ -157,7 +162,7 @@ function formatDueDate(dueDate) {
       </button>
     </div>
 
-    <p v-if="task.notes" class="task-notes" :title="task.notes">{{ task.notes }}</p>
+    <p v-if="notesPlainText" class="task-notes" :title="notesPlainText">{{ notesPlainText }}</p>
 
     <div class="task-stats">
       <div class="task-stat">
@@ -250,7 +255,7 @@ function formatDueDate(dueDate) {
                 <CalendarDays :size="11" /> Due {{ formatDueDate(t.dueDate) }} · {{ dueCountdown(t.dueDate) }}
               </span>
             </div>
-            <p v-if="t.notes" class="subtask-detail-notes">{{ t.notes }}</p>
+            <div v-if="t.notes" class="subtask-detail-notes md-content" v-html="renderMarkdown(t.notes)"></div>
             <div v-if="t.tags && t.tags.length > 0" class="subtask-detail-tags">
               <span v-for="tag in t.tags" :key="tag.id" class="task-tag-chip">
                 <span class="task-tag-swatch" :style="{ background: tag.color || 'var(--line-2)' }"></span>
