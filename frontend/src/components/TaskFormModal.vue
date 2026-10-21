@@ -695,9 +695,21 @@ function handleOverlayClick(event) {
   border-radius: 10px;
   width: 100%;
   max-width: 26rem;
-  max-height: 90vh;
+  /* Fixed height so the modal doesn't jump around as fields/tags/pickers
+     appear - spare room collects above the footer (see .modal-footer).
+     dvh where supported so mobile browser bars don't push it off-screen. */
+  height: 90vh;
+  height: 90dvh;
   overflow-y: auto;
   padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal > form {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /* A group's edit modal doubles in width so its Subtasks section can sit
@@ -1281,7 +1293,10 @@ input[type='date'] {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-top: 1rem;
+  /* Pinned to the bottom of the fixed-height modal; padding rather than
+     margin keeps the gap once margin-top: auto has nothing left to fill. */
+  margin-top: auto;
+  padding-top: 1rem;
 }
 
 .spacer {
