@@ -9,6 +9,8 @@ const props = defineProps({
   columns: { type: Array, required: true }, // trackingStreakGrid() output
 })
 
+const emit = defineEmits(['select-week'])
+
 const { isNarrowViewport } = useAppShell()
 
 // Same "fixed size + scroll, roughly half the range visible at once" idea
@@ -69,6 +71,7 @@ function cellTitle(day) {
             :class="'level-' + day.level"
             :style="{ animationDelay: c * 9 + 'ms' }"
             :title="cellTitle(day)"
+            @click="emit('select-week', col.monday)"
           ></span>
         </div>
       </div>
@@ -162,6 +165,13 @@ function cellTitle(day) {
   aspect-ratio: 1 / 1;
   border-radius: 2px;
   animation: fadeIn 0.5s ease both;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.cell:hover {
+  filter: brightness(1.25);
+  outline: 1px solid var(--line-2);
 }
 
 .cell.level-0 {

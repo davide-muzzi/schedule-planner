@@ -13,6 +13,8 @@ const props = defineProps({
   targetHours: { type: Number, required: true },
 })
 
+const emit = defineEmits(['select-week'])
+
 const { isNarrowViewport } = useAppShell()
 
 // On mobile all 52 weeks stay in the DOM, but each bar/label gets a fixed
@@ -109,15 +111,22 @@ const tooltipRows = computed(() => {
       <div class="plot" ref="plotEl" @scroll="onPrimaryScroll">
         <div class="plot-content">
           <div class="target-line" :style="{ bottom: targetPercent + '%' }"></div>
+          <!-- The full-height slot (not just the bar) is the click target, so
+               a short or empty week is just as easy to hit. -->
           <div
             v-for="bar in bars"
             :key="bar.monday.getTime()"
-            class="bar"
-            :class="'status-' + bar.status"
-            :style="{ height: bar.heightPercent + '%', animationDelay: bar.index * 18 + 'ms' }"
+            class="bar-slot"
             @mouseenter="showTooltip($event, bar)"
             @mouseleave="hideTooltip"
-          ></div>
+            @click="emit('select-week', bar.monday)"
+          >
+            <div
+              class="bar"
+              :class="'status-' + bar.status"
+              :style="{ height: bar.heightPercent + '%', animationDelay: bar.index * 18 + 'ms' }"
+            ></div>
+          </div>
         </div>
       </div>
     </div>
@@ -216,15 +225,23 @@ const tooltipRows = computed(() => {
   border-top: 1px dashed var(--line-2);
 }
 
-.bar {
+.bar-slot {
   flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+}
+
+.bar {
+  width: 100%;
   border-radius: var(--r) var(--r) 0 0;
   transform-origin: bottom;
   animation: growY 0.5s var(--ease) both;
   transition: filter 0.15s;
 }
 
-.bar:hover {
+.bar-slot:hover .bar {
   filter: brightness(1.25);
 }
 
@@ -298,7 +315,7 @@ const tooltipRows = computed(() => {
   width: max-content;
 }
 
-.chart.mobile-scroll .bar {
+.chart.mobile-scroll .bar-slot {
   flex: none;
   width: 20px;
 }

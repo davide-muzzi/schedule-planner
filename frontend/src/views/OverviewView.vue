@@ -175,6 +175,11 @@ function goToLongestDay() {
   const monday = getMonday(new Date(`${day.date}T00:00:00`))
   router.push({ name: 'planner', query: { week: toISODate(monday) } })
 }
+
+// Clicking a week's bar (Hours per week) or any day cell (Tracking streak).
+function goToWeek(monday) {
+  router.push({ name: 'planner', query: { week: toISODate(getMonday(monday)) } })
+}
 </script>
 
 <template>
@@ -212,7 +217,11 @@ function goToLongestDay() {
           <h2>Hours per week</h2>
           <span class="meta">LAST {{ WEEKLY_CHART_WEEKS }} WEEKS</span>
         </div>
-        <OverviewWeeklyHoursChart :series="weeklyHoursSeries" :target-hours="store.weeklyTargetHours" />
+        <OverviewWeeklyHoursChart
+          :series="weeklyHoursSeries"
+          :target-hours="store.weeklyTargetHours"
+          @select-week="goToWeek"
+        />
 
         <div class="divider"></div>
 
@@ -242,7 +251,7 @@ function goToLongestDay() {
             <h2>Tracking streak</h2>
             <span class="meta">{{ STREAK_WEEKS }} WEEKS</span>
           </div>
-          <OverviewTrackingStreak :columns="streakColumns" />
+          <OverviewTrackingStreak :columns="streakColumns" @select-week="goToWeek" />
         </div>
 
         <button
