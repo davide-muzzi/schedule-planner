@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { CalendarDays, Check, ChevronDown, ChevronUp, Expand, Pencil, Pin, X } from '@lucide/vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, Expand, Pencil, Pin, Plus, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 import { dueCountdown, isOverdue } from '@/utils/taskStats'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
@@ -26,6 +26,7 @@ const emit = defineEmits([
   'toggle-pin',
   'expand',
   'expand-subtask',
+  'add-subtask',
   'edit-subtask',
   'toggle-subtask-done',
   'update-subtask-priority',
@@ -205,7 +206,18 @@ function formatDueDate(dueDate) {
           {{ subtasks.length }} subtask{{ subtasks.length === 1 ? '' : 's' }}
           <span v-if="subtasks.length > 0" class="subtask-done-count">· {{ doneSubtaskCount(subtasks) }} done</span>
         </span>
-        <component :is="expanded ? ChevronUp : ChevronDown" :size="14" />
+        <span class="subtask-toggle-right">
+          <button
+            type="button"
+            class="add-subtask-btn"
+            title="Add subtask"
+            aria-label="Add subtask"
+            @click.stop="$emit('add-subtask')"
+          >
+            <Plus :size="12" />
+          </button>
+          <component :is="expanded ? ChevronUp : ChevronDown" :size="14" />
+        </span>
       </button>
       <ul v-if="expanded && subtasks.length > 0" class="subtask-preview-list">
         <li v-for="t in subtasks" :key="t.id" class="subtask-preview-row" :class="{ expanded: openSubtaskId === t.id }">
@@ -649,6 +661,38 @@ function formatDueDate(dueDate) {
 .subtask-toggle:hover {
   color: var(--fg);
   background: var(--surface2);
+}
+
+.subtask-toggle-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Same circle as .expand-btn; negative margin keeps the toggle row's
+   height unchanged. */
+.add-subtask-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: -4px 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    border-color 0.16s;
+}
+
+.add-subtask-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .subtask-done-count {

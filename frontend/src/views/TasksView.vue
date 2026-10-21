@@ -239,11 +239,22 @@ const visibleColumnStatuses = computed(() =>
 
 const showModal = ref(false)
 const editingTask = ref(null)
+// Set when the create form was opened from a group card's "+" - the new
+// task is then created straight into that group.
+const subtaskParent = ref(null)
 const modalError = ref(null)
 const saving = ref(false)
 
 function openAdd() {
   editingTask.value = null
+  subtaskParent.value = null
+  modalError.value = null
+  showModal.value = true
+}
+
+function openAddSubtask(group) {
+  editingTask.value = null
+  subtaskParent.value = group
   modalError.value = null
   showModal.value = true
 }
@@ -257,6 +268,7 @@ function openEdit(task) {
 function closeModal() {
   showModal.value = false
   editingTask.value = null
+  subtaskParent.value = null
   modalError.value = null
 }
 
@@ -311,6 +323,12 @@ async function handleSubmit(payload) {
   try {
     if (editingTask.value) {
       await tasksStore.updateTask(editingTask.value.id, payload)
+    } else if (subtaskParent.value) {
+      // Same rule as TaskFormModal's own "Create new subtask": mirror the
+      // group's status, except a Done group starts it at Backlog.
+      const group = subtaskParent.value
+      const status = group.status === 'Done' ? 'Backlog' : group.status
+      await tasksStore.createTask({ ...payload, taskType: 'Task', parentTaskId: group.id, status })
     } else {
       await tasksStore.createTask(payload)
     }
@@ -602,6 +620,7 @@ async function handleUpdateTags(target, tagIds) {
             @toggle-pin="handleTogglePin(element)"
             @expand="openDetail(element)"
             @expand-subtask="openDetail"
+            @add-subtask="openAddSubtask(element)"
             @edit-subtask="handleEditSubtask"
             @toggle-subtask-done="handleToggleSubtaskDone"
             @update-subtask-priority="handleUpdateSubtaskPriority"
@@ -621,6 +640,7 @@ async function handleUpdateTags(target, tagIds) {
     <TaskFormModal
       v-if="showModal"
       :task="editingTask"
+      :disable-group-type="!!subtaskParent"
       :server-error="modalError"
       :saving="saving"
       @close="closeModal"
