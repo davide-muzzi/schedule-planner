@@ -63,11 +63,13 @@ const PRIORITY_SEVERITY_ORDER = ['High', 'Medium', 'Low', 'None']
 // Real tracked hours grouped by task priority, same shape/sort convention as
 // overviewStats.js's timeBreakdownByType - descending by hours, zero-hour
 // priorities dropped rather than shown as empty bar segments.
-export function taskTimeByPriority(tasks, entries) {
+// `workingOnly` (here and in taskEstimateAccuracy) counts only linked Working
+// entries' time - the Overview's "Working tasks" / "All tasks" toggle.
+export function taskTimeByPriority(tasks, entries, { workingOnly = true } = {}) {
   const totals = { High: 0, Medium: 0, Low: 0, None: 0 }
   for (const task of topLevelTasks(tasks)) {
     const priority = task.priority ?? 'None'
-    totals[priority] += realMinutesForTask(entries, task.id, { workingOnly: true }) / 60
+    totals[priority] += realMinutesForTask(entries, task.id, { workingOnly }) / 60
   }
 
   const grandTotal = Object.values(totals).reduce((sum, h) => sum + h, 0)
@@ -86,12 +88,12 @@ export function taskTimeByPriority(tasks, entries) {
 // not-yet-started tasks would drag the average toward looking better than
 // your actual estimating has been. Returns null when there's nothing to
 // aggregate yet (no task has been worked on).
-export function taskEstimateAccuracy(tasks, entries) {
+export function taskEstimateAccuracy(tasks, entries, { workingOnly = true } = {}) {
   let estimatedMinutes = 0
   let realMinutes = 0
 
   for (const task of tasks) {
-    const real = realMinutesForTask(entries, task.id, { workingOnly: true })
+    const real = realMinutesForTask(entries, task.id, { workingOnly })
     if (real <= 0) continue
     // A Group's own estimatedMinutes is always 0 server-side - its real
     // estimate is the live sum of its subtasks (see plannedMinutesForGroup).

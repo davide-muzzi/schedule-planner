@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChartColumn } from '@lucide/vue'
 import { useScheduleStore } from '@/stores/scheduleStore'
@@ -91,8 +91,30 @@ const totalTasks = computed(
 const overdueCount = computed(() => overdueTaskCount(tasksStore.tasks))
 const createdThisWeekCount = computed(() => tasksCreatedThisWeek(tasksStore.tasks))
 const completedThisWeekCount = computed(() => tasksCompletedThisWeek(tasksStore.tasks))
-const taskTimeByPriorityData = computed(() => taskTimeByPriority(tasksStore.tasks, store.entries))
-const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries))
+// Which linked entries count as a task's time in the task stats below -
+// only Working ones, or every entry type. Remembered across visits.
+const TASK_TIME_SCOPE_STORAGE_KEY = 'schedulePlanner.overviewTaskTimeScope'
+function loadTaskTimeScope() {
+  try {
+    return localStorage.getItem(TASK_TIME_SCOPE_STORAGE_KEY) === 'all' ? 'all' : 'working'
+  } catch {
+    return 'working'
+  }
+}
+const taskTimeScope = ref(loadTaskTimeScope())
+watch(taskTimeScope, (value) => {
+  try {
+    localStorage.setItem(TASK_TIME_SCOPE_STORAGE_KEY, value)
+  } catch {
+    // storage unavailable - just don't remember it
+  }
+})
+const taskTimeOptions = computed(() => ({ workingOnly: taskTimeScope.value === 'working' }))
+
+const taskTimeByPriorityData = computed(() =>
+  taskTimeByPriority(tasksStore.tasks, store.entries, taskTimeOptions.value),
+)
+const taskAccuracy = computed(() => taskEstimateAccuracy(tasksStore.tasks, store.entries, taskTimeOptions.value))
 const taskDiffMinutes = computed(() =>
   taskAccuracy.value ? taskAccuracy.value.realMinutes - taskAccuracy.value.estimatedMinutes : null,
 )
@@ -163,9 +185,31 @@ function goToLongestDay() {
           <p class="kicker">{{ kicker }}</p>
           <h1 class="title">Overview</h1>
         </div>
-        <button type="button" class="weekly-balance-btn" @click="openWeeklyBalance">
-          <ChartColumn :size="13" /> Weekly Balance
-        </button>
+        <div class="header-actions">
+          <div class="scope-toggle" role="group" aria-label="Which linked entries count toward task time">
+            <button
+              type="button"
+              :class="{ active: taskTimeScope === 'working' }"
+              :aria-pressed="taskTimeScope === 'working'"
+              title="Task time stats count only linked Working entries"
+              @click="taskTimeScope = 'working'"
+            >
+              Working tasks
+            </button>
+            <button
+              type="button"
+              :class="{ active: taskTimeScope === 'all' }"
+              :aria-pressed="taskTimeScope === 'all'"
+              title="Task time stats count linked entries of every type"
+              @click="taskTimeScope = 'all'"
+            >
+              All tasks
+            </button>
+          </div>
+          <button type="button" class="weekly-balance-btn" @click="openWeeklyBalance">
+            <ChartColumn :size="13" /> Weekly Balance
+          </button>
+        </div>
       </div>
 
       <div v-if="!isNarrowViewport" class="stat-strip">
@@ -345,6 +389,46 @@ function goToLongestDay() {
 .weekly-balance-btn:hover {
   color: var(--fg);
   border-color: var(--accent);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scope-toggle {
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+}
+
+.scope-toggle button {
+  padding: 5px 11px;
+  border: none;
+  border-radius: calc(var(--r) - 2px);
+  background: transparent;
+  color: var(--mute);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.16s,
+    background-color 0.16s;
+}
+
+.scope-toggle button:hover {
+  color: var(--fg);
+}
+
+.scope-toggle button.active {
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 
 .stat-strip {
