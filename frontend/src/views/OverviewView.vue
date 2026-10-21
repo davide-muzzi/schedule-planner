@@ -185,31 +185,9 @@ function goToLongestDay() {
           <p class="kicker">{{ kicker }}</p>
           <h1 class="title">Overview</h1>
         </div>
-        <div class="header-actions">
-          <div class="scope-toggle" role="group" aria-label="Which linked entries count toward task time">
-            <button
-              type="button"
-              :class="{ active: taskTimeScope === 'working' }"
-              :aria-pressed="taskTimeScope === 'working'"
-              title="Task time stats count only linked Working entries"
-              @click="taskTimeScope = 'working'"
-            >
-              Working tasks
-            </button>
-            <button
-              type="button"
-              :class="{ active: taskTimeScope === 'all' }"
-              :aria-pressed="taskTimeScope === 'all'"
-              title="Task time stats count linked entries of every type"
-              @click="taskTimeScope = 'all'"
-            >
-              All tasks
-            </button>
-          </div>
-          <button type="button" class="weekly-balance-btn" @click="openWeeklyBalance">
-            <ChartColumn :size="13" /> Weekly Balance
-          </button>
-        </div>
+        <button type="button" class="weekly-balance-btn" @click="openWeeklyBalance">
+          <ChartColumn :size="13" /> Weekly Balance
+        </button>
       </div>
 
       <div v-if="!isNarrowViewport" class="stat-strip">
@@ -288,6 +266,26 @@ function goToLongestDay() {
     <div class="tasks-section">
       <div class="section-heading">
         <p class="kicker">Tasks</p>
+        <div class="scope-toggle" role="group" aria-label="Which linked entries count toward task time">
+          <button
+            type="button"
+            :class="{ active: taskTimeScope === 'working' }"
+            :aria-pressed="taskTimeScope === 'working'"
+            title="Task time stats count only linked Working entries"
+            @click="taskTimeScope = 'working'"
+          >
+            Working tasks
+          </button>
+          <button
+            type="button"
+            :class="{ active: taskTimeScope === 'all' }"
+            :aria-pressed="taskTimeScope === 'all'"
+            title="Task time stats count linked entries of every type"
+            @click="taskTimeScope = 'all'"
+          >
+            All tasks
+          </button>
+        </div>
       </div>
 
       <div v-if="!isNarrowViewport" class="stat-strip">
@@ -389,13 +387,6 @@ function goToLongestDay() {
 .weekly-balance-btn:hover {
   color: var(--fg);
   border-color: var(--accent);
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .scope-toggle {
@@ -595,9 +586,18 @@ button.longest-day-card {
 }
 
 .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   padding-top: 1.4rem;
   margin-bottom: 1rem;
   border-top: 1px solid var(--line-2);
+}
+
+.section-heading .kicker {
+  margin-bottom: 0;
 }
 
 .tasks-charts-row {
