@@ -292,6 +292,9 @@ namespace SchedulePlanner.Migrations
                     b.Property<string>("Color")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");

@@ -24,7 +24,10 @@ const currentIds = computed(() => new Set(props.tags.map((t) => t.id)))
 
 const eligibleTags = computed(() => {
   const q = search.value.trim().toLowerCase()
-  return tagsStore.tags.filter((t) => !currentIds.value.has(t.id) && (!q || t.name.toLowerCase().includes(q)))
+  // Hidden tags only surface when searched for
+  return tagsStore.tags.filter(
+    (t) => !currentIds.value.has(t.id) && (q ? t.name.toLowerCase().includes(q) : !t.isHidden),
+  )
 })
 
 const exactMatchExists = computed(() =>

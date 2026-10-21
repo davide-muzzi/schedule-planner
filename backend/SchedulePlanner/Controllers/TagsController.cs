@@ -28,7 +28,7 @@ public class TagsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Tag>> Create(TagDto dto)
     {
-        var tag = new Tag { Name = dto.Name, Color = dto.Color };
+        var tag = new Tag { Name = dto.Name, Color = dto.Color, IsHidden = dto.IsHidden };
 
         try
         {
@@ -46,7 +46,7 @@ public class TagsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<Tag>> Update(int id, TagDto dto)
     {
-        var tag = new Tag { Name = dto.Name, Color = dto.Color };
+        var tag = new Tag { Name = dto.Name, Color = dto.Color, IsHidden = dto.IsHidden };
 
         try
         {

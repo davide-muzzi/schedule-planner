@@ -157,8 +157,9 @@ watch(firstColoredTag, (tag) => {
 
 const eligibleTags = computed(() => {
   const q = tagSearch.value.trim().toLowerCase()
+  // Hidden tags only surface when searched for
   return tagsStore.tags.filter(
-    (t) => !form.value.tagIds.includes(t.id) && (!q || t.name.toLowerCase().includes(q)),
+    (t) => !form.value.tagIds.includes(t.id) && (q ? t.name.toLowerCase().includes(q) : !t.isHidden),
   )
 })
 
@@ -495,7 +496,11 @@ function handleOverlayClick(event) {
 
         <div class="field">
           <label>Tags</label>
+          <!-- Add button first so it stays put as chips are added -->
           <div class="tag-chips">
+            <button type="button" class="tag-add-btn" @click="showTagPicker = !showTagPicker">
+              <Plus :size="12" /> Add tag
+            </button>
             <span v-for="tag in selectedTags" :key="tag.id" class="tag-chip">
               <span class="tag-chip-swatch" :style="{ background: tag.color || 'var(--color-border)' }"></span>
               {{ tag.name }}
@@ -503,9 +508,6 @@ function handleOverlayClick(event) {
                 <X :size="10" />
               </button>
             </span>
-            <button type="button" class="tag-add-btn" @click="showTagPicker = !showTagPicker">
-              <Plus :size="12" /> Add tag
-            </button>
           </div>
           <div v-if="showTagPicker" class="tag-picker-panel">
             <input

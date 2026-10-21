@@ -39,6 +39,7 @@ public class TagService : ITagService
 
         existing.Name = tag.Name;
         existing.Color = tag.Color;
+        existing.IsHidden = tag.IsHidden;
 
         await _context.SaveChangesAsync();
         return existing;

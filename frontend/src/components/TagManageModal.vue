@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { X, Plus, Pencil, Check } from '@lucide/vue'
+import { X, Plus, Pencil, Check, Eye, EyeOff } from '@lucide/vue'
 import { useTagsStore } from '@/stores/tagsStore'
 import { useTasksStore } from '@/stores/tasksStore'
 
@@ -66,12 +66,24 @@ async function saveEdit(tag) {
   saving.value = true
   editError.value = null
   try {
-    await tagsStore.updateTag(tag.id, { name: editName.value.trim(), color: editColor.value })
+    await tagsStore.updateTag(tag.id, { name: editName.value.trim(), color: editColor.value, isHidden: tag.isHidden })
     editingId.value = null
   } catch {
     editError.value = tagsStore.error
   } finally {
     saving.value = false
+  }
+}
+
+// Hiding keeps the tag on its tasks but drops it from the tag pickers'
+// default list - for old tags that only clutter the picker now.
+async function toggleHidden(tag) {
+  deleteArmedId.value = null
+  editError.value = null
+  try {
+    await tagsStore.updateTag(tag.id, { name: tag.name, color: tag.color, isHidden: !tag.isHidden })
+  } catch {
+    editError.value = tagsStore.error
   }
 }
 
@@ -117,7 +129,7 @@ function handleOverlayClick(event) {
       </header>
 
       <ul v-if="tagsStore.tags.length > 0" class="tag-list">
-        <li v-for="tag in tagsStore.tags" :key="tag.id" class="tag-row">
+        <li v-for="tag in tagsStore.tags" :key="tag.id" class="tag-row" :class="{ hidden: tag.isHidden && editingId !== tag.id }">
           <template v-if="editingId === tag.id">
             <input v-model="editColor" type="color" class="color-input" />
             <input
@@ -138,6 +150,16 @@ function handleOverlayClick(event) {
             <span class="tag-swatch" :style="{ background: tag.color || 'var(--color-border)' }"></span>
             <span class="tag-name">{{ tag.name }}</span>
             <span class="tag-usage-count">{{ usageCount(tag.id) }} task{{ usageCount(tag.id) === 1 ? '' : 's' }}</span>
+            <button
+              type="button"
+              class="row-btn"
+              :title="tag.isHidden ? 'Unhide (show in tag pickers)' : 'Hide from tag pickers'"
+              :aria-label="tag.isHidden ? 'Unhide' : 'Hide'"
+              @click="toggleHidden(tag)"
+            >
+              <EyeOff v-if="tag.isHidden" :size="13" />
+              <Eye v-else :size="13" />
+            </button>
             <button type="button" class="row-btn" title="Rename" aria-label="Rename" @click="startEdit(tag)">
               <Pencil :size="13" />
             </button>
@@ -252,6 +274,15 @@ function handleOverlayClick(event) {
   white-space: nowrap;
   font-size: 0.88rem;
   color: var(--color-text);
+}
+
+.tag-row.hidden .tag-swatch,
+.tag-row.hidden .tag-name {
+  opacity: 0.45;
+}
+
+.tag-row.hidden .tag-name {
+  font-style: italic;
 }
 
 .tag-usage-count {

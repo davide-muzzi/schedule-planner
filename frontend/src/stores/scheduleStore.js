@@ -609,7 +609,11 @@ export const useScheduleStore = defineStore('schedule', {
             tagIdMap[tag.id] = existingId
             continue
           }
-          const created = await tagsStore.createTag({ name: tag.name, color: tag.color ?? null })
+          const created = await tagsStore.createTag({
+            name: tag.name,
+            color: tag.color ?? null,
+            isHidden: tag.isHidden ?? false,
+          })
           tagIdMap[tag.id] = created.id
           tagNameToId.set(tag.name.toLowerCase(), created.id)
         }
