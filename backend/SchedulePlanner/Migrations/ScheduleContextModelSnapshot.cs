@@ -338,6 +338,9 @@ namespace SchedulePlanner.Migrations
                     b.Property<int?>("ParentTaskId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("PinnedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER");
 

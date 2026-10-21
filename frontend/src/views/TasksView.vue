@@ -184,8 +184,14 @@ function taskCard(task) {
   return enrichTaskForDetail(task, tasksStore.tasks, scheduleStore.entries)
 }
 
-// Orders every column's cards (see columnLists below).
+// Orders every column's cards (see columnLists below). Pinned cards always
+// come first, newest pin on top - the sort levels only order the rest.
 function compareTasks(a, b) {
+  if (a.pinnedAt || b.pinnedAt) {
+    if (!a.pinnedAt) return 1
+    if (!b.pinnedAt) return -1
+    return new Date(b.pinnedAt) - new Date(a.pinnedAt)
+  }
   return compareTasksByLevels(sortLevels.value, a, b)
 }
 
@@ -372,6 +378,14 @@ async function handleDelete(id, cascadeSubtasks = false) {
 function handleQuickDelete(task, event) {
   event.stopPropagation()
   requestDelete(task.id)
+}
+
+async function handleTogglePin(task) {
+  try {
+    await tasksStore.setPinned(task.id, !task.pinnedAt)
+  } catch {
+    modalError.value = tasksStore.error
+  }
 }
 
 async function handleQuickComplete(task, event) {
@@ -585,6 +599,7 @@ async function handleUpdateTags(target, tagIds) {
             @quick-complete="handleQuickComplete(element, $event)"
             @quick-reopen="handleQuickReopen(element, $event)"
             @quick-delete="handleQuickDelete(element, $event)"
+            @toggle-pin="handleTogglePin(element)"
             @expand="openDetail(element)"
             @expand-subtask="openDetail"
             @edit-subtask="handleEditSubtask"

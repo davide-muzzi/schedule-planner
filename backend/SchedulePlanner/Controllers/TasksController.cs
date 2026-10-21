@@ -102,6 +102,28 @@ public class TasksController : ControllerBase
         }
     }
 
+    // Pin/unpin a task - separate from Update so a regular save never
+    // touches the pin.
+    [HttpPut("{id}/pin")]
+    public async Task<ActionResult<TaskItem>> SetPinned(int id, TaskPinDto dto)
+    {
+        try
+        {
+            var updated = await _service.SetPinnedAsync(id, dto.Pinned);
+            if (updated is null)
+            {
+                return NotFound();
+            }
+            _logger.LogInformation("Set task {Id} pinned={Pinned}", id, dto.Pinned);
+            return Ok(updated);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Rejected pin change for {Id}", id);
+            return BadRequest(ex.Message);
+        }
+    }
+
     // Delete task by ID. For a Group task, cascadeSubtasks chooses whether
     // its subtasks are deleted too (true) or just unlinked back to
     // standalone tasks (false, the default).

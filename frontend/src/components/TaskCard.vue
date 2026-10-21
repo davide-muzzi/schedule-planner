@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { CalendarDays, Check, ChevronDown, ChevronUp, Expand, Pencil, X } from '@lucide/vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, Expand, Pencil, Pin, X } from '@lucide/vue'
 import { formatHours } from '@/utils/date'
 import { dueCountdown, isOverdue } from '@/utils/taskStats'
 import { useFloatingMenu } from '@/composables/useFloatingMenu'
@@ -23,6 +23,7 @@ const emit = defineEmits([
   'quick-complete',
   'quick-reopen',
   'quick-delete',
+  'toggle-pin',
   'expand',
   'expand-subtask',
   'edit-subtask',
@@ -116,25 +117,39 @@ function formatDueDate(dueDate) {
 </script>
 
 <template>
-  <button type="button" class="task-card" @click="$emit('edit')">
+  <button type="button" class="task-card" :class="{ narrow: isNarrowViewport }" @click="$emit('edit')">
     <div class="task-card-top">
       <span class="task-id-group">
         <span v-if="task.priority !== 'None'" class="priority-dot" :class="'priority-' + task.priority" :title="task.priority + ' priority'"></span>
         <span class="task-id">#{{ task.id }}</span>
       </span>
-      <label
-        class="task-done-checkbox"
-        :class="{ disabled: task.status === 'Backlog', done: task.status === 'Done' }"
-        :title="task.status === 'Backlog' ? 'Link this to a planner entry before marking it done' : (task.status === 'Done' ? 'Reopen task' : 'Mark task complete')"
-      >
-        <input
-          type="checkbox"
-          :checked="task.status === 'Done'"
-          :disabled="task.status === 'Backlog'"
-          @click.stop
-          @change="$event.target.checked ? $emit('quick-complete', $event) : $emit('quick-reopen', $event)"
-        />
-      </label>
+      <span class="task-card-actions">
+        <!-- Shown on hover (like the checkbox), always while pinned, and
+             always on mobile where there's no hover. -->
+        <button
+          type="button"
+          class="inline-pin"
+          :class="{ pinned: task.pinnedAt }"
+          :title="task.pinnedAt ? 'Unpin task' : 'Pin to top'"
+          :aria-label="task.pinnedAt ? 'Unpin task' : 'Pin to top'"
+          @click.stop="$emit('toggle-pin')"
+        >
+          <Pin :size="14" :fill="task.pinnedAt ? 'currentColor' : 'none'" />
+        </button>
+        <label
+          class="task-done-checkbox"
+          :class="{ disabled: task.status === 'Backlog', done: task.status === 'Done' }"
+          :title="task.status === 'Backlog' ? 'Link this to a planner entry before marking it done' : (task.status === 'Done' ? 'Reopen task' : 'Mark task complete')"
+        >
+          <input
+            type="checkbox"
+            :checked="task.status === 'Done'"
+            :disabled="task.status === 'Backlog'"
+            @click.stop
+            @change="$event.target.checked ? $emit('quick-complete', $event) : $emit('quick-reopen', $event)"
+          />
+        </label>
+      </span>
     </div>
 
     <h3 class="task-name">
@@ -384,9 +399,46 @@ function formatDueDate(dueDate) {
   transition: opacity 0.16s;
 }
 
+/* No hover on mobile, so the checkbox is always shown there. */
 .task-card:hover .task-done-checkbox,
+.task-card.narrow .task-done-checkbox,
 .task-done-checkbox.done {
   opacity: 1;
+}
+
+.task-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-pin {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: -6px 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.16s,
+    color 0.16s;
+}
+
+.task-card:hover .inline-pin,
+.task-card.narrow .inline-pin,
+.inline-pin.pinned {
+  opacity: 1;
+}
+
+.inline-pin:hover,
+.inline-pin.pinned {
+  color: var(--accent);
 }
 
 .task-done-checkbox.disabled {

@@ -79,6 +79,12 @@ public class TaskItemService : ITaskItemService
         existing.DueDate = task.DueDate;
         existing.LastUpdatedAt = DateTime.UtcNow;
 
+        // A subtask isn't its own card, so it can't stay pinned.
+        if (task.ParentTaskId is not null)
+        {
+            existing.PinnedAt = null;
+        }
+
         // Kept rows are updated in place (just their Position) rather than
         // cleared and re-added - re-adding a join row with the same key
         // while the old one is still tracked as Deleted makes EF throw.
@@ -101,6 +107,25 @@ public class TaskItemService : ITaskItemService
             }
         }
 
+        await _context.SaveChangesAsync();
+        return existing;
+    }
+
+    // Pinning again re-stamps PinnedAt, moving the task back to the very top.
+    // Deliberately leaves LastUpdatedAt alone - pinning isn't an edit.
+    public async Task<TaskItem?> SetPinnedAsync(int id, bool pinned)
+    {
+        var existing = await TasksWithTags().FirstOrDefaultAsync(t => t.Id == id);
+        if (existing is null)
+        {
+            return null;
+        }
+        if (pinned && existing.ParentTaskId is not null)
+        {
+            throw new ArgumentException("A subtask cannot be pinned.");
+        }
+
+        existing.PinnedAt = pinned ? DateTime.UtcNow : null;
         await _context.SaveChangesAsync();
         return existing;
     }

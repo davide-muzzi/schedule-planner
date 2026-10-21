@@ -67,6 +67,12 @@ public class TaskItem
     // feature that reads this, not assumed to be ancient.
     public DateTime? CompletedAt { get; set; }
 
+    // Server-managed - set/cleared only through the pin endpoint
+    // (TaskItemService.SetPinnedAsync), never by a regular update. Null means
+    // not pinned. Pinned cards sit at the top of their column, newest pin
+    // first; the pin survives status changes. Subtasks can't be pinned.
+    public DateTime? PinnedAt { get; set; }
+
     // Not Include()d anywhere the API returns a TaskItem, so this stays an
     // empty list on every response - excluded from JSON rather than left to
     // serialize as misleadingly-always-empty.

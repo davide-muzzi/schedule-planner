@@ -50,6 +50,21 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
+    // Own endpoint rather than updateTask - a regular update never carries
+    // (or clears) the pin.
+    async setPinned(id, pinned) {
+      this.error = null
+      try {
+        const res = await tasksApi.setPinned(id, pinned)
+        const idx = this.tasks.findIndex((t) => t.id === id)
+        if (idx !== -1) this.tasks[idx] = res.data
+        return res.data
+      } catch (err) {
+        this.error = extractErrorMessage(err)
+        throw err
+      }
+    },
+
     // cascadeSubtasks only matters when id is a Group with subtasks: true
     // deletes them along with it, false (default) unlinks them back to
     // standalone tasks instead - mirrors the backend's own default.

@@ -680,6 +680,18 @@ export const useScheduleStore = defineStore('schedule', {
           if (createdTask) taskIdMap[task.id] = createdTask.id
         }
 
+        // Pins can't be set on create - re-pin oldest first so the newest
+        // pin still ends up on top, same as in the backup.
+        const pinnedTasks = orderedTasks
+          .filter((t) => t.pinnedAt && t.parentTaskId == null && taskIdMap[t.id] != null)
+          .sort((a, b) => new Date(a.pinnedAt) - new Date(b.pinnedAt))
+        for (const task of pinnedTasks) {
+          await createWithRetry(
+            () => tasksStore.setPinned(taskIdMap[task.id], true),
+            () => `Pin on task "${task.name}"`,
+          )
+        }
+
         const created = []
         for (const entry of data.entries) {
           const res = await createWithRetry(

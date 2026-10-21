@@ -15,6 +15,9 @@ export default {
   update(id, task) {
     return apiClient.put(`/${id}`, task)
   },
+  setPinned(id, pinned) {
+    return apiClient.put(`/${id}/pin`, { pinned })
+  },
   delete(id, cascadeSubtasks = false) {
     return apiClient.delete(`/${id}`, { params: { cascadeSubtasks } })
   },
