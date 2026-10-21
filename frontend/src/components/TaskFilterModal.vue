@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { X } from '@lucide/vue'
-import { DATE_FILTER_FIELDS, NO_TAGS_SENTINEL, defaultTaskFilters } from '@/utils/taskFilters'
+import { DATE_FILTER_FIELDS, defaultTaskFilters } from '@/utils/taskFilters'
 import TagFilterPickerModal from './TagFilterPickerModal.vue'
 
 // Generic multi-category filter popup - each category (status, priority,
@@ -10,12 +10,13 @@ import TagFilterPickerModal from './TagFilterPickerModal.vue'
 // taskFilters.js) UNLESS it sets `multiSelect: true` (currently just tags),
 // in which case its value is an array of selected option values instead of
 // a single one, "all" means the array is empty, and the caller applying the
-// filter decides how multiple selections combine (include tags AND, exclude
-// tags OR) - see taskFilters' taskMatchesFilters. Categories are data-driven so a new
-// one is just another entry in the caller's list, not a new component.
-// `tags` also sets `picker: true` - its option list can get long enough
-// that an inline pill row stops being usable, so it renders as a summary
-// button opening TagFilterPickerModal instead (see tagSummaryLabel below).
+// filter decides how multiple selections combine - see taskFilters'
+// taskMatchesFilters. Categories are data-driven so a new one is just
+// another entry in the caller's list, not a new component. `hidden`
+// categories aren't rendered as their own row.
+// `tags` also sets `picker: true` - it renders as a summary button opening
+// TagFilterPickerModal's Include/Exclude table, which edits `tags`,
+// `excludeTags` and `tagMatch` together (see tagSummaryLabel below).
 //
 // The date filter (field + before/on/after + a date value) isn't one of
 // `categories` - it's a fixed extra slot on modelValue (see
@@ -45,24 +46,24 @@ function select(category, value) {
   emit('update:modelValue', { ...props.modelValue, [category.key]: next })
 }
 
-function tagSummaryLabel(category) {
-  const v = props.modelValue[category.key]
-  if (!Array.isArray(v) || v.length === 0) return category.pickerMode === 'exclude' ? 'Nothing excluded' : 'All'
-  if (category.pickerMode !== 'exclude' && v.length === 1 && v[0] === NO_TAGS_SENTINEL) return 'None'
-  return `${v.length} selected`
-}
+const visibleCategories = computed(() => props.categories.filter((c) => !c.hidden))
 
-// The tag picker category currently open (include or exclude), or null.
-const tagPickerCategory = ref(null)
-const showTagPicker = computed(() => tagPickerCategory.value !== null)
+const includedTags = computed(() => (Array.isArray(props.modelValue.tags) ? props.modelValue.tags : []))
+const excludedTags = computed(() => (Array.isArray(props.modelValue.excludeTags) ? props.modelValue.excludeTags : []))
 
-// The other tag category's selection - its tags are shown greyed out in the
-// open picker, so one tag can't be both included and excluded.
-const otherTagSelection = computed(() => {
-  if (!tagPickerCategory.value) return []
-  const otherKey = tagPickerCategory.value.key === 'tags' ? 'excludeTags' : 'tags'
-  return Array.isArray(props.modelValue[otherKey]) ? props.modelValue[otherKey] : []
+const tagSummaryLabel = computed(() => {
+  const parts = []
+  if (includedTags.value.length) parts.push(`${includedTags.value.length} included`)
+  if (excludedTags.value.length) parts.push(`${excludedTags.value.length} excluded`)
+  return parts.length ? parts.join(' · ') : 'Select...'
 })
+
+const showTagPicker = ref(false)
+
+// The picker hands back only the tag keys it changed (tags/excludeTags/tagMatch).
+function handleTagPickerUpdate(patch) {
+  emit('update:modelValue', { ...props.modelValue, ...patch })
+}
 
 const dateFilterField = computed({
   get: () => props.modelValue.dateFilter?.field ?? '',
@@ -112,15 +113,10 @@ function handleOverlayClick(event) {
         <button type="button" class="close-btn" @click="emit('close')" aria-label="Close"><X :size="20" /></button>
       </header>
 
-      <div class="category" v-for="category in categories" :key="category.key">
+      <div class="category" v-for="category in visibleCategories" :key="category.key">
         <p class="category-label">{{ category.label }}</p>
-        <button
-          v-if="category.picker"
-          type="button"
-          class="picker-summary-btn"
-          @click="tagPickerCategory = category"
-        >
-          {{ tagSummaryLabel(category) }}
+        <button v-if="category.picker" type="button" class="picker-summary-btn" @click="showTagPicker = true">
+          {{ tagSummaryLabel }}
         </button>
         <div v-else class="pill-row">
           <button
@@ -162,13 +158,13 @@ function handleOverlayClick(event) {
   </Teleport>
 
   <TagFilterPickerModal
-    v-if="tagPickerCategory"
+    v-if="showTagPicker"
     :tags="tags"
-    :mode="tagPickerCategory.pickerMode"
-    :other-selection="otherTagSelection"
-    :model-value="Array.isArray(modelValue[tagPickerCategory.key]) ? modelValue[tagPickerCategory.key] : []"
-    @update:model-value="(v) => emit('update:modelValue', { ...modelValue, [tagPickerCategory.key]: v })"
-    @close="tagPickerCategory = null"
+    :included="includedTags"
+    :excluded="excludedTags"
+    :match="modelValue.tagMatch === 'all' ? 'all' : 'any'"
+    @update="handleTagPickerUpdate"
+    @close="showTagPicker = false"
   />
 </template>
 

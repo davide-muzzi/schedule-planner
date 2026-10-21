@@ -11,17 +11,11 @@ function daysSinceCompleted(task) {
   return (Date.now() - new Date(task.completedAt).getTime()) / 86400000
 }
 
-// A sentinel inside the (otherwise tag-id) `tags` selection array, meaning
-// "tasks with zero tags" - mutually exclusive with actual tag ids (picking
-// this clears any selected tags and vice versa, since "has tag X" and "has
-// no tags" can never both be true), handled by the picker UI, not here.
-export const NO_TAGS_SENTINEL = '__none__'
-
 // Each category is single-select with a default option (usually "all",
 // meaning no restriction) unless it sets `multiSelect: true` (tags), in
 // which case its value is an array instead of a single one, "all" means the
-// array is empty, and multiple selections are AND'd (must match every one),
-// not OR'd - see taskMatchesFilters. Categories are data-driven so a new one
+// array is empty, and how multiple selections combine is up to
+// taskMatchesFilters (see the tags category below). Categories are data-driven so a new one
 // is just another entry here, not a new component - shared between the
 // Tasks board's own filter button and the subtask/task-link picker modals,
 // so all three filter (and default) identically rather than drifting apart.
@@ -74,37 +68,37 @@ const BASE_FILTER_CATEGORIES = [
 
 // Tags is data-driven (the tag catalog changes at runtime), so it's built
 // fresh from the caller's own tags list rather than baked into the base
-// set. `picker: true` tells TaskFilterModal to render this one as a
-// summary button opening TagFilterPickerModal instead of an inline pill
-// row - a task's tag list can get long enough that the old inline row
-// became unusable.
-// `excludeTags` is the inverse: hides any task carrying at least one of
-// the selected tags (OR, not AND), with NO_TAGS_SENTINEL there meaning
-// "hide untagged tasks". `pickerMode` tells the picker which of the two
-// it's editing.
+// set. It's one filter in the UI - `picker: true` makes TaskFilterModal
+// render a summary button opening TagFilterPickerModal (an Include/Exclude
+// table) - but three stored values:
+//   tags        - included tag ids; a task must carry any one of them
+//                 (tagMatch 'any') or all of them (tagMatch 'all')
+//   excludeTags - excluded tag ids; carrying any one of them hides a task
+//   tagMatch    - 'any' | 'all', how `tags` combines
+// The last two are `hidden` (not rendered as their own rows) and listed in
+// the tags category's `linkedKeys` so they count as part of it.
 export function buildTaskFilterCategories(tags) {
-  const tagOptions = [
-    { value: 'all', label: 'All' },
-    { value: NO_TAGS_SENTINEL, label: 'None' },
-    ...tags.map((t) => ({ value: String(t.id), label: t.name })),
-  ]
+  const tagOptions = [{ value: 'all', label: 'All' }, ...tags.map((t) => ({ value: String(t.id), label: t.name }))]
   return [
     ...BASE_FILTER_CATEGORIES,
     {
       key: 'tags',
-      label: 'Tags (include)',
+      label: 'Tags',
       multiSelect: true,
       picker: true,
-      pickerMode: 'include',
+      linkedKeys: ['excludeTags'],
       options: tagOptions,
     },
+    { key: 'excludeTags', label: 'Excluded tags', multiSelect: true, hidden: true, options: tagOptions },
     {
-      key: 'excludeTags',
-      label: 'Tags (exclude)',
-      multiSelect: true,
-      picker: true,
-      pickerMode: 'exclude',
-      options: tagOptions,
+      key: 'tagMatch',
+      label: 'Include match',
+      hidden: true,
+      default: 'any',
+      options: [
+        { value: 'any', label: 'Any' },
+        { value: 'all', label: 'All' },
+      ],
     },
   ]
 }
@@ -155,8 +149,11 @@ export function defaultTaskFilters(categories) {
 export function activeFilterCount(categories, filters) {
   const f = filters || {}
   let count = categories.filter((c) => {
+    if (c.hidden) return false
     const v = f[c.key]
-    if (c.multiSelect) return Array.isArray(v) && v.length > 0
+    if (c.multiSelect) {
+      return [c.key, ...(c.linkedKeys ?? [])].some((key) => Array.isArray(f[key]) && f[key].length > 0)
+    }
     return (v ?? c.default ?? 'all') !== (c.default ?? 'all')
   }).length
   if (f.dateFilter?.field && f.dateFilter?.value) count += 1
@@ -172,22 +169,14 @@ export function taskMatchesFilters(task, filters, searchQuery = '') {
     return false
   }
 
-  const selectedTags = Array.isArray(f.tags) ? f.tags : []
-  if (selectedTags.includes(NO_TAGS_SENTINEL)) {
-    if ((task.tags || []).length > 0) return false
-  } else if (selectedTags.length > 0) {
-    // AND, not OR - a task has to carry every selected tag, not just one of them.
-    const taskTagIds = new Set((task.tags || []).map((t) => String(t.id)))
-    if (!selectedTags.every((id) => taskTagIds.has(id))) return false
+  const taskTagIds = new Set((task.tags || []).map((t) => String(t.id)))
+  const includedTags = Array.isArray(f.tags) ? f.tags : []
+  if (includedTags.length > 0) {
+    const has = (id) => taskTagIds.has(id)
+    if (f.tagMatch === 'all' ? !includedTags.every(has) : !includedTags.some(has)) return false
   }
-
   const excludedTags = Array.isArray(f.excludeTags) ? f.excludeTags : []
-  if (excludedTags.length > 0) {
-    const taskTags = task.tags || []
-    if (taskTags.length === 0 && excludedTags.includes(NO_TAGS_SENTINEL)) return false
-    // OR - carrying any one excluded tag is enough to hide the task.
-    if (taskTags.some((t) => excludedTags.includes(String(t.id)))) return false
-  }
+  if (excludedTags.some((id) => taskTagIds.has(id))) return false
 
   if (!dateFilterMatches(task, f.dateFilter)) return false
 
