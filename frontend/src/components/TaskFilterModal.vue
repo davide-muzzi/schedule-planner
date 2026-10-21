@@ -10,8 +10,8 @@ import TagFilterPickerModal from './TagFilterPickerModal.vue'
 // taskFilters.js) UNLESS it sets `multiSelect: true` (currently just tags),
 // in which case its value is an array of selected option values instead of
 // a single one, "all" means the array is empty, and the caller applying the
-// filter treats multiple selections as AND (must match every one), not OR -
-// see taskFilters' taskMatchesFilters. Categories are data-driven so a new
+// filter decides how multiple selections combine (include tags AND, exclude
+// tags OR) - see taskFilters' taskMatchesFilters. Categories are data-driven so a new
 // one is just another entry in the caller's list, not a new component.
 // `tags` also sets `picker: true` - its option list can get long enough
 // that an inline pill row stops being usable, so it renders as a summary
@@ -47,12 +47,22 @@ function select(category, value) {
 
 function tagSummaryLabel(category) {
   const v = props.modelValue[category.key]
-  if (!Array.isArray(v) || v.length === 0) return 'All'
-  if (v.length === 1 && v[0] === NO_TAGS_SENTINEL) return 'None'
+  if (!Array.isArray(v) || v.length === 0) return category.pickerMode === 'exclude' ? 'Nothing excluded' : 'All'
+  if (category.pickerMode !== 'exclude' && v.length === 1 && v[0] === NO_TAGS_SENTINEL) return 'None'
   return `${v.length} selected`
 }
 
-const showTagPicker = ref(false)
+// The tag picker category currently open (include or exclude), or null.
+const tagPickerCategory = ref(null)
+const showTagPicker = computed(() => tagPickerCategory.value !== null)
+
+// The other tag category's selection - its tags are shown greyed out in the
+// open picker, so one tag can't be both included and excluded.
+const otherTagSelection = computed(() => {
+  if (!tagPickerCategory.value) return []
+  const otherKey = tagPickerCategory.value.key === 'tags' ? 'excludeTags' : 'tags'
+  return Array.isArray(props.modelValue[otherKey]) ? props.modelValue[otherKey] : []
+})
 
 const dateFilterField = computed({
   get: () => props.modelValue.dateFilter?.field ?? '',
@@ -108,7 +118,7 @@ function handleOverlayClick(event) {
           v-if="category.picker"
           type="button"
           class="picker-summary-btn"
-          @click="showTagPicker = true"
+          @click="tagPickerCategory = category"
         >
           {{ tagSummaryLabel(category) }}
         </button>
@@ -152,11 +162,13 @@ function handleOverlayClick(event) {
   </Teleport>
 
   <TagFilterPickerModal
-    v-if="showTagPicker"
+    v-if="tagPickerCategory"
     :tags="tags"
-    :model-value="Array.isArray(modelValue.tags) ? modelValue.tags : []"
-    @update:model-value="(v) => emit('update:modelValue', { ...modelValue, tags: v })"
-    @close="showTagPicker = false"
+    :mode="tagPickerCategory.pickerMode"
+    :other-selection="otherTagSelection"
+    :model-value="Array.isArray(modelValue[tagPickerCategory.key]) ? modelValue[tagPickerCategory.key] : []"
+    @update:model-value="(v) => emit('update:modelValue', { ...modelValue, [tagPickerCategory.key]: v })"
+    @close="tagPickerCategory = null"
   />
 </template>
 

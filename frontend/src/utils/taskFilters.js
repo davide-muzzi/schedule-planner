@@ -78,19 +78,33 @@ const BASE_FILTER_CATEGORIES = [
 // summary button opening TagFilterPickerModal instead of an inline pill
 // row - a task's tag list can get long enough that the old inline row
 // became unusable.
+// `excludeTags` is the inverse: hides any task carrying at least one of
+// the selected tags (OR, not AND), with NO_TAGS_SENTINEL there meaning
+// "hide untagged tasks". `pickerMode` tells the picker which of the two
+// it's editing.
 export function buildTaskFilterCategories(tags) {
+  const tagOptions = [
+    { value: 'all', label: 'All' },
+    { value: NO_TAGS_SENTINEL, label: 'None' },
+    ...tags.map((t) => ({ value: String(t.id), label: t.name })),
+  ]
   return [
     ...BASE_FILTER_CATEGORIES,
     {
       key: 'tags',
-      label: 'Tags',
+      label: 'Tags (include)',
       multiSelect: true,
       picker: true,
-      options: [
-        { value: 'all', label: 'All' },
-        { value: NO_TAGS_SENTINEL, label: 'None' },
-        ...tags.map((t) => ({ value: String(t.id), label: t.name })),
-      ],
+      pickerMode: 'include',
+      options: tagOptions,
+    },
+    {
+      key: 'excludeTags',
+      label: 'Tags (exclude)',
+      multiSelect: true,
+      picker: true,
+      pickerMode: 'exclude',
+      options: tagOptions,
     },
   ]
 }
@@ -165,6 +179,14 @@ export function taskMatchesFilters(task, filters, searchQuery = '') {
     // AND, not OR - a task has to carry every selected tag, not just one of them.
     const taskTagIds = new Set((task.tags || []).map((t) => String(t.id)))
     if (!selectedTags.every((id) => taskTagIds.has(id))) return false
+  }
+
+  const excludedTags = Array.isArray(f.excludeTags) ? f.excludeTags : []
+  if (excludedTags.length > 0) {
+    const taskTags = task.tags || []
+    if (taskTags.length === 0 && excludedTags.includes(NO_TAGS_SENTINEL)) return false
+    // OR - carrying any one excluded tag is enough to hide the task.
+    if (taskTags.some((t) => excludedTags.includes(String(t.id)))) return false
   }
 
   if (!dateFilterMatches(task, f.dateFilter)) return false

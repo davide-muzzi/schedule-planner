@@ -1,41 +1,66 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { X } from '@lucide/vue'
 import { NO_TAGS_SENTINEL } from '@/utils/taskFilters'
 
-// Scrollable tag picker for the Tags filter category - "All" (no
-// restriction), "None" (tasks with zero tags), or any number of real tags
-// (AND'd together). Mutually exclusive: picking All or None replaces
-// whatever else was selected, and picking a real tag drops None (it can't
-// coexist with "has this tag").
+// Scrollable tag picker for the Tags filter categories.
+//
+// Include mode: "All" (no restriction), "None" (tasks with zero tags), or any
+// number of real tags (AND'd together). Mutually exclusive: picking All or
+// None replaces whatever else was selected, and picking a real tag drops
+// None (it can't coexist with "has this tag").
+//
+// Exclude mode: "Nothing excluded", or any mix of real tags plus "Untagged
+// tasks" - a task carrying any one of them is hidden.
+//
+// Anything selected in the other mode's filter (otherSelection) is disabled
+// here, so a tag can't be included and excluded at the same time.
 const props = defineProps({
   tags: { type: Array, default: () => [] },
-  modelValue: { type: Array, default: () => [] }, // [] = All, [NO_TAGS_SENTINEL] = None, else tag id strings
+  mode: { type: String, default: 'include' }, // 'include' | 'exclude'
+  modelValue: { type: Array, default: () => [] }, // [] = All/nothing, NO_TAGS_SENTINEL = untagged, else tag id strings
+  otherSelection: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue', 'close'])
+
+const isExclude = computed(() => props.mode === 'exclude')
 
 function isAllActive() {
   return props.modelValue.length === 0
 }
 function isNoneActive() {
-  return props.modelValue.length === 1 && props.modelValue[0] === NO_TAGS_SENTINEL
+  return props.modelValue.includes(NO_TAGS_SENTINEL)
 }
 function isTagActive(id) {
   return props.modelValue.includes(String(id))
+}
+function isBlocked(value) {
+  return props.otherSelection.includes(String(value))
 }
 
 function selectAll() {
   emit('update:modelValue', [])
 }
 function selectNone() {
-  emit('update:modelValue', [NO_TAGS_SENTINEL])
+  if (isBlocked(NO_TAGS_SENTINEL)) return
+  if (!isExclude.value) {
+    emit('update:modelValue', [NO_TAGS_SENTINEL])
+    return
+  }
+  toggleValue(NO_TAGS_SENTINEL, props.modelValue)
 }
 function toggleTag(id) {
-  const idStr = String(id)
-  const current = isNoneActive() ? [] : props.modelValue
-  const next = current.includes(idStr) ? current.filter((v) => v !== idStr) : [...current, idStr]
-  emit('update:modelValue', next)
+  if (isBlocked(id)) return
+  const current = !isExclude.value && isNoneActive() ? [] : props.modelValue
+  toggleValue(String(id), current)
+}
+function toggleValue(value, current) {
+  emit('update:modelValue', current.includes(value) ? current.filter((v) => v !== value) : [...current, value])
+}
+
+function blockedHint() {
+  return isExclude.value ? '(included)' : '(excluded)'
 }
 
 function handleKeydown(event) {
@@ -59,27 +84,51 @@ function handleOverlayClick(event) {
     <div class="overlay" @mousedown="handleOverlayMouseDown" @click="handleOverlayClick">
       <div class="modal">
         <header class="modal-header">
-          <h2>Filter by tags</h2>
+          <h2>{{ isExclude ? 'Exclude tags' : 'Include tags' }}</h2>
           <button type="button" class="close-btn" @click="emit('close')" aria-label="Close"><X :size="20" /></button>
         </header>
 
         <ul class="picker-list">
           <li>
             <button type="button" class="picker-option" :class="{ selected: isAllActive() }" @click="selectAll">
-              <span class="picker-name">All</span>
+              <span class="picker-name">{{ isExclude ? 'Nothing excluded' : 'All' }}</span>
             </button>
           </li>
-          <li>
-            <button type="button" class="picker-option" :class="{ selected: isNoneActive() }" @click="selectNone">
-              <span class="picker-name">None <span class="picker-hint">(no tags at all)</span></span>
+          <li v-if="!isExclude">
+            <button
+              type="button"
+              class="picker-option"
+              :class="{ selected: isNoneActive(), blocked: isBlocked(NO_TAGS_SENTINEL) }"
+              :disabled="isBlocked(NO_TAGS_SENTINEL)"
+              @click="selectNone"
+            >
+              <span class="picker-name">
+                None <span class="picker-hint">{{ isBlocked(NO_TAGS_SENTINEL) ? blockedHint() : '(no tags at all)' }}</span>
+              </span>
             </button>
+          </li>
+          <li v-else>
+            <label class="picker-option" :class="{ selected: isNoneActive(), blocked: isBlocked(NO_TAGS_SENTINEL) }">
+              <input
+                type="checkbox"
+                :checked="isNoneActive()"
+                :disabled="isBlocked(NO_TAGS_SENTINEL)"
+                @change="selectNone"
+              />
+              <span class="picker-name">
+                Untagged tasks
+                <span v-if="isBlocked(NO_TAGS_SENTINEL)" class="picker-hint">{{ blockedHint() }}</span>
+              </span>
+            </label>
           </li>
           <li v-if="tags.length > 0" class="picker-divider"></li>
           <li v-for="t in tags" :key="t.id">
-            <label class="picker-option" :class="{ selected: isTagActive(t.id) }">
-              <input type="checkbox" :checked="isTagActive(t.id)" @change="toggleTag(t.id)" />
+            <label class="picker-option" :class="{ selected: isTagActive(t.id), blocked: isBlocked(t.id) }">
+              <input type="checkbox" :checked="isTagActive(t.id)" :disabled="isBlocked(t.id)" @change="toggleTag(t.id)" />
               <span class="tag-swatch" :style="{ background: t.color || 'var(--line-2)' }"></span>
-              <span class="picker-name">{{ t.name }}</span>
+              <span class="picker-name">
+                {{ t.name }} <span v-if="isBlocked(t.id)" class="picker-hint">{{ blockedHint() }}</span>
+              </span>
             </label>
           </li>
         </ul>
@@ -181,6 +230,15 @@ function handleOverlayClick(event) {
   background: var(--accent-tint);
   color: var(--color-heading);
   font-weight: 600;
+}
+
+.picker-option.blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.picker-option.blocked:hover {
+  background: transparent;
 }
 
 .picker-option input[type='checkbox'] {
