@@ -31,17 +31,6 @@ function addLevel() {
   newField.value = ''
 }
 
-// A row's field select: its own field plus any unused one.
-function fieldOptionsFor(index) {
-  return SORT_FIELDS.filter(
-    (f) => f.value === levels.value[index].field || !levels.value.some((l) => l.field === f.value),
-  )
-}
-
-function changeField(index, value) {
-  update(levels.value.map((l, i) => (i === index ? { field: value, dir: defaultSortDir(value) } : l)))
-}
-
 function removeLevel(index) {
   update(levels.value.filter((_, i) => i !== index))
 }
@@ -91,25 +80,21 @@ function handleOverlayClick(event) {
       <ol class="level-list">
         <li
           v-for="(level, i) in levels"
-          :key="i"
+          :key="level.field"
           class="level-row"
           :class="{ inactive: i >= inactiveFrom }"
           :title="i >= inactiveFrom ? 'Inactive - a level above already applies to every task' : undefined"
         >
           <span class="level-num">{{ i + 1 }}</span>
-          <div class="level-main">
-            <select class="level-field" :value="level.field" @change="changeField(i, $event.target.value)">
-              <option v-for="f in fieldOptionsFor(i)" :key="f.value" :value="f.value">{{ f.label }}</option>
-            </select>
-            <button
-              type="button"
-              class="level-dir"
-              :title="`Switch to ${sortField(level.field).dirLabels[level.dir === 'asc' ? 'desc' : 'asc'].toLowerCase()}`"
-              @click="toggleDir(i)"
-            >
-              <ArrowDownUp :size="11" /> {{ sortField(level.field).dirLabels[level.dir] }}
-            </button>
-          </div>
+          <button
+            type="button"
+            class="level-main"
+            :title="`Click to switch to ${sortField(level.field).dirLabels[level.dir === 'asc' ? 'desc' : 'asc'].toLowerCase()}`"
+            @click="toggleDir(i)"
+          >
+            <span class="level-name">{{ sortField(level.field).label }}</span>
+            <span class="level-dir"><ArrowDownUp :size="11" /> {{ sortField(level.field).dirLabels[level.dir] }}</span>
+          </button>
           <button
             type="button"
             class="row-btn"
@@ -240,40 +225,34 @@ function handleOverlayClick(event) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.15rem;
-  padding: 0.3rem 0.5rem;
+  gap: 0.1rem;
+  padding: 0.35rem 0.6rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);
   background: var(--color-background-soft);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s;
 }
 
-.level-field {
-  max-width: 100%;
-  padding: 0;
-  border: none;
-  background: var(--color-background-soft);
-  color: var(--color-heading);
-  font-family: inherit;
+.level-main:hover {
+  border-color: var(--accent);
+}
+
+.level-name {
   font-size: 0.85rem;
   font-weight: 600;
-  cursor: pointer;
+  color: var(--color-heading);
 }
 
 .level-dir {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-family: inherit;
   font-size: 0.72rem;
-  cursor: pointer;
-}
-
-.level-dir:hover {
-  text-decoration: underline;
+  color: var(--accent);
 }
 
 .row-btn {
