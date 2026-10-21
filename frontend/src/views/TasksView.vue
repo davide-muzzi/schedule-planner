@@ -330,7 +330,16 @@ async function handleSubmit(payload) {
       const status = group.status === 'Done' ? 'Backlog' : group.status
       await tasksStore.createTask({ ...payload, taskType: 'Task', parentTaskId: group.id, status })
     } else {
-      await tasksStore.createTask(payload)
+      const created = await tasksStore.createTask(payload)
+      // A new Group is empty - go straight on to its edit form, where its
+      // subtasks are managed. nextTick lets the create form unmount first,
+      // so the edit form mounts fresh rather than reusing it.
+      if (created.taskType === 'Group') {
+        closeModal()
+        await nextTick()
+        openEdit(created)
+        return
+      }
     }
     closeModal()
   } catch {
