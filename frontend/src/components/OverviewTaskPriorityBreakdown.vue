@@ -30,10 +30,10 @@ const segments = computed(() => {
   return PRIORITY_ORDER.map((priority) => {
     const count = props.counts[priority] ?? 0
     const percent = total.value > 0 ? (count / total.value) * 100 : 0
-    // Dasharray starts at the 3 o'clock point by default - offsetting by 25
-    // (a quarter of the 100-unit circumference) rotates the start to 12
-    // o'clock, then each segment's offset shifts back by everything before it.
-    const segment = { priority, count, percent, offset: 25 - cumulativePercent, color: PRIORITY_COLORS[priority] }
+    // Dasharray starts at the 3 o'clock point by default - the SVG's own
+    // rotate(-90deg) (see .donut) already moves that to 12 o'clock, so each
+    // segment's offset only shifts it clockwise past everything before it.
+    const segment = { priority, count, percent, offset: -cumulativePercent, color: PRIORITY_COLORS[priority] }
     cumulativePercent += percent
     return segment
   })
