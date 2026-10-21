@@ -496,6 +496,9 @@ async function handleUpdateTags(target, tagIds) {
 
       <div v-else class="header-actions-mobile">
         <div class="mobile-icon-row">
+          <button type="button" class="icon-btn" aria-label="Sort by" title="Sort by" @click="showSortModal = true">
+            <ArrowDownUp :size="16" />
+          </button>
           <button
             type="button"
             class="icon-btn"
@@ -539,9 +542,6 @@ async function handleUpdateTags(target, tagIds) {
           </button>
         </div>
 
-        <button type="button" class="filter-btn mobile-sort-btn" @click="showSortModal = true">
-          <ArrowDownUp :size="14" /> Sort by
-        </button>
       </div>
     </div>
 
@@ -740,10 +740,6 @@ async function handleUpdateTags(target, tagIds) {
   border-radius: 50%;
   background: var(--bad);
   border: 1.5px solid var(--bg);
-}
-
-.mobile-sort-btn {
-  justify-content: center;
 }
 
 .search-control {
