@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@lucide/vue": "^1.32.0",
+    "@lucide/vue": "^1.38.0",
     "axios": "^1.19.0",
     "markdown-it": "^14.3.3",
     "pinia": "^4.0.2",
