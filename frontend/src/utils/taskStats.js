@@ -1,22 +1,27 @@
 import { durationHours } from './date'
 import { taskDiffStatus } from './status'
 
-function linkedWorkingEntries(entries, taskId) {
-  return entries.filter((e) => e.taskItemId === taskId && e.entryType === 'Working' && !e.allDay)
+// A task's timed linked entries, of any entry type. `workingOnly` narrows it
+// to Working entries - the Overview page's task stats use that, so e.g. a
+// linked Appointment counts toward the task itself but not those stats.
+function linkedTimedEntries(entries, taskId, workingOnly = false) {
+  return entries.filter(
+    (e) => e.taskItemId === taskId && !e.allDay && (!workingOnly || e.entryType === 'Working'),
+  )
 }
 
-export function realMinutesForTask(entries, taskId) {
-  return linkedWorkingEntries(entries, taskId).reduce(
+export function realMinutesForTask(entries, taskId, { workingOnly = false } = {}) {
+  return linkedTimedEntries(entries, taskId, workingOnly).reduce(
     (sum, e) => sum + durationHours(e.startTime, e.endTime) * 60,
     0,
   )
 }
 
-// The earliest start date/time among a task's linked Working entries, or
+// The earliest start date/time among a task's timed linked entries, or
 // null if it has none - used to decide when a Backlog/Ready task should
 // flip to In Progress.
 export function earliestLinkedEntryDateTime(entries, taskId) {
-  const linked = linkedWorkingEntries(entries, taskId)
+  const linked = linkedTimedEntries(entries, taskId)
   if (linked.length === 0) return null
   return linked
     .map((e) => new Date(`${e.date}T${e.startTime}`))
@@ -24,8 +29,8 @@ export function earliestLinkedEntryDateTime(entries, taskId) {
 }
 
 // Whether a task is linked to any planner entry at all - deliberately not
-// restricted to timed Working entries (unlike earliestLinkedEntryDateTime)
-// since an all-day Working entry still counts as "linked", it just has no
+// restricted to timed entries (unlike earliestLinkedEntryDateTime)
+// since an all-day entry still counts as "linked", it just has no
 // clock time to compare against "now".
 function isTaskLinked(entries, taskId) {
   return entries.some((e) => e.taskItemId === taskId)

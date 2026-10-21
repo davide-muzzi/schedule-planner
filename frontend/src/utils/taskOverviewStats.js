@@ -67,7 +67,7 @@ export function taskTimeByPriority(tasks, entries) {
   const totals = { High: 0, Medium: 0, Low: 0, None: 0 }
   for (const task of topLevelTasks(tasks)) {
     const priority = task.priority ?? 'None'
-    totals[priority] += realMinutesForTask(entries, task.id) / 60
+    totals[priority] += realMinutesForTask(entries, task.id, { workingOnly: true }) / 60
   }
 
   const grandTotal = Object.values(totals).reduce((sum, h) => sum + h, 0)
@@ -91,7 +91,7 @@ export function taskEstimateAccuracy(tasks, entries) {
   let realMinutes = 0
 
   for (const task of tasks) {
-    const real = realMinutesForTask(entries, task.id)
+    const real = realMinutesForTask(entries, task.id, { workingOnly: true })
     if (real <= 0) continue
     // A Group's own estimatedMinutes is always 0 server-side - its real
     // estimate is the live sum of its subtasks (see plannedMinutesForGroup).

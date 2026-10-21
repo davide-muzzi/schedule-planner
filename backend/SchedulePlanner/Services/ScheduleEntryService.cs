@@ -119,18 +119,12 @@ public class ScheduleEntryService : IScheduleEntryService
         }
     }
 
-    // A task can only be linked to a Working entry - kept in sync with the
-    // disabled-unless-Working Linked Task field in EntryFormModal.vue.
+    // Any entry type can be linked to a task.
     private async Task ValidateTaskLinkAsync(ScheduleEntry entry)
     {
         if (entry.TaskItemId is null)
         {
             return;
-        }
-
-        if (entry.EntryType != EntryType.Working)
-        {
-            throw new ArgumentException("Only Working entries can be linked to a task.");
         }
 
         var taskExists = await _context.Tasks.AnyAsync(t => t.Id == entry.TaskItemId);

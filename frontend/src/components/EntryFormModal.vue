@@ -191,7 +191,6 @@ function handleEntryTypeChange() {
     form.value.allDay = false
   }
   form.value.workLocation = form.value.entryType === 'Working' ? 'Office' : ''
-  if (form.value.entryType !== 'Working') form.value.taskItemId = null
 }
 
 function handleSubmit() {
@@ -214,7 +213,7 @@ function handleSubmit() {
     endTime: form.value.allDay ? null : `${form.value.endTime}:00`,
     entryType: form.value.entryType,
     workLocation: form.value.workLocation || null,
-    taskItemId: form.value.entryType === 'Working' ? form.value.taskItemId || null : null,
+    taskItemId: form.value.taskItemId || null,
     notes: form.value.notes.trim() || null,
   }
 
@@ -350,8 +349,6 @@ function handleOverlayClick(event) {
             <button
               type="button"
               class="task-select-trigger"
-              :disabled="form.entryType !== 'Working'"
-              :title="form.entryType !== 'Working' ? 'Only Working entries can be linked to a task' : ''"
               @click="showTaskPicker = true"
             >
               <span class="task-select-value">{{ selectedTaskLabel }}</span>
@@ -362,7 +359,7 @@ function handleOverlayClick(event) {
               class="task-unlink-btn"
               title="Unlink task"
               aria-label="Unlink task"
-              :disabled="form.entryType !== 'Working' || form.taskItemId === null"
+              :disabled="form.taskItemId === null"
               @click="unlinkTask"
             >
               <Unlink :size="14" />
