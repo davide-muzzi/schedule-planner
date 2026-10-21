@@ -9,10 +9,9 @@ const props = defineProps({
 
 const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI']
 
-// Same headroom idea as the weekly chart's SCALE_RATIO, applied to a single
-// day instead of a week.
-const SCALE_RATIO = 1.1
-const scaleMaxHours = computed(() => props.dailyTargetHours * SCALE_RATIO)
+// The longest weekday average fills the whole track; the rest are scaled
+// relative to it.
+const scaleMaxHours = computed(() => Math.max(0, ...DAY_LABELS.map((_, i) => props.hoursByWeekday[i] || 0)))
 
 const rows = computed(() =>
   DAY_LABELS.map((label, i) => {
@@ -20,7 +19,7 @@ const rows = computed(() =>
     return {
       label,
       hours,
-      widthPercent: Math.min(100, (hours / scaleMaxHours.value) * 100),
+      widthPercent: scaleMaxHours.value > 0 ? (hours / scaleMaxHours.value) * 100 : 0,
       status: hours >= props.dailyTargetHours ? 'ok' : 'warn',
     }
   }),
