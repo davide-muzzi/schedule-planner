@@ -167,16 +167,25 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown, tru
   height: 100%;
 }
 
-.notes-slide-enter-active,
-.notes-slide-leave-active {
+/* Opening: the task form slides over first, then the panel fades in once
+   there's room. Closing runs it in reverse - fade out, then slide back. */
+.notes-slide-enter-active {
   transition:
-    width 0.22s ease,
-    margin-left 0.22s ease,
-    opacity 0.22s ease;
+    width 0.26s ease,
+    margin-left 0.26s ease,
+    opacity 0.2s ease 0.2s;
 }
 
-.notes-slide-enter-from,
-.notes-slide-leave-to {
+.notes-slide-leave-active {
+  transition:
+    opacity 0.15s ease,
+    width 0.24s ease 0.1s,
+    margin-left 0.24s ease 0.1s;
+}
+
+/* Qualified with .notes-host.docked so these outrank its width/margin above */
+.notes-host.docked.notes-slide-enter-from,
+.notes-host.docked.notes-slide-leave-to {
   width: 0;
   margin-left: 0;
   opacity: 0;
