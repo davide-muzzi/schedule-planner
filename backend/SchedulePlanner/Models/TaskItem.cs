@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 namespace SchedulePlanner.Models;
@@ -24,9 +25,20 @@ public class TaskItem
     [JsonIgnore]
     public ICollection<TaskItem> Subtasks { get; set; } = new List<TaskItem>();
 
-    // Unlike Subtasks/ParentTask/Entries above, this IS Include()d wherever
-    // the API returns a TaskItem, so it serializes with real data.
+    // Many-to-many skip navigation - unordered, so it's not what the API
+    // returns; see OrderedTags below.
+    [JsonIgnore]
     public ICollection<Tag> Tags { get; set; } = new List<Tag>();
+
+    // The join rows, carrying each tag's Position. Include()d (with their
+    // Tag) wherever the API returns a TaskItem.
+    [JsonIgnore]
+    public ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>();
+
+    // What the API serializes as "tags" - in the order they were added.
+    [NotMapped]
+    [JsonPropertyName("tags")]
+    public IEnumerable<Tag> OrderedTags => TaskTags.OrderBy(tt => tt.Position).Select(tt => tt.Tag);
 
     // "#rrggbb", or null when the task has no assigned color. Shown as
     // diagonal stripes over this task's linked entries in the Planner.

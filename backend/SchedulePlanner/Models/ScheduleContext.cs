@@ -41,6 +41,13 @@ public class ScheduleContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<TaskItem>()
             .HasMany(t => t.Tags)
             .WithMany(tag => tag.Tasks)
-            .UsingEntity(j => j.ToTable("TaskTags"));
+            .UsingEntity<TaskTag>(
+                r => r.HasOne(tt => tt.Tag).WithMany().HasForeignKey(tt => tt.TagsId),
+                l => l.HasOne(tt => tt.Task).WithMany(t => t.TaskTags).HasForeignKey(tt => tt.TasksId),
+                j =>
+                {
+                    j.ToTable("TaskTags");
+                    j.HasKey(tt => new { tt.TagsId, tt.TasksId });
+                });
     }
 }

@@ -354,6 +354,24 @@ namespace SchedulePlanner.Migrations
                     b.ToTable("Tasks");
                 });
 
+            modelBuilder.Entity("SchedulePlanner.Models.TaskTag", b =>
+                {
+                    b.Property<int>("TagsId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TasksId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("TagsId", "TasksId");
+
+                    b.HasIndex("TasksId");
+
+                    b.ToTable("TaskTags", (string)null);
+                });
+
             modelBuilder.Entity("SchedulePlanner.Models.WorkGoalSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -366,21 +384,6 @@ namespace SchedulePlanner.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("WorkGoalSettings");
-                });
-
-            modelBuilder.Entity("TagTaskItem", b =>
-                {
-                    b.Property<int>("TagsId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("TasksId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("TagsId", "TasksId");
-
-                    b.HasIndex("TasksId");
-
-                    b.ToTable("TaskTags", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -454,19 +457,23 @@ namespace SchedulePlanner.Migrations
                     b.Navigation("ParentTask");
                 });
 
-            modelBuilder.Entity("TagTaskItem", b =>
+            modelBuilder.Entity("SchedulePlanner.Models.TaskTag", b =>
                 {
-                    b.HasOne("SchedulePlanner.Models.Tag", null)
+                    b.HasOne("SchedulePlanner.Models.Tag", "Tag")
                         .WithMany()
                         .HasForeignKey("TagsId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SchedulePlanner.Models.TaskItem", null)
-                        .WithMany()
+                    b.HasOne("SchedulePlanner.Models.TaskItem", "Task")
+                        .WithMany("TaskTags")
                         .HasForeignKey("TasksId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Task");
                 });
 
             modelBuilder.Entity("SchedulePlanner.Models.TaskItem", b =>
@@ -474,6 +481,8 @@ namespace SchedulePlanner.Migrations
                     b.Navigation("Entries");
 
                     b.Navigation("Subtasks");
+
+                    b.Navigation("TaskTags");
                 });
 #pragma warning restore 612, 618
         }

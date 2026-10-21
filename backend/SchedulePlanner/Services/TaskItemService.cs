@@ -13,20 +13,26 @@ public class TaskItemService : ITaskItemService
         _context = context;
     }
 
+    // Tags come through their join rows (with Position) rather than the
+    // unordered skip navigation - see TaskItem.OrderedTags.
+    private IQueryable<TaskItem> TasksWithTags() =>
+        _context.Tasks.Include(t => t.TaskTags).ThenInclude(tt => tt.Tag);
+
     public async Task<List<TaskItem>> GetAllAsync()
     {
-        return await _context.Tasks.Include(t => t.Tags).ToListAsync();
+        return await TasksWithTags().ToListAsync();
     }
 
     public async Task<TaskItem?> GetByIdAsync(int id)
     {
-        return await _context.Tasks.Include(t => t.Tags).FirstOrDefaultAsync(t => t.Id == id);
+        return await TasksWithTags().FirstOrDefaultAsync(t => t.Id == id);
     }
 
     public async Task<TaskItem> CreateAsync(TaskItem task, List<int>? tagIds = null)
     {
         await Validate(task, id: null);
-        task.Tags = await ResolveTags(tagIds);
+        var tags = await ResolveTags(tagIds);
+        task.TaskTags = tags.Select((tag, i) => new TaskTag { Tag = tag, Position = i }).ToList();
 
         var now = DateTime.UtcNow;
         task.CreatedAt = now;
@@ -40,7 +46,7 @@ public class TaskItemService : ITaskItemService
 
     public async Task<TaskItem?> UpdateAsync(int id, TaskItem task, List<int>? tagIds = null)
     {
-        var existing = await _context.Tasks.Include(t => t.Tags).FirstOrDefaultAsync(t => t.Id == id);
+        var existing = await TasksWithTags().FirstOrDefaultAsync(t => t.Id == id);
         if (existing is null)
         {
             return null;
@@ -73,23 +79,42 @@ public class TaskItemService : ITaskItemService
         existing.DueDate = task.DueDate;
         existing.LastUpdatedAt = DateTime.UtcNow;
 
-        existing.Tags.Clear();
-        foreach (var tag in await ResolveTags(tagIds))
+        // Kept rows are updated in place (just their Position) rather than
+        // cleared and re-added - re-adding a join row with the same key
+        // while the old one is still tracked as Deleted makes EF throw.
+        var tags = await ResolveTags(tagIds);
+        var keepIds = tags.Select(t => t.Id).ToHashSet();
+        foreach (var row in existing.TaskTags.Where(tt => !keepIds.Contains(tt.TagsId)).ToList())
         {
-            existing.Tags.Add(tag);
+            existing.TaskTags.Remove(row);
+        }
+        for (var i = 0; i < tags.Count; i++)
+        {
+            var row = existing.TaskTags.FirstOrDefault(tt => tt.TagsId == tags[i].Id);
+            if (row is null)
+            {
+                existing.TaskTags.Add(new TaskTag { Tag = tags[i], Position = i });
+            }
+            else
+            {
+                row.Position = i;
+            }
         }
 
         await _context.SaveChangesAsync();
         return existing;
     }
 
+    // Returns the tags in the order the ids were given (unknown ids and
+    // duplicates dropped), since that order becomes each tag's Position.
     private async Task<List<Tag>> ResolveTags(List<int>? tagIds)
     {
         if (tagIds is null || tagIds.Count == 0)
         {
             return new List<Tag>();
         }
-        return await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync();
+        var byId = await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id);
+        return tagIds.Distinct().Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 
     public async Task<bool> DeleteAsync(int id, bool cascadeSubtasks = false)
